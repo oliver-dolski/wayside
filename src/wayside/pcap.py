@@ -24,13 +24,48 @@ analogicznie do zalecenia z Pitfall 3.
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
-from scapy.utils import rdpcap  # noqa: E402
+# scapy przy imporcie buduje cache slownikow danych (`services.pickle` i
+# pokrewne) w katalogu wyliczanym raz, w `scapy.main`, z `XDG_CACHE_HOME`
+# albo z `~/.cache`. Zapis do tego cache'u scapy obsluguje lagodnie, ale
+# sprawdzenie `cachepath.exists()` w `scapy.data.scapy_data_cache` NIE jest
+# oslonione - a `pathlib.Path.exists()` na katalogu, ktorego ACL zabrania
+# nawet przejscia, podnosi `PermissionError`, zamiast zwrocic `False`. Dosc
+# jednego `~/.cache/scapy` z restrykcyjnym ACL (typowo: zostawionego przez
+# wczesniejsze uruchomienie scapy z podniesionymi uprawnieniami), zeby kazdy
+# import tego modulu konczyl sie wyjatkiem.
+#
+# FOUND-02 obiecuje pakiet testow przechodzacy na czystym klonie, a nie na
+# maszynie o wlasciwym stanie katalogu domowego, wiec cache scapy dostaje
+# deterministyczna lokalizacje w katalogu tymczasowym. Cache jest wylacznie
+# optymalizacja czasu startu - jego utrata nie zmienia wyniku odczytu.
+#
+# Nadpisanie obowiazuje TYLKO na czas importu scapy: `XDG_CACHE_HOME` jest
+# zmienna procesu, a scapy czyta ja raz, wiec po imporcie wracamy do
+# poprzedniej wartosci i nie przekierowujemy cache'u innym bibliotekom.
+# Jawnie ustawiony `XDG_CACHE_HOME` (np. w CI) ma pierwszenstwo i nie jest
+# ruszany. Warunek dziala, dopoki ten modul jest jedynym miejscem w pakiecie
+# importujacym scapy - patrz `tests/test_no_external_dissector.py`.
+_SCAPY_CACHE_FALLBACK = str(Path(tempfile.gettempdir()) / "wayside-scapy-cache")
+_XDG_CACHE_HOME_BEFORE_IMPORT = os.environ.get("XDG_CACHE_HOME")
+
+if _XDG_CACHE_HOME_BEFORE_IMPORT is None:
+    os.environ["XDG_CACHE_HOME"] = _SCAPY_CACHE_FALLBACK
+
+try:
+    from scapy.utils import rdpcap  # noqa: E402
+finally:
+    if _XDG_CACHE_HOME_BEFORE_IMPORT is None:
+        os.environ.pop("XDG_CACHE_HOME", None)
+    else:
+        os.environ["XDG_CACHE_HOME"] = _XDG_CACHE_HOME_BEFORE_IMPORT
 
 __all__ = ["CaptureSummary", "read_capture", "summarize"]
 

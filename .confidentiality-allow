@@ -11,3 +11,12 @@
 # Pitfall 6 w 01-RESEARCH.md), wiec sa jedynymi uzasadnionymi wpisami.
 tests/test_confidentiality_guard.py
 tests/test_confidentiality_guard_integration.py
+
+# Artefakt planowania fazy 1 cytuje ten sam wymyslony przyklad testowy
+# (linia 225, blok kodu oznaczony w dokumencie jako "dane WYMYSLONE, nigdy
+# prawdziwy cytat normy"), wiec warstwa 2 slusznie go rozpoznaje po ksztalcie.
+# Bez tego wpisu kazda przyszla edycja tego pliku - przy zamykaniu luk albo
+# przy przeplanowaniu fazy - konczylaby sie odrzuceniem commitu.
+# Sprawdzone przed dopisaniem: to jedyne trafienie bramki w calym drzewie
+# sledzonym przez gita, i jest to przyklad wymyslony, nie cytat.
+.planning/phases/01-fundament-poufno-i-warunek-publikacji/01-RESEARCH.md

@@ -1,0 +1,140 @@
+# CI dla Wayside.
+#
+# Platforma docelowa projektu to Windows 11 z Windows PowerShell 5.1, wiec oba joby
+# ponizej dzialaja na `windows-latest` - nie z preferencji, tylko dlatego, ze pakiet
+# testow zielony wylacznie na Linuksie nie dowodzilby FOUND-02 ("przechodza na
+# czystym klonie", a nie "przechodza u autora"). Kroki uzywaja jawnie `shell: pwsh`
+# (PowerShell Core), bo to domyslna powloka runnera `windows-latest` i GitHub Actions
+# automatycznie dopisuje do niej `$ErrorActionPreference = 'stop'` oraz propagacje
+# `$LASTEXITCODE` jako status kroku - jeden wybor powloki w calym pliku, zeby uniknac
+# przebiegow, ktore "dzialaja lokalnie" pod inna powloka niz ta uzywana w CI.
+#
+# GRANICA ARCHITEKTONICZNA, NIE NIEDOPATRZENIE: job `confidentiality-backstop` NIE MA
+# i NIE MOZE MIEC dostepu do lokalnego korpusu norm `standards/.local/` - katalog jest
+# gitignorowany i nigdy nie trafia do zdalnego repozytorium (patrz FOUND-04). Backstop
+# uruchamia wylacznie warstwe strukturalna (`--no-corpus`) bramki poufnosci oraz kontrole
+# sciezki w calej historii. Proba "naprawienia" tego przez wgranie korpusu do sekretow
+# repozytorium zniweczylaby cel calej bramki: korpus zostajacy na jednej maszynie jest
+# kontrola, nie niedogodnoscia. Ten backstop jest z natury DETEKCYJNY, nie PREWENCYJNY -
+# GitHub.com nie daje kontom osobistym server-side pre-receive hookow, wiec czerwony
+# status potwierdza naruszenie PO fakcie (po `git push`), a nie zapobiega samemu
+# wyslaniu tresci. Szczegoly granic opisane w README.md sekcja "## Weryfikacja w CI".
+
+name: ci
+
+# Cudzyslow wokol "on" jest celowy: bez niego PyYAML (YAML 1.1) parsuje ten bareword
+# jako bool `True`, nie string "on" - `tests/test_ci_workflow_contract.py` czytalby
+# wtedy klucz `True` zamiast "on". GitHub Actions akceptuje obie formy identycznie.
+"on":
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Pelny pakiet testow (swiezy checkout)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Instalacja uv
+        uses: astral-sh/setup-uv@v10
+
+      - name: Synchronizacja srodowiska (--locked)
+        shell: pwsh
+        run: uv sync --locked
+
+      - name: Bramka kompletnosci kolekcji testow
+        shell: pwsh
+        run: |
+          # `uv run pytest` sam konczy sie niezerowym kodem przy zerowej liczbie
+          # zebranych testow, ale nie zauwaza sytuacji, w ktorej jeden konkretny
+          # modul bramkujacy wypadl z kolekcji (np. przez blad importu wyciszony
+          # konfiguracja albo zmiane `testpaths`) podczas gdy reszta pakietu nadal
+          # rosnie. Ten krok sprawdza obecnosc piatki modulow krytycznych fazy 1
+          # wprost, zamiast polegac na progu liczbowym testow (ktory prog albo
+          # bylby zanizony do nieuzytecznosci, albo falszowalby przebiegi w miare
+          # jak pakiet rosnie w kolejnych fazach).
+          $collected = uv run pytest --collect-only -q 2>&1 | Out-String
+          Write-Host $collected
+
+          $criticalModules = @(
+            'test_confidentiality_guard_integration',
+            'test_no_history_leak',
+            'test_fixture_manifest',
+            'test_no_external_dissector',
+            'test_check_pub_gate'
+          )
+
+          $missing = @()
+          foreach ($moduleName in $criticalModules) {
+            if ($collected -notmatch [regex]::Escape($moduleName)) {
+              $missing += $moduleName
+            }
+          }
+
+          if ($missing.Count -gt 0) {
+            Write-Error "Modul(y) bramkujace zniknely z kolekcji testow: $($missing -join ', ')"
+            exit 1
+          }
+
+          Write-Host "Wszystkie piec modulow krytycznych fazy 1 obecne w kolekcji."
+
+      - name: Uruchomienie pakietu testow
+        shell: pwsh
+        run: uv run pytest
+
+  confidentiality-backstop:
+    name: Backstop poufnosci (detekcyjny)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout (pelna historia)
+        uses: actions/checkout@v7
+        with:
+          # Bez tego `git log --all` w kroku ponizej widzi wylacznie plytka
+          # historie (domyslnie 1 commit) i bramka historii wygladalaby na
+          # zielona, mimo ze w ogole nie sprawdzila historii repozytorium.
+          fetch-depth: 0
+
+      - name: Instalacja uv
+        uses: astral-sh/setup-uv@v10
+
+      - name: Synchronizacja srodowiska (--locked)
+        shell: pwsh
+        run: uv sync --locked
+
+      - name: Bramka poufnosci - warstwa strukturalna (bez korpusu)
+        shell: pwsh
+        run: |
+          # `scripts/confidentiality_guard.py` uzywa wylacznie biblioteki
+          # standardowej, wiec dziala tu bez dodatkowych zaleznosci. Flaga
+          # `--no-corpus` jest obowiazkowa w CI - patrz komentarz na gorze
+          # pliku o granicy architektonicznej.
+          $trackedFiles = git ls-files
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "git ls-files zakonczylo sie kodem $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+          uv run python scripts/confidentiality_guard.py --no-corpus @trackedFiles
+
+      - name: Bramka poufnosci - pusta historia standards/.local
+        shell: pwsh
+        run: |
+          # Wyrocznia z Pattern 3 badania fazy 1: jesli ta komenda kiedykolwiek
+          # zwroci commit, to nie jest scenariusz do naprawienia kolejnym
+          # commitem - tresc juz jest w historii i wymaga `git filter-repo`
+          # (albo BFG Repo-Cleaner) plus force-push przed jakimkolwiek
+          # publicznym pushem.
+          $history = git log --all -- standards/.local
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "git log --all zakonczylo sie kodem $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+          if ($history) {
+            Write-Error "Katalog standards/.local ma wpisy w historii gita - wymagane git filter-repo przed publicznym pushem."
+            exit 1
+          }
+
+          Write-Host "Historia standards/.local jest pusta."

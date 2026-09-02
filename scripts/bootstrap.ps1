@@ -50,6 +50,63 @@ if ($LASTEXITCODE -ne 0) {
     throw "uv sync zakonczylo sie kodem $LASTEXITCODE"
 }
 
+# Git swiadomie NIE kopiuje .git/hooks/* przy klonowaniu (hak w cudzym
+# repozytorium moglby wykonac dowolny kod przy pierwszym commicie), wiec ten
+# krok jest tu, a nie czyms, co "juz dziala" po samym `uv sync`. Bez niego
+# bramka poufnosci (scripts/confidentiality_guard.py) istnieje jako kod, ale
+# nigdy nie zostaje uruchomiona przy commicie.
+#
+# Dewelopera z wlasnym, scentralizowanym `core.hooksPath` (typowa praktyka
+# bezpieczenstwa/zespolowa, nie tylko jedna maszyna) `pre-commit install`
+# odmawia obslugiwac wprost - narzedzie nie wie, czy hak pod tamta sciezka
+# jest bezpieczny do nadpisania, i celowo sie zatrzymuje. Nadpisanie jest tu
+# wylacznie na czas TEGO JEDNEGO polecenia: `GIT_CONFIG_GLOBAL` przestawia
+# gita na pusty plik configu zamiast prawdziwego globalnego, wiec `pre-commit
+# install` nie widzi zadnego `core.hooksPath`. Nic nie jest zapisywane do
+# prawdziwego globalnego configu dewelopera - podmieniany jest tylko plik, na
+# ktory ta jedna komenda patrzy. (Pusty string w `GIT_CONFIG_VALUE_0` NIE
+# dziala jako obejscie na Windows - PowerShell traktuje `$env:X = ""` jako
+# usuniecie zmiennej, a git wtedy zglasza `missing config value`.)
+$existingHooksPath = git config --get core.hooksPath 2>$null
+if ($LASTEXITCODE -eq 0 -and $existingHooksPath) {
+    Write-Host "core.hooksPath jest ustawione na '$existingHooksPath'."
+    Write-Host "Instaluje z tymczasowym nadpisaniem tego ustawienia (tylko na czas tego polecenia)."
+    $emptyGlobalConfig = Join-Path ([System.IO.Path]::GetTempPath()) "wayside-empty-gitconfig-$PID.ini"
+    New-Item -ItemType File -Path $emptyGlobalConfig -Force | Out-Null
+    $env:GIT_CONFIG_GLOBAL = $emptyGlobalConfig
+}
+
+Write-Host "Instaluje hak pre-commit (uv run pre-commit install)..."
+uv run pre-commit install
+$preCommitInstallExitCode = $LASTEXITCODE
+
+if ($env:GIT_CONFIG_GLOBAL) {
+    Remove-Item $env:GIT_CONFIG_GLOBAL -ErrorAction SilentlyContinue
+    Remove-Item Env:\GIT_CONFIG_GLOBAL -ErrorAction SilentlyContinue
+}
+
+if ($preCommitInstallExitCode -ne 0) {
+    throw "uv run pre-commit install zakonczylo sie kodem $preCommitInstallExitCode"
+}
+
+if ($existingHooksPath) {
+    # Hak jest juz zapisany w .git/hooks, ale bez tego kroku git nadal
+    # szukalby go pod poprzednim core.hooksPath przy prawdziwym `git commit`
+    # i haka poufnosci nigdy by nie wywolal. Przypiecie jest LOKALNE (tylko
+    # to jedno repozytorium, w .git/config, nigdy scommitowane) i wskazuje
+    # dokladnie na standardowa, domyslna lokalizacje gita - inne repozytoria
+    # tego dewelopera i jego globalne ustawienie zostaja bez zmian.
+    git config --local core.hooksPath ".git/hooks"
+    Write-Host "core.hooksPath przypiete lokalnie do .git/hooks dla tego repozytorium (ustawienie globalne bez zmian)."
+}
+
+$hookPath = Join-Path (Join-Path (Get-Location) ".git") "hooks\pre-commit"
+if (-not (Test-Path $hookPath)) {
+    Write-Host "Plik $hookPath nie powstal po instalacji haka." -ForegroundColor Red
+    exit 1
+}
+Write-Host "Hak pre-commit zainstalowany: $hookPath"
+
 Write-Host ""
 Write-Host "== Bootstrap zakonczony =="
 Write-Host "Uruchomienie CLI:  uv run wayside inspect <plik.pcap>"

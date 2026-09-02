@@ -27,3 +27,15 @@ tests/test_review_blockers_01.py
 # slusznie go rozpoznaje po ksztalcie. Zdanie jest wymyslone na potrzeby
 # dowodu, nie jest cytatem zadnej normy.
 .planning/phases/01-fundament-poufno-i-warunek-publikacji/01-REVIEW.md
+
+# Raport weryfikacji fazy 1 cytuje zdanie probne uzyte do dowiedzenia, ze
+# hak odrzuca tekst o ksztalcie normatywnym. Ta sama klasa co powyzsze.
+#
+# UWAGA NA WZORZEC: to juz trzeci artefakt planowania dopuszczony z tego
+# samego powodu. Nie jest to erozja warstwy 2, tylko jej wlasciwosc: kazdy
+# dokument, ktory OPISUJE dzialanie bramki, musi zawierac przyklad
+# o ksztalcie klauzuli, wiec bramka slusznie go zapala. Jesli lista urosnie
+# dalej, wlasciwa odpowiedzia jest znacznik w tresci (np. komentarz
+# wylaczajacy pojedyncza linie), a nie kolejny wpis na cala sciezke - wpis
+# na plik zdejmuje warstwe 2 z CALEGO pliku, takze z tresci dopisanej pozniej.
+.planning/phases/01-fundament-poufno-i-warunek-publikacji/01-VERIFICATION.md

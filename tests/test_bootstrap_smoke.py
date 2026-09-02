@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
+
+import pytest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -40,5 +42,33 @@ def test_inspect_fixture_exits_zero_and_prints_packet_count():
 
 def test_inspect_missing_file_exits_two_without_traceback():
     result = _run_cli("inspect", "nie-istnieje.pcap")
+    assert result.returncode == 2
+    assert "Traceback" not in result.stderr
+
+
+# WR-01 z `01-REVIEW.md`. `read_capture` opiera sie na `Path.exists()`, ktore
+# jest prawdziwe takze dla katalogu, a istniejacy plik moze byc uszkodzonym
+# albo plikiem nieczytelnym jako pcap. Oba podnosza z `rdpcap` wyjatek spoza
+# `FileNotFoundError`, wiec przed poprawka konczyly sie surowym tracebackiem
+# zamiast komunikatu i kodu 2. Test na brakujacym pliku wyzej ich nie lapal.
+def test_inspect_directory_exits_two_without_traceback(tmp_path):
+    result = _run_cli("inspect", str(tmp_path))
+    assert result.returncode == 2
+    assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("nazwa", "zawartosc"),
+    [
+        ("smieci.pcap", b"to nie jest pcap w ogole, zupelnie losowe bajty"),
+        ("pusty.pcap", b""),
+    ],
+)
+def test_inspect_unreadable_pcap_exits_two_without_traceback(
+    tmp_path, nazwa, zawartosc
+):
+    uszkodzony = tmp_path / nazwa
+    uszkodzony.write_bytes(zawartosc)
+    result = _run_cli("inspect", str(uszkodzony))
     assert result.returncode == 2
     assert "Traceback" not in result.stderr

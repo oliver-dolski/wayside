@@ -159,8 +159,8 @@ def _normalize_path_str(path: str) -> str:
     return path.replace("\\", "/")
 
 
-def _fold_path_for_corpus_match(path: str) -> str:
-    """Normalizuje sciezke do porownania z prefiksem lokalnego korpusu.
+def _fold_path_for_match(path: str) -> str:
+    """Normalizuje sciezke do porownania - warstwa 0 i lista wyjatkow.
 
     Poza separatorami zdejmuje takze wielkosc liter. Bez tego warstwa 0 da
     sie obejsc sama zmiana wielkosci liter: jedyna wspierana platforma to
@@ -191,7 +191,7 @@ def scan_paths(paths: list[str]) -> list[Violation]:
     """
     violations: list[Violation] = []
     for raw_path in paths:
-        normalized = _fold_path_for_corpus_match(raw_path)
+        normalized = _fold_path_for_match(raw_path)
         folded_prefix = LOCAL_CORPUS_PATH_PREFIX.casefold()
         if normalized == folded_prefix or normalized.startswith(folded_prefix + "/"):
             violations.append(
@@ -374,8 +374,21 @@ def _load_allow_patterns(allow_file: Path) -> list[str]:
 
 
 def _matches_allow_list(path: str, allow_patterns: list[str]) -> bool:
-    normalized = _normalize_path_str(path)
-    return any(fnmatch.fnmatch(normalized, pattern) for pattern in allow_patterns)
+    """Sprawdza sciezke wobec wzorcow wyjatkow warstwy strukturalnej.
+
+    Porownanie jest bezwrazliwe na wielkosc liter Z ZALOZENIA, tak samo jak
+    warstwa 0 - platforma docelowa to Windows, ktorego NTFS jest bezwrazliwy
+    na wielkosc liter. Samo `fnmatch.fnmatch` dawaloby ten efekt tylko na
+    Windows, bo zdejmuje wielkosc liter przez `os.path.normcase`; ta sama
+    lista wyjatkow zachowywalaby sie inaczej na Linuksie. Jawne `casefold()`
+    plus `fnmatchcase` daje jeden wynik na kazdej platformie i domyka rozjazd
+    z warstwa 0 opisany w WR-03 z 01-REVIEW.md.
+    """
+    normalized = _fold_path_for_match(path)
+    return any(
+        fnmatch.fnmatchcase(normalized, pattern.casefold())
+        for pattern in allow_patterns
+    )
 
 
 def scan_files(

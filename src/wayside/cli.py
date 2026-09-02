@@ -47,6 +47,15 @@ def inspect(
     except FileNotFoundError:
         typer.echo(f"Nie znaleziono pliku zrzutu: {path}", err=True)
         raise typer.Exit(code=2) from None
+    except Exception as exc:
+        # `read_capture` sprawdza tylko istnienie sciezki, a `Path.exists()`
+        # jest prawdziwe takze dla katalogu. Poza tym istniejacy, ale
+        # uszkodzony albo obciety pcap podnosi z `rdpcap` wyjatek z rodziny
+        # `Scapy_Exception`/`struct.error`, ktorej nie da sie tu wyliczyc
+        # z nazwy bez wiazania CLI z wewnetrznymi typami scapy. Uzytkownik
+        # narzedzia ma dostac komunikat i kod 2, nie surowy traceback.
+        typer.echo(f"Nie udalo sie odczytac zrzutu {path}: {exc}", err=True)
+        raise typer.Exit(code=2) from None
 
     typer.echo(f"Plik: {summary.path}")
     typer.echo(f"Liczba pakietow: {summary.packet_count}")
@@ -54,7 +63,11 @@ def inspect(
     last = summary.last_timestamp.isoformat() if summary.last_timestamp else "-"
     typer.echo(f"Pierwszy znacznik czasu: {first}")
     typer.echo(f"Ostatni znacznik czasu: {last}")
-    typer.echo(f"Dlugosc okna (s): {summary.duration_s}")
+    # Zaokraglenie jest w formatowaniu, nie w `CaptureSummary` - roznica
+    # znacznikow czasu w float niesie szum reprezentacji (0.01 s wychodzi
+    # jako 0.009999990463256836), a przyszli konsumenci API maja dostac
+    # wartosc nietkniata.
+    typer.echo(f"Dlugosc okna (s): {summary.duration_s:.6f}")
 
 
 def run() -> None:

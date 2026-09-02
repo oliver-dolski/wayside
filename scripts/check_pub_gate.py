@@ -132,6 +132,13 @@ def _reviewer_is_invalid(reviewer: str) -> bool:
     checkpoincie `gate="blocking-human"`, ktory nie jest zatwierdzany
     automatycznie w zadnym trybie. Tutaj lapiemy pomylke i wartosc
     zastepcza, nie zdeterminowanego falszerza.
+
+    Znana granica tej samej rodziny (IN-01 z 01-REVIEW.md): tokenizacja
+    dzieli po granicy niealfanumerycznej, wiec "gsd-bot" i "gsd_bot" sa
+    lapane, ale zlepek bez separatora ("gsdbot", "GsdAgent") juz nie.
+    Swiadomie nie rozszerzamy tego o dopasowanie po podciagu - "agent"
+    wystepuje w prawdziwych nazwiskach, a falszywy alarm blokowalby
+    rozstrzygniecie czlowieka.
     """
     if not reviewer:
         return True

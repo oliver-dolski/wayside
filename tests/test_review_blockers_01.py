@@ -158,3 +158,29 @@ def test_reviewer_field_accepts_human_names(reviewer):
     assert not check_pub_gate._reviewer_is_invalid(reviewer), (
         f"pole reviewer odrzucilo nazwisko czlowieka: {reviewer!r}"
     )
+
+
+# WR-03. Lista wyjatkow warstwy 2 stala na `fnmatch.fnmatch`, ktore zdejmuje
+# wielkosc liter przez `os.path.normcase` - czyli tylko na Windows. Ta sama
+# lista zachowywalaby sie inaczej na runnerze linuksowym niz na maszynie
+# autora, a warstwa 0 (CR-01 wyzej) jest bezwrazliwa na wielkosc liter na
+# obu. Poprawka nie zmienia wyniku na Windows, tylko przestaje go uzalezniac
+# od platformy.
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tests/test_confidentiality_guard.py",
+        "Tests/Test_Confidentiality_Guard.py",
+        "tests\\test_confidentiality_guard.py",
+    ],
+)
+def test_allow_list_is_case_insensitive_on_every_platform(path):
+    assert confidentiality_guard._matches_allow_list(
+        path, ["tests/test_confidentiality_guard.py"]
+    )
+
+
+def test_allow_list_does_not_overreach_to_other_files():
+    assert not confidentiality_guard._matches_allow_list(
+        "src/wayside/cli.py", ["tests/test_confidentiality_guard.py"]
+    )

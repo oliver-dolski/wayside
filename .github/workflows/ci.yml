@@ -38,7 +38,16 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Instalacja uv
-        uses: astral-sh/setup-uv@v10
+        # Dokladny tag latki, NIE `@v10`. `astral-sh/setup-uv` przestalo
+        # publikowac ruchomy tag glownej wersji od v8: repozytorium ma `v7.4`,
+        # `v7.5`, `v7.6`, ale dla v8, v9 i v10 istnieja wylacznie dokladne tagi
+        # latek. `@v10` nie istnieje jako ref (API zwraca 404), wiec `Set up job`
+        # przewraca sie po trzech sekundach z `Unable to resolve action`.
+        # Potwierdzone pierwszym realnym przebiegiem CI (run 33621915010,
+        # 2026-09-02). `actions/checkout@v7` zostaje na tagu glownym, bo tam
+        # ruchomy tag jest publikowany - to nie jest niespojnosc, to dwie rozne
+        # polityki tagowania u dwoch dostawcow.
+        uses: astral-sh/setup-uv@v10.0.1
 
       - name: Synchronizacja srodowiska (--locked)
         shell: pwsh
@@ -97,7 +106,16 @@ jobs:
           fetch-depth: 0
 
       - name: Instalacja uv
-        uses: astral-sh/setup-uv@v10
+        # Dokladny tag latki, NIE `@v10`. `astral-sh/setup-uv` przestalo
+        # publikowac ruchomy tag glownej wersji od v8: repozytorium ma `v7.4`,
+        # `v7.5`, `v7.6`, ale dla v8, v9 i v10 istnieja wylacznie dokladne tagi
+        # latek. `@v10` nie istnieje jako ref (API zwraca 404), wiec `Set up job`
+        # przewraca sie po trzech sekundach z `Unable to resolve action`.
+        # Potwierdzone pierwszym realnym przebiegiem CI (run 33621915010,
+        # 2026-09-02). `actions/checkout@v7` zostaje na tagu glownym, bo tam
+        # ruchomy tag jest publikowany - to nie jest niespojnosc, to dwie rozne
+        # polityki tagowania u dwoch dostawcow.
+        uses: astral-sh/setup-uv@v10.0.1
 
       - name: Synchronizacja srodowiska (--locked)
         shell: pwsh

@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 .venv/
 standards/.local/
+
+# Stan runtime GSD zwiazany z maszyna i sesja, nie z projektem:
+# sentinel izolacji dispatchu oraz blokada milestone z PID i identyfikatorem
+# sesji. Oba sa odtwarzane przy kazdym uruchomieniu i w historii tylko
+# generowalyby konflikty miedzy maszynami.
+.gsd/
+.planning/milestone.lock

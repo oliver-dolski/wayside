@@ -54,10 +54,8 @@ def find_missing_critical_modules(
 ) -> list[str]:
     """Zwraca podzbior `required_modules`, ktorego nazwa NIE wystepuje w
     `collection_gate_command`. Pusta lista znaczy: wszystkie obecne.
-
-    TODO(RED): stub - implementacja wlasciwa przychodzi w fazie GREEN.
     """
-    return []
+    return [name for name in required_modules if name not in collection_gate_command]
 
 
 # --- Ksztalt globalny --------------------------------------------------------

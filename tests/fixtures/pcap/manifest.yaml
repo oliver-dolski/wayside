@@ -1,0 +1,11 @@
+fixtures:
+  - path: modbus_write_single_register.pcap
+    sha256: "14b0e7ee7ebb79c3b13583dc3edcb2f1fbe4c95a1c7e62e17f8a99d7a28ff4f6"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_write_single_register
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Modbus/TCP write function code 0x06 do rejestru trzymajacego (zadanie
+      i odpowiedz), bez uwierzytelnienia, poprawny naglowek MBAP. Adresacja
+      z zakresu dokumentacyjnego RFC 5737, adresy MAC lokalnie administrowane.
+    protocol: modbus-tcp

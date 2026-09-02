@@ -1,9 +1,9 @@
 ---
 requirement: PUB-01
 scope: employment-contract-ip-and-non-compete
-reviewed_on:
-reviewer:
-verdict: pending
+reviewed_on: 2026-09-02
+reviewer: Oliver Dolski
+verdict: go
 basis: ["ROADMAP.md, Faza 1, Success Criteria 5 (2026-09-01)", "REQUIREMENTS.md, wpis PUB-01 (2026-09-01)"]
 next_review_due:
 ---
@@ -24,9 +24,10 @@ umowy.
 
 ## Wniosek
 
-Rozstrzygniecie jeszcze nie zapadlo. To pole zostanie uzupelnione doslownie
-tym, co powie czlowiek w odpowiedzi na checkpoint decyzyjny tego planu -
-nigdy wnioskiem wywiedzionym przez agenta.
+Narzedzie nie powstalo w ramach obowiazkow sluzbowych ani na zasobach
+pracodawcy, do repozytorium nie trafiaja zadne informacje pochodzace
+z firmy, a odrebnej umowy o zakazie konkurencji nie podpisywalem, wiec
+nie widze przeszkody dla publikacji.
 
 ## Skutki dla projektu
 

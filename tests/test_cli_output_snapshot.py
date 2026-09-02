@@ -1,0 +1,28 @@
+"""Test snapshotowy FOUND-02: pelne stdout komendy `inspect` przypiete do syrupy.
+
+Fixture przekazywana jest jako sciezka wzgledna wobec korzenia repozytorium
+(nie bezwzgledna), bo bezwzgledna sciezka rozni sie miedzy maszyna autora
+a runnerem CI i snapshot rozjezdzalby sie bez zadnej zmiany w kodzie.
+Znaczniki czasu w wyjsciu pochodza ze stalych ustawionych przez
+`scripts/gen_fixtures.py`, wiec sa juz deterministyczne.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+FIXTURE_RELATIVE = "tests/fixtures/pcap/modbus_write_single_register.pcap"
+
+
+def test_inspect_output_matches_snapshot(snapshot):
+    result = subprocess.run(
+        [sys.executable, "-m", "wayside.cli", "inspect", FIXTURE_RELATIVE],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert result.stdout == snapshot

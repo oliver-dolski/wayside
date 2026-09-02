@@ -1,0 +1,6 @@
+* text=auto
+*.pcap binary
+*.pcapng binary
+*.ambr text eol=lf
+*.ps1 text eol=crlf
+*.py text eol=lf

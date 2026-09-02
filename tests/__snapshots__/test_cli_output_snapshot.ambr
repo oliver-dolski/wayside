@@ -1,0 +1,11 @@
+# serializer version: 1
+# name: test_inspect_output_matches_snapshot
+  '''
+  Plik: tests\fixtures\pcap\modbus_write_single_register.pcap
+  Liczba pakietow: 2
+  Pierwszy znacznik czasu: 2023-11-14T22:13:20+00:00
+  Ostatni znacznik czasu: 2023-11-14T22:13:20.010000+00:00
+  Dlugosc okna (s): 0.009999990463256836
+  
+  '''
+# ---

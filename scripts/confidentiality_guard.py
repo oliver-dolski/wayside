@@ -78,17 +78,47 @@ MIN_STRUCTURAL_FRAGMENT_LENGTH = 60
 # i numery wersji semantycznej same z siebie NIE zapalaly reguly - regula
 # zapala sie dopiero w polaczeniu z modalnoscia normatywna w tym samym
 # fragmencie (patrz NORMATIVE_MODAL_TERMS nizej).
-CLAUSE_NUMBER_PATTERN = re.compile(r"\d+\.\d+(?:\.\d+)*")
+#
+# Negatywne spojrzenie wstecz na `v`/`V` odsiewa numery wersji
+# oprogramowania. Doszlo razem z rozszerzeniem NORMATIVE_MODAL_TERMS
+# o "must" i "should": samo rozszerzenie listy modalnosci zapalilo warstwe
+# na wlasnej prozie projektu (`.planning/research/PITFALLS.md` pisze
+# "CVSS v4.0 ... must be reported separately"), bo `v4.0` ma ksztalt
+# kropkowanego numeru punktu. Zadna norma nie numeruje swoich klauzul
+# jako `v3.4.2`, wiec to wykluczenie nic nie kosztuje po stronie detekcji.
+#
+# Zawezenie jest swiadomie niepelne: "Python 3.12 must ..." dalej zapali
+# warstwe. Od tej reszty jest `.confidentiality-allow`, bo alternatywa -
+# zgadywanie, czy kropkowana liczba jest wersja, czy punktem normy - jest
+# dokladnie ta heurystyka, ktora zamienia bramke w generator szumu.
+CLAUSE_NUMBER_PATTERN = re.compile(r"(?<![vV])\d+\.\d+(?:\.\d+)*")
 
 # Modalnosc normatywna. Fragment jest normalizowany (male litery, bez
 # polskich znakow diakrytycznych) przed porownaniem, wiec "nie moze" lapie
 # takze "nie może", "nalezy" lapie "należy" itd. - tresc normy prawie na
 # pewno ma diakrytyki, a lista ponizej jest pisana bez nich z tego samego
 # powodu co reszta repozytorium (bezpieczenstwo kodowania znakow).
+#
+# Kolejnosc: wariant zaprzeczony przed twierdzacym, zeby dopasowanie
+# zwracalo dluzszy, bardziej konkretny termin.
+#
+# Angielskie "must" i "should" doszly po przegladzie (CR-02 z 01-REVIEW.md):
+# lista miala polskie "musi" i "powinien" od poczatku, a ich angielskich
+# odpowiednikow nie - to bylo przeoczenie, nie decyzja. Waga tej luki brala
+# sie stad, ze warstwa strukturalna jest JEDYNA dzialajaca w CI (korpus
+# z natury nie istnieje na runnerze), wiec dziura w niej byla dziura
+# w calym backstopie.
+#
+# Swiadomie NIE ma tu "may" ani "can": w jezyku normatywnym oznaczaja
+# przyzwolenie, nie wymaganie, a wystepuja w zwyklej prozie na tyle czesto,
+# ze zamienilyby te warstwe w generator falszywych alarmow.
 NORMATIVE_MODAL_TERMS: tuple[str, ...] = (
     "shall not",
     "shall",
     "must not",
+    "must",
+    "should not",
+    "should",
     "musi",
     "nie moze",
     "powinien",
@@ -129,6 +159,23 @@ def _normalize_path_str(path: str) -> str:
     return path.replace("\\", "/")
 
 
+def _fold_path_for_corpus_match(path: str) -> str:
+    """Normalizuje sciezke do porownania z prefiksem lokalnego korpusu.
+
+    Poza separatorami zdejmuje takze wielkosc liter. Bez tego warstwa 0 da
+    sie obejsc sama zmiana wielkosci liter: jedyna wspierana platforma to
+    Windows, ktorego NTFS jest bezwrazliwy na wielkosc liter, a git zapisuje
+    w indeksie literalna forme sciezki. `git add -f Standards/.local/x.txt`
+    dodaje wiec dokladnie ten sam plik z dysku, a porownanie wrazliwe na
+    wielkosc liter go nie widzi (CR-01 z 01-REVIEW.md, potwierdzone
+    wywolaniem, nie lektura).
+
+    `casefold()` zamiast `lower()`, bo jest scislejsze dla znakow spoza
+    ASCII, a nazwa katalogu nie musi na zawsze zostac czysto angielska.
+    """
+    return _normalize_path_str(path).casefold()
+
+
 def _strip_diacritics(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
@@ -144,10 +191,9 @@ def scan_paths(paths: list[str]) -> list[Violation]:
     """
     violations: list[Violation] = []
     for raw_path in paths:
-        normalized = _normalize_path_str(raw_path)
-        if normalized == LOCAL_CORPUS_PATH_PREFIX or normalized.startswith(
-            LOCAL_CORPUS_PATH_PREFIX + "/"
-        ):
+        normalized = _fold_path_for_corpus_match(raw_path)
+        folded_prefix = LOCAL_CORPUS_PATH_PREFIX.casefold()
+        if normalized == folded_prefix or normalized.startswith(folded_prefix + "/"):
             violations.append(
                 Violation(
                     path=raw_path,

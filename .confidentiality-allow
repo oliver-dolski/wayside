@@ -11,6 +11,7 @@
 # Pitfall 6 w 01-RESEARCH.md), wiec sa jedynymi uzasadnionymi wpisami.
 tests/test_confidentiality_guard.py
 tests/test_confidentiality_guard_integration.py
+tests/test_review_blockers_01.py
 
 # Artefakt planowania fazy 1 cytuje ten sam wymyslony przyklad testowy
 # (linia 225, blok kodu oznaczony w dokumencie jako "dane WYMYSLONE, nigdy
@@ -20,3 +21,9 @@ tests/test_confidentiality_guard_integration.py
 # Sprawdzone przed dopisaniem: to jedyne trafienie bramki w calym drzewie
 # sledzonym przez gita, i jest to przyklad wymyslony, nie cytat.
 .planning/phases/01-fundament-poufno-i-warunek-publikacji/01-RESEARCH.md
+
+# Raport code review fazy 1 cytuje wlasny ciag probny uzyty do wykazania
+# luki CR-02 ("3.4.2 The system must support TLS 1.2..."), wiec warstwa 2
+# slusznie go rozpoznaje po ksztalcie. Zdanie jest wymyslone na potrzeby
+# dowodu, nie jest cytatem zadnej normy.
+.planning/phases/01-fundament-poufno-i-warunek-publikacji/01-REVIEW.md

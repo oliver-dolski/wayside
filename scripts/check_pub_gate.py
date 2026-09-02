@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import re
 import sys
 from pathlib import Path
 
@@ -49,8 +50,27 @@ VALID_VERDICTS: frozenset[str] = frozenset({"go", "no-go", "pending"})
 # wpisujacego prawdziwe imie autora - zgodnosc zapisu z wypowiedziana
 # decyzja pozostaje predykatem typu backstop (patrz PLAN.md, must_haves).
 AGENT_REVIEWER_NAMES: frozenset[str] = frozenset(
-    {"claude", "agent", "automated", "bot", "gsd"}
+    {
+        "claude",
+        "agent",
+        "automated",
+        "bot",
+        "gsd",
+        "assistant",
+        "asystent",
+        "copilot",
+        "gpt",
+        "llm",
+        "anthropic",
+        "openai",
+    }
 )
+
+# Granice tokenow w polu `reviewer`. Dzielenie wylacznie po bialych znakach
+# przepuszczalo `gsd-bot` i `claude_agent`, mimo ze gole `bot` bylo
+# odrzucane (CR-03 z 01-REVIEW.md) - to byl blad tokenizacji, nie slabosc
+# heurystyki.
+_REVIEWER_TOKEN_SPLIT = re.compile(r"[^0-9A-Za-z]+")
 
 EXIT_OK = 0
 EXIT_REQUIRE_GO_FAILED = 1
@@ -103,14 +123,23 @@ def load_record(path: Path) -> tuple[dict[str, str], str]:
 
 
 def _reviewer_is_invalid(reviewer: str) -> bool:
-    """Sprawdza pole `reviewer`: puste, wartosc zastepcza albo nazwa agenta."""
+    """Sprawdza pole `reviewer`: puste, wartosc zastepcza albo nazwa agenta.
+
+    Czym ta funkcja NIE jest: dowodem, ze rozstrzygniecie podjal czlowiek.
+    Nazwa wpisana z klawiatury nie da sie odroznic od nazwy wpisanej przez
+    agenta, wiec kazdy taki sprawdzian jest progiem zwalniajacym, nie
+    kontrola. Faktyczna kontrola jest wyzej: rozstrzygniecie zapada na
+    checkpoincie `gate="blocking-human"`, ktory nie jest zatwierdzany
+    automatycznie w zadnym trybie. Tutaj lapiemy pomylke i wartosc
+    zastepcza, nie zdeterminowanego falszerza.
+    """
     if not reviewer:
         return True
     if "<" in reviewer or ">" in reviewer:
         return True
     if "tbd" in reviewer.lower():
         return True
-    tokens = {tok.strip(".,;:").lower() for tok in reviewer.split()}
+    tokens = {tok.lower() for tok in _REVIEWER_TOKEN_SPLIT.split(reviewer) if tok}
     if tokens & AGENT_REVIEWER_NAMES:
         return True
     return False

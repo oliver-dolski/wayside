@@ -1,0 +1,13 @@
+# Bramka poufnosci - lista wyjatkow WYLACZNIE dla warstwy 2
+# (structural-clause-modal, rozpoznawanie kropkowanego numeru punktu razem
+# z modalnoscia normatywna w tej samej linii).
+#
+# Warstwa 0 (sciezkowa, standards/.local) i warstwa 1 (korpusowa) NIE MAJA
+# tu zadnych wyjatkow i nigdy nie beda ich miec - wpisanie ich tutaj
+# zaprzeczyloby celowi tych warstw.
+#
+# Ponizsze dwa pliki testowe z natury zawieraja wymyslone zdania o ksztalcie
+# normatywnym jako dane testowe (nigdy prawdziwy cytat normy - patrz
+# Pitfall 6 w 01-RESEARCH.md), wiec sa jedynymi uzasadnionymi wpisami.
+tests/test_confidentiality_guard.py
+tests/test_confidentiality_guard_integration.py

@@ -62,3 +62,39 @@ uv run wayside inspect <plik.pcap>
 ```powershell
 uv run pytest
 ```
+
+## Weryfikacja w CI
+
+Kazdy `push` i `pull_request` uruchamia `.github/workflows/ci.yml` na
+`windows-latest` - platforma docelowa projektu to Windows 11, wiec pakiet
+zielony wylacznie na Linuksie nie dowodziby, ze narzedzie dziala tam, gdzie
+ma dzialac. Dwa joby:
+
+1. **`test`** - pelny pakiet testow na swiezym checkoucie: `uv sync --locked`,
+   krok bramki kompletnosci kolekcji (sprawdza, ze piec modulow krytycznych
+   fazy 1 nie zniknelo z kolekcji `pytest`), potem `uv run pytest`.
+2. **`confidentiality-backstop`** - detekcyjny backstop poufnosci: checkout
+   z `fetch-depth: 0` (pelna historia), `scripts/confidentiality_guard.py`
+   w trybie `--no-corpus` na wszystkich sledzonych plikach, oraz
+   `git log --all -- standards/.local`, ktory konczy job bledem, gdy wynik
+   nie jest pusty.
+
+**Czego CI z zalozenia NIE widzi:** lokalnego korpusu `standards/.local`.
+Katalog jest gitignorowany i nigdy nie trafia do zdalnego repozytorium ani do
+sekretow CI - to jest architektoniczna koniecznosc, nie niedopatrzenie: wgranie
+korpusu do sekretow repozytorium zniweczyloby cel calej bramki. W CI dziala
+wylacznie warstwa strukturalna (regex na odcisk jezyka normatywnego) i
+kontrola sciezki - nigdy warstwa korpusowa.
+
+**Charakter tej warstwy jest detekcyjny, nie prewencyjny.** CI potwierdza
+naruszenie PO fakcie - juz po `git push` - i uruchamia reakcje: revert,
+przepisanie historii przez `git filter-repo` przed jakimkolwiek publicznym
+pushem, nigdy nie powstrzymuje samego wyslania tresci. Konto osobiste w
+GitHub.com nie ma server-side pre-receive hookow, wiec twarda prewencja po
+stronie zdalnej nie jest w tym projekcie dostepna. Zielone CI potwierdza, ze
+nic, co bramka rozpoznaje, nie przeszlo przy TYM pushu - to nie jest dowod
+szczelnosci w ogole.
+
+Granice lokalnego haka pre-commit (drugiej strony tej samej bramki) opisane
+sa w sekcji `## Bramka poufnosci` wyzej - oba opisy stoja obok siebie, zeby
+sobie nie zaprzeczac.

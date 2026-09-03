@@ -32,16 +32,24 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Importuje warstwe odczytu, a potem odczytuje faktyczna decyzje scapy.
-# `scapy.main` jest w tym momencie zaimportowane juz tranzytywnie przez
-# `scapy.data`, wiec ten import nie dodaje nowej zaleznosci.
+# Importuje cala sciezke odczytu tej fazy (nie tylko `wayside.pcap`), a
+# potem odczytuje faktyczna decyzje scapy. `scapy.main` jest w tym momencie
+# zaimportowane juz tranzytywnie przez `scapy.data`, wiec ten import nie
+# dodaje nowej zaleznosci. Rozszerzenie o `wayside.decode` i
+# `wayside.protocols.modbus_tcp` domyka Pitfall 4 z 02-RESEARCH.md: przed
+# tym rozszerzeniem import `scapy.layers.*`/`scapy.contrib.modbus` w
+# sciezce ODCZYTU nie byl objety zadna bramka maszynowa poza `scapy.all`.
 _PROBE = (
-    "import json, os;"
+    "import json, os, sys;"
     "import wayside.pcap;"
+    "import wayside.decode;"
+    "import wayside.protocols.modbus_tcp;"
     "import scapy.main;"
     "print(json.dumps({"
     "'cache_folder': str(scapy.main.SCAPY_CACHE_FOLDER),"
     "'xdg_after_import': os.environ.get('XDG_CACHE_HOME'),"
+    "'scapy_all_imported': 'scapy.all' in sys.modules,"
+    "'scapy_libpcap_imported': 'scapy.arch.libpcap' in sys.modules,"
     "}))"
 )
 
@@ -88,3 +96,46 @@ def test_import_does_not_leak_xdg_cache_home():
     probe = _probe({"XDG_CACHE_HOME": None})
 
     assert probe["xdg_after_import"] is None
+
+
+# --- Rozszerzenie sciezki odczytu (Faza 2): decode.py + protocols/modbus_tcp.py ---
+
+
+def test_scapy_all_not_imported_after_extended_read_path():
+    """D-04/LOCK-01 nadal obowiazuje: rozszerzenie sciezki odczytu o
+    `wayside.decode` i `wayside.protocols.modbus_tcp` nie wciaga `scapy.all`."""
+    probe = _probe({"XDG_CACHE_HOME": None})
+    assert probe["scapy_all_imported"] is False
+
+
+def test_scapy_arch_libpcap_import_is_conscious_widening():
+    """Import `scapy.layers.*`/`scapy.contrib.modbus` w sciezce odczytu
+    laduje transitywnie `scapy.arch.libpcap` (02-RESEARCH.md, sekcja
+    "Konflikt z ARCHITECTURE.md" oraz Pitfall 4). Zweryfikowane odczytem
+    `scapy/arch/libpcap.py`: brak Npcap degraduje sie przez przechwycony
+    `OSError` do `conf.use_pcap = False`, nie do wyjatku - wiec ta obecnosc
+    jest swiadomym poszerzeniem tej fazy, nie regresja."""
+    probe = _probe({"XDG_CACHE_HOME": None})
+    assert probe["scapy_libpcap_imported"] is True
+
+
+def test_decode_full_fixture_in_subprocess_exits_zero():
+    """Dowod, ze import warstw nie tylko przechodzi, ale ze odczyt na nich
+    faktycznie dziala: dekoduje istniejacy fixture Fazy 1 w podprocesie."""
+    script = (
+        "import sys;"
+        "from pathlib import Path;"
+        "import wayside.pcap as pcap;"
+        "import wayside.decode as decode;"
+        "packets = pcap.read_capture("
+        "Path('tests/fixtures/pcap/modbus_write_single_register.pcap'));"
+        "segments = decode.decode_segments(packets);"
+        "sys.exit(0 if len(segments) == 2 else 1)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr

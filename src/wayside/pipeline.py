@@ -39,6 +39,14 @@ class AnalyzeResult:
 
 
 def _build_capture_section(pcap_path: Path, packets) -> dict:
+    """Buduje sekcje `capture`. Niesie `filename` (samo `pcap_path.name`),
+    NIE pelna sciezke - pelna sciezka jest funkcja katalogu uruchomienia
+    procesu, wiec dwa przebiegi z roznych katalogow roboczych dawalyby
+    rozne bajty `analysis.json` mimo identycznej tresci analitycznej
+    (REPORT-06). `sha256` niesie mozliwosc powiazania raportu z konkretnym
+    plikiem wejsciowym (zagrozenie T-2-07) - jest funkcja TRESCI pliku, nie
+    jego polozenia, wiec nie lamie determinizmu ani miedzy katalogami, ani
+    miedzy maszynami."""
     sha256 = hashlib.sha256(pcap_path.read_bytes()).hexdigest()
     if len(packets) == 0:
         first_seen = None
@@ -48,7 +56,7 @@ def _build_capture_section(pcap_path: Path, packets) -> dict:
         first_seen = timestamps[0]
         last_seen = timestamps[-1]
     return {
-        "path": str(pcap_path),
+        "filename": pcap_path.name,
         "sha256": sha256,
         "packet_count": len(packets),
         "first_seen": first_seen,

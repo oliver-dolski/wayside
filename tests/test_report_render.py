@@ -64,7 +64,7 @@ def _finding(**overrides) -> dict:
 
 def _render(*, findings: list[dict] | None = None, warnings: tuple[str, ...] = ()) -> str:
     analysis = {
-        "capture": {"path": "test.pcap", "packet_count": 2},
+        "capture": {"filename": "test.pcap", "packet_count": 2},
         "findings": findings if findings is not None else [],
     }
     return render_markdown(analysis, generated_at=GENERATED_AT, warnings=warnings)
@@ -193,11 +193,11 @@ def test_render_markdown_is_deterministic_for_same_model_and_timestamp():
     findings = [_finding()]
 
     first = render_markdown(
-        {"capture": {"path": "test.pcap", "packet_count": 2}, "findings": findings},
+        {"capture": {"filename": "test.pcap", "packet_count": 2}, "findings": findings},
         generated_at=GENERATED_AT,
     )
     second = render_markdown(
-        {"capture": {"path": "test.pcap", "packet_count": 2}, "findings": findings},
+        {"capture": {"filename": "test.pcap", "packet_count": 2}, "findings": findings},
         generated_at=GENERATED_AT,
     )
 

@@ -47,12 +47,12 @@ def render_markdown(
     lines.append("")
     if findings:
         lines.append(
-            f"Analiza zrzutu `{capture.get('path', '?')}` wykazala "
+            f"Analiza zrzutu `{capture.get('filename', '?')}` wykazala "
             f"{len(findings)} finding(i) wymagajacy(ych) uwagi."
         )
     else:
         lines.append(
-            f"Analiza zrzutu `{capture.get('path', '?')}` nie wykazala "
+            f"Analiza zrzutu `{capture.get('filename', '?')}` nie wykazala "
             "zadnego findingu w tym przebiegu."
         )
     lines.append("")

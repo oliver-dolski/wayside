@@ -129,6 +129,21 @@ def discover_checks(checks_root: Path = CHECKS_ROOT) -> list[CheckSpec]:
     return checks
 
 
+def _dedupe_standards(standards: list[dict]) -> list[dict]:
+    """Usuwa powtorzone powolania po parze (standard, clause), zachowujac
+    PIERWSZE wystapienie - kolejnosc z pliku YAML pozostaje nietknieta
+    (CHECK-02, edge: adjacency/ordering)."""
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict] = []
+    for entry in standards:
+        key = (entry["standard"], entry["clause"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(entry)
+    return deduped
+
+
 def run_checks(analysis: dict, checks: list[CheckSpec]) -> list[dict]:
     """Uruchamia kazdy check nad `analysis`, zbiera wyniki do jednej
     plaskiej listy (wzorzec `scan_files`) - zaden check nie przerywa petli.
@@ -136,13 +151,14 @@ def run_checks(analysis: dict, checks: list[CheckSpec]) -> list[dict]:
     findings: list[dict] = []
 
     for check in checks:
+        standards = _dedupe_standards(check.spec["standards"])
         for result in check.evaluate(analysis):
             finding = {
                 "check_id": check.spec["id"],
                 "title": check.spec["title"],
                 "severity": check.spec["severity"],
                 "rationale": check.spec["rationale"],
-                "standards": check.spec["standards"],
+                "standards": standards,
                 "remediation": check.spec["remediation"],
             }
             finding.update(result)

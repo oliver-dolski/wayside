@@ -42,6 +42,29 @@ class StandardsError(Exception):
     modelu strefy (STD-06)."""
 
 
+def _validate_entry_fields(entry: dict, yaml_path: Path) -> None:
+    """Sprawdza `REQUIRED_CATALOG_FIELDS`: obecnosc kazdego pola, i - poza
+    `verified`, ktorego legalna wartoscia jest `False` - takze niepustosc.
+    `verified` jest wykluczone z kontroli niepustosci celowo: `False` jest
+    fasz-owate w Pythonie, ale jest tu jedyna poprawna wartoscia (wpis
+    prowizoryczny), wiec traktowanie go jak brakujacego pola byloby bledem."""
+    missing = [field for field in REQUIRED_CATALOG_FIELDS if field not in entry]
+    if missing:
+        raise StandardsError(
+            f"Wpis katalogu {yaml_path} niekompletny: brak pol {missing}."
+        )
+
+    empty = [
+        field
+        for field in REQUIRED_CATALOG_FIELDS
+        if field != "verified" and not entry.get(field)
+    ]
+    if empty:
+        raise StandardsError(
+            f"Wpis katalogu {yaml_path} niekompletny: puste pola {empty}."
+        )
+
+
 def load_catalog(catalog_root: Path = CATALOG_ROOT) -> dict[tuple[str, str], dict]:
     """Wczytuje wszystkie pliki `catalog.yaml` pod `catalog_root`, w
     kolejnosci posortowanej, i buduje mapowanie `(standard, clause) -> wpis`."""
@@ -51,11 +74,7 @@ def load_catalog(catalog_root: Path = CATALOG_ROOT) -> dict[tuple[str, str], dic
         data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
         entries = data.get("entries", [])
         for entry in entries:
-            missing = [field for field in REQUIRED_CATALOG_FIELDS if field not in entry]
-            if missing:
-                raise StandardsError(
-                    f"Wpis katalogu {yaml_path} niekompletny: brak pol {missing}."
-                )
+            _validate_entry_fields(entry, yaml_path)
             catalog[(entry["standard"], entry["clause"])] = entry
 
     return catalog

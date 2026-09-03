@@ -2,12 +2,12 @@ entries:
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 1.1"
-    clause_title: "Identyfikacja i uwierzytelnienie uzytkownikow ludzkich"
+    clause_title: "Identyfikacja i uwierzytelnienie użytkowników ludzkich"
     paraphrase: >-
-      Wlasna, robocza parafraza: punkt dotyczy zapewnienia, ze kazdy
-      uzytkownik ludzki laczacy sie z systemem sterowania jest jednoznacznie
-      zidentyfikowany i uwierzytelniony, zanim uzyska dostep do funkcji
-      majacych wplyw na bezpieczenstwo procesu. Nigdy cytat normy.
+      Własna, robocza parafraza: punkt dotyczy zapewnienia, że każdy
+      użytkownik ludzki łączący się z systemem sterowania jest jednoznacznie
+      zidentyfikowany i uwierzytelniony, zanim uzyska dostęp do funkcji
+      mających wpływ na bezpieczeństwo procesu. Nigdy cytat normy.
     verified: false
     verification_note: >-
       Numeracja punktu i tresc parafrazy czekaja na zestawienie z legalnym

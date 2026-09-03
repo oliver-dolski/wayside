@@ -1,0 +1,19 @@
+id: modbus-unauthenticated-write
+title: "Operacja zapisu do sterownika przez Modbus/TCP bez uwierzytelnienia"
+applies_to:
+  protocol: modbus-tcp
+severity: high
+rationale: >-
+  Modbus/TCP nie ma wbudowanego mechanizmu uwierzytelniania: kazdy host
+  widzacy ten segment sieci moze wyslac kod funkcji zapisu do sterownika bez
+  weryfikacji tozsamosci nadawcy. Wlasna analiza zaobserwowanego ruchu, nie
+  cytat z normy.
+standards:
+  - standard: "IEC-62443-3-3"
+    edition: "2013"
+    clause: "SR 1.1"
+evaluator: "unauthenticated_write:evaluate"
+remediation: >-
+  Ograniczyc mozliwosc wysylania kodow zapisu Modbus/TCP do znanych hostow
+  inzynierskich na poziomie sieci, np. przez segmentacje i listy kontroli
+  dostepu.

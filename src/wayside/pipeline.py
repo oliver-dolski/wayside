@@ -1,0 +1,172 @@
+"""Orkiestracja calego potoku: od pliku pcap do dwoch artefaktow,
+`analysis.json` i `report.md` (REPORT-04).
+
+Raport markdown jest renderowany z DOKLADNIE tego samego slownika, ktory
+zostal zserializowany do `analysis.json` - nie z drugiej reprezentacji.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import hashlib
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+from wayside import decode, report, risk, zones
+from wayside.checks import engine as checks_engine
+from wayside.model import (
+    Evidence,
+    Finding,
+    build_analysis,
+    dump_deterministic,
+    write_atomic,
+)
+from wayside.pcap import read_capture
+from wayside.protocols import modbus_tcp
+from wayside.standards import mapper as standards_mapper
+
+__all__ = ["AnalyzeResult", "analyze"]
+
+
+@dataclass(frozen=True)
+class AnalyzeResult:
+    analysis: dict
+    report_markdown: str
+    warnings: tuple[str, ...]
+    analysis_path: Path
+    report_path: Path
+
+
+def _build_capture_section(pcap_path: Path, packets) -> dict:
+    sha256 = hashlib.sha256(pcap_path.read_bytes()).hexdigest()
+    if len(packets) == 0:
+        first_seen = None
+        last_seen = None
+    else:
+        timestamps = sorted(float(pkt.time) for pkt in packets)
+        first_seen = timestamps[0]
+        last_seen = timestamps[-1]
+    return {
+        "path": str(pcap_path),
+        "sha256": sha256,
+        "packet_count": len(packets),
+        "first_seen": first_seen,
+        "last_seen": last_seen,
+    }
+
+
+def _build_conversations(segments: list[decode.Segment]) -> list[dict]:
+    conversations: dict[int, dict] = {}
+    order: list[int] = []
+    for segment in segments:
+        if segment.session_id not in conversations:
+            conversations[segment.session_id] = {
+                "session_id": segment.session_id,
+                "endpoints": sorted(
+                    {
+                        f"{segment.src_ip}:{segment.src_port}",
+                        f"{segment.dst_ip}:{segment.dst_port}",
+                    }
+                ),
+                "packet_count": 0,
+            }
+            order.append(segment.session_id)
+        conversations[segment.session_id]["packet_count"] += 1
+    return [conversations[session_id] for session_id in order]
+
+
+def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> AnalyzeResult:
+    """Wykonuje kroki potoku w kolejnosci: odczyt zrzutu, dekodowanie,
+    dysekcja Modbus, model strefy, model analizy bez findingow, silnik
+    checkow, rozwiazanie powolan na norme, przypisanie ryzyka, zapis
+    `analysis.json`, renderowanie i zapis `report.md`."""
+    pcap_path = Path(pcap_path)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    packets = read_capture(pcap_path)
+    segments = decode.decode_segments(packets)
+    events = modbus_tcp.dissect_all(segments)
+
+    warnings: list[str] = []
+    if len(packets) == 0:
+        warnings.append(
+            "Zrzut nie niesie zadnego pakietu - zrzut strukturalnie "
+            "poprawny i pusty."
+        )
+    elif not events:
+        warnings.append(
+            "Zaden segment w zrzucie nie przeszedl walidacji MBAP - brak "
+            "ruchu Modbus/TCP do analizy."
+        )
+
+    observed_ips = sorted(
+        {segment.src_ip for segment in segments} | {segment.dst_ip for segment in segments}
+    )
+    observed_protocols = sorted({"modbus-tcp"} if events else set())
+    zone_model = zones.build_zone_model(
+        observed_ips=observed_ips, observed_protocols=observed_protocols
+    )
+
+    conversations = _build_conversations(segments)
+    protocol_events = [dataclasses.asdict(event) for event in events]
+
+    methodology = {
+        "rubric_version": risk.RUBRIC_VERSION,
+        "note": (
+            "Waga findingu wynika z zapisanych kryteriow rubryki, nie z "
+            "wymyslonej skali (RISK-03)."
+        ),
+    }
+
+    analysis = build_analysis(
+        capture=_build_capture_section(pcap_path, packets),
+        conversations=conversations,
+        protocol_events=protocol_events,
+        zone_model=zone_model,
+        findings=[],
+        methodology=methodology,
+    )
+
+    checks = checks_engine.discover_checks()
+    raw_findings = checks_engine.run_checks(analysis, checks)
+
+    resolved_findings: list[dict] = []
+    for raw in raw_findings:
+        standard_refs = tuple(
+            standards_mapper.resolve(ref["standard"], ref["clause"], zone_model=zone_model)
+            for ref in raw["standards"]
+        )
+        finding = Finding(
+            check_id=raw["check_id"],
+            title=raw["title"],
+            severity=raw["severity"],
+            risk=risk.severity_to_risk(raw["severity"]),
+            rationale=raw["rationale"],
+            standard_refs=standard_refs,
+            evidence=Evidence(
+                packet_number=raw["evidence"]["packet_number"],
+                session_id=raw["evidence"]["session_id"],
+            ),
+            remediation=raw["remediation"],
+        )
+        resolved_findings.append(dataclasses.asdict(finding))
+
+    analysis["findings"] = resolved_findings
+
+    analysis_text = dump_deterministic(analysis)
+    analysis_path = out_dir / "analysis.json"
+    write_atomic(analysis_path, analysis_text)
+
+    report_markdown = report.render_markdown(analysis, generated_at=generated_at)
+    report_path = out_dir / "report.md"
+    write_atomic(report_path, report_markdown)
+
+    return AnalyzeResult(
+        analysis=analysis,
+        report_markdown=report_markdown,
+        warnings=tuple(warnings),
+        analysis_path=analysis_path,
+        report_path=report_path,
+    )

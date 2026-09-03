@@ -10,3 +10,6 @@ standards/.local/
 # generowalyby konflikty miedzy maszynami.
 .gsd/
 .planning/milestone.lock
+
+# Katalog wyjsciowy domyslnego uruchomienia `wayside analyze`.
+wayside-out/

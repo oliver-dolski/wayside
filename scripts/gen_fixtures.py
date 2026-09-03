@@ -57,6 +57,11 @@ PCAP_CLASSIC_MAGIC_LE = 0xA1B2C3D4
 
 FIXTURE_DIR = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "pcap"
 
+_PCAPNG_SHB_TYPE = 0x0A0D0D0A
+_PCAPNG_IDB_TYPE = 0x00000001
+_PCAPNG_EPB_TYPE = 0x00000006
+_PCAPNG_BYTE_ORDER_MAGIC_LE = 0x1A2B3C4D
+
 __all__ = [
     "GENERATORS",
     "gen_modbus_write_single_register",
@@ -64,6 +69,8 @@ __all__ = [
     "gen_modbus_malformed_mbap",
     "gen_truncated_mid_record",
     "gen_empty_valid_header",
+    "gen_modbus_write_pcapng",
+    "gen_truncated_mid_block",
     "main",
 ]
 
@@ -237,12 +244,120 @@ def gen_empty_valid_header(output_dir: Path) -> Path:
     return output_path
 
 
+def _pcapng_section_header_block() -> bytes:
+    """Section Header Block minimalny (28 bajtow, bez opcji), little-endian."""
+    total_length = 28
+    return struct.pack(
+        "<IIIHHqI",
+        _PCAPNG_SHB_TYPE,
+        total_length,
+        _PCAPNG_BYTE_ORDER_MAGIC_LE,
+        1,  # wersja glowna
+        0,  # wersja podrzedna
+        -1,  # dlugosc sekcji nieznana
+        total_length,
+    )
+
+
+def _pcapng_interface_description_block() -> bytes:
+    """Interface Description Block minimalny (20 bajtow, bez opcji)."""
+    total_length = 20
+    return struct.pack(
+        "<IIHHII",
+        _PCAPNG_IDB_TYPE,
+        total_length,
+        1,  # typ warstwy lacza: Ethernet (LINKTYPE_ETHERNET)
+        0,  # zarezerwowane
+        65535,  # snaplen
+        total_length,
+    )
+
+
+def _pcapng_enhanced_packet_block(data: bytes, timestamp_s: float) -> bytes:
+    """Enhanced Packet Block: dlugosc = 32 + dane dopelnione do wielokrotnosci 4."""
+    pad_len = (-len(data)) % 4
+    padded_data = data + b"\x00" * pad_len
+    total_length = 32 + len(padded_data)
+
+    timestamp_us = round(timestamp_s * 1_000_000)
+    timestamp_high = (timestamp_us >> 32) & 0xFFFFFFFF
+    timestamp_low = timestamp_us & 0xFFFFFFFF
+
+    header = struct.pack(
+        "<IIIIIII",
+        _PCAPNG_EPB_TYPE,
+        total_length,
+        0,  # identyfikator interfejsu
+        timestamp_high,
+        timestamp_low,
+        len(data),  # dlugosc przechwycona
+        len(data),  # dlugosc oryginalna
+    )
+    return header + padded_data + struct.pack("<I", total_length)
+
+
+def gen_modbus_write_pcapng(output_dir: Path) -> Path:
+    """Ta sama wymiana zapisu 0x06 co fixture klasyczny, zapisana jako
+    pcapng zamiast klasycznego pcapa.
+
+    Bajty sa budowane jawnie przez `struct.pack` w porzadku little-endian,
+    zgodnym z bajtem porzadku Section Header Block - `scapy` nie jest
+    uzywane do zapisu formatu pcapng (droga niegwarantowana w tej wersji),
+    ale bajty kazdego pakietu (`bytes(pkt)`) pochodza z tych samych
+    obiektow scapy co fixture klasyczny (D-04): zrodlo tresci jest jedno.
+    """
+    request = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=50000, dport=MODBUS_PORT, seq=1, ack=0, flags="PA")
+        / ModbusADURequest(transId=1, protoId=0, unitId=1)
+        / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
+    )
+    response = (
+        Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+        / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+        / TCP(sport=MODBUS_PORT, dport=50000, seq=1, ack=1, flags="PA")
+        / ModbusADUResponse(transId=1, protoId=0, unitId=1)
+        / ModbusPDU06WriteSingleRegisterResponse(registerAddr=0x0001, registerValue=0x002A)
+    )
+
+    blocks = [_pcapng_section_header_block(), _pcapng_interface_description_block()]
+    for i, pkt in enumerate([request, response]):
+        timestamp = BASE_TIMESTAMP + i * 0.01
+        blocks.append(_pcapng_enhanced_packet_block(bytes(pkt), timestamp))
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "modbus_write_single_register.pcapng"
+    output_path.write_bytes(b"".join(blocks))
+    return output_path
+
+
+def gen_truncated_mid_block(output_dir: Path) -> Path:
+    """Bajty poprawnego pcapng, zapisane bez ostatnich dziesieciu bajtow,
+    tak zeby plik konczyl sie w srodku ostatniego Enhanced Packet Block.
+
+    Odpowiednik `gen_truncated_mid_record` dla formatu pcapng - dowod, ze
+    audyt strukturalny (Task 2 tego planu) wykrywa obciecie takze w tym
+    formacie, nie tylko w klasycznym pcapie.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        full_path = gen_modbus_write_pcapng(Path(tmp))
+        full_bytes = full_path.read_bytes()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "truncated_mid_block.pcapng"
+    output_path.write_bytes(full_bytes[:-10])
+    return output_path
+
+
 GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_write_single_register.pcap", gen_modbus_write_single_register),
     ("modbus_write_non_standard_port.pcap", gen_modbus_non_standard_port),
     ("modbus_malformed_mbap.pcap", gen_modbus_malformed_mbap),
     ("truncated_mid_record.pcap", gen_truncated_mid_record),
     ("empty_valid_header.pcap", gen_empty_valid_header),
+    ("modbus_write_single_register.pcapng", gen_modbus_write_pcapng),
+    ("truncated_mid_block.pcapng", gen_truncated_mid_block),
 )
 
 

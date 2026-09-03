@@ -52,3 +52,24 @@ fixtures:
       klasycznego pcapa, zero rekordow. Strukturalnie poprawny i legalnie
       pusty (D-01) - nie jest to plik uszkodzony.
     protocol: none
+  - path: modbus_write_single_register.pcapng
+    sha256: "821df9d2cf0a19e4eb192fdee501b3470a2098f10df587c76aa6de2770d5667e"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_write_pcapng
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Ta sama wymiana zapisu 0x06 co fixture klasyczny, zapisana w formacie
+      pcapng zamiast klasycznego pcapa - dowod, ze oba formaty nazwane w
+      INGEST-01 przechodza caly potok.
+    protocol: modbus-tcp
+  - path: truncated_mid_block.pcapng
+    sha256: "e1125f13a297f8290142482f58ce39a6edbf07758ae8a0bb42cd9bf2678a3fd3"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_truncated_mid_block
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Plik celowo uszkodzony: ten sam zapis co fixture pcapng bazowy,
+      zapisany bez ostatnich dziesieciu bajtow, tak zeby plik konczyl sie
+      w srodku ostatniego Enhanced Packet Block. Odpowiednik
+      truncated_mid_record.pcap dla formatu pcapng.
+    protocol: modbus-tcp

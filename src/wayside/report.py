@@ -70,9 +70,9 @@ def render_markdown(
     lines.append("")
     lines.append(
         "Kazdy finding niesie wskaznik zaobserwowanego zachowania w ruchu "
-        "sieciowym, nigdy werdykt zgodnosci albo niezgodnosci z norma. Waga "
-        "findingu wynika z ponizszych, udokumentowanych kryteriow rubryki "
-        f"(wersja {risk.RUBRIC_VERSION}), nie z wymyslonej skali:"
+        "sieciowym, nigdy ocene, czy instalacja spelnia albo nie spelnia "
+        "wymagan normy. Waga findingu wynika z ponizszych, udokumentowanych "
+        f"kryteriow rubryki (wersja {risk.RUBRIC_VERSION}), nie z wymyslonej skali:"
     )
     lines.append("")
     for severity in risk.ALLOWED_SEVERITIES:

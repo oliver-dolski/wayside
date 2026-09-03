@@ -15,6 +15,15 @@ function Test-CommandExists {
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Update-PathFromRegistry {
+    # Odswieza PATH biezacego procesu z rejestru, zakres Machine plus User.
+    # To jest dokladnie ta zawartosc, ktora dostaje nowo otwarta powloka, wiec
+    # po tym wywolaniu proces widzi to samo co swieza sesja - bez restartu.
+    $maszyna = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $uzytkownik = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:Path = (@($maszyna, $uzytkownik) | Where-Object { $_ }) -join ';'
+}
+
 Write-Host "== Wayside bootstrap =="
 
 if (-not (Test-CommandExists 'uv')) {
@@ -26,6 +35,20 @@ if (-not (Test-CommandExists 'uv')) {
         if ($LASTEXITCODE -ne 0) {
             throw "Instalacja uv przez winget zakonczyla sie kodem $LASTEXITCODE"
         }
+
+        # Winget dopisuje katalog z aliasami uv do PATH UZYTKOWNIKA w rejestrze
+        # i sam o tym mowi: "Path environment variable modified; restart your
+        # shell to use the new value". Proces PowerShella dostal jednak wlasna
+        # kopie PATH przy starcie i nie odswiezy jej sam, wiec `Test-CommandExists
+        # 'uv'` ponizej zwracalo falsz na maszynie, na ktorej instalacja WLASNIE
+        # SIE POWIODLA. Skrypt konczyl sie wtedy bledem i kazal otworzyc nowa
+        # powloke, czyli obietnica FOUND-01 "jedno polecenie po klonie" byla
+        # nieprawdziwa: potrzebne byly dwa uruchomienia.
+        #
+        # Zmierzone 2026-09-03 na czystym Windows 11 (Hyper-V, brak uv, brak
+        # Npcap) przy UAT fazy 1, test 2. Na maszynie autora ten warunek nigdy
+        # nie zaszedl, bo uv bylo tam na PATH od poczatku.
+        Update-PathFromRegistry
     }
     else {
         Write-Host "winget niedostepny na tej maszynie. Zainstaluj uv recznie, np.:"
@@ -37,7 +60,7 @@ if (-not (Test-CommandExists 'uv')) {
     }
 
     if (-not (Test-CommandExists 'uv')) {
-        throw "uv nadal niedostepne na PATH po instalacji przez winget. Otworz nowa sesje powloki i sprobuj ponownie."
+        throw "uv nadal niedostepne na PATH mimo instalacji przez winget i odswiezenia PATH z rejestru. Otworz nowa sesje powloki i sprobuj ponownie."
     }
 }
 else {

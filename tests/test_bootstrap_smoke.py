@@ -72,3 +72,53 @@ def test_inspect_unreadable_pcap_exits_two_without_traceback(
     result = _run_cli("inspect", str(uszkodzony))
     assert result.returncode == 2
     assert "Traceback" not in result.stderr
+
+
+# Kontrakt ksztaltu `scripts/bootstrap.ps1`, nie test dymny CLI. Powod osobny
+# i konkretny: UAT fazy 1, test 2, na czystym Windows 11 pokazal, ze bootstrap
+# instaluje `uv` przez winget POPRAWNIE, a potem sam go nie widzi, bo PATH
+# procesu pozostaje kopia sprzed instalacji. Skrypt konczyl sie wtedy kodem 1
+# i kazal otworzyc nowa powloke - czyli obietnica FOUND-01 "jedno polecenie po
+# klonie" wymagala dwoch uruchomien.
+#
+# Tego nie da sie sprawdzic z maszyny, ktora ma juz `uv` na PATH: warunek
+# w ogole nie zachodzi. Ten test pilnuje wiec kolejnosci krokow w skrypcie,
+# tak jak `test_ci_workflow_contract.py` pilnuje ksztaltu workflow. Dowodzi
+# ksztaltu, nie zachowania, i tak ma byc czytany.
+BOOTSTRAP = REPO_ROOT / "scripts" / "bootstrap.ps1"
+
+
+def _bootstrap_text() -> str:
+    return BOOTSTRAP.read_text(encoding="utf-8")
+
+
+def test_bootstrap_defines_path_refresh_helper():
+    tekst = _bootstrap_text()
+    assert "function Update-PathFromRegistry" in tekst
+    assert "GetEnvironmentVariable('Path', 'Machine')" in tekst
+    assert "GetEnvironmentVariable('Path', 'User')" in tekst
+
+
+def test_bootstrap_refreshes_path_between_winget_install_and_recheck():
+    tekst = _bootstrap_text()
+
+    instalacja = tekst.index("winget install --id astral-sh.uv")
+    odswiezenie = tekst.index("Update-PathFromRegistry", instalacja)
+    ponowne_sprawdzenie = tekst.index("uv nadal niedostepne na PATH", odswiezenie)
+
+    assert instalacja < odswiezenie < ponowne_sprawdzenie, (
+        "Odswiezenie PATH musi stac MIEDZY instalacja przez winget a ponownym "
+        "sprawdzeniem obecnosci uv. Poza ta kolejnoscia nie naprawia niczego."
+    )
+
+
+def test_bootstrap_does_not_tell_user_to_reopen_shell_as_normal_path():
+    """Komunikat o nowej powloce ma zostac wylacznie jako ostatnia deska ratunku.
+
+    Gdyby wrocil jako zwykla sciezka - czyli gdyby zniknelo odswiezenie PATH -
+    poprzedni test i tak by padl. Ten pilnuje czegos innego: ze tresc komunikatu
+    nadal mowi o odswiezeniu, wiec kto go zobaczy, wie, ze proste obejscie
+    zostalo juz sprobowane i nie pomoglo.
+    """
+    tekst = _bootstrap_text()
+    assert "odswiezenia PATH z rejestru" in tekst

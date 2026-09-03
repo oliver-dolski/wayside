@@ -93,13 +93,40 @@ if ($LASTEXITCODE -ne 0) {
 # ktory ta jedna komenda patrzy. (Pusty string w `GIT_CONFIG_VALUE_0` NIE
 # dziala jako obejscie na Windows - PowerShell traktuje `$env:X = ""` jako
 # usuniecie zmiennej, a git wtedy zglasza `missing config value`.)
+# Wartosc `core.hooksPath` moze siedziec w DWOCH zakresach naraz i kazdy
+# wymaga innego obejscia. Zakres globalny zdejmuje `GIT_CONFIG_GLOBAL`
+# opisane wyzej. Zakres LOKALNY tego nie zdejmie w ogole, bo `.git/config`
+# nie jest plikiem globalnym - a wlasnie tam ten skrypt sam przypina
+# `.git/hooks` na koncu swojego pierwszego przebiegu.
+#
+# Skutek byl taki, ze bootstrap NIE BYL IDEMPOTENTNY: pierwsze uruchomienie
+# przechodzilo (lokalnej wartosci jeszcze nie bylo), a kazde nastepne
+# odbijalo sie o `Cowardly refusing to install hooks with core.hooksPath
+# set`, bo skrypt widzial wlasne przypiecie i stosowal do niego obejscie
+# przeznaczone dla ustawienia globalnego. Wykryte 2026-09-03 przy zmianie
+# nazwy katalogu projektu, ktora wymusila drugi przebieg - ale wywrocilby
+# sie kazdy drugi przebieg, z dowolnego powodu.
+#
+# Lokalna wartosc jest zdejmowana na czas instalacji i przywracana zaraz
+# po niej, nizej w tym pliku. Bez `core.hooksPath` `pre-commit install`
+# pisze hak do `.git/hooks/pre-commit`, czyli dokladnie tam, gdzie ma byc.
 $existingHooksPath = git config --get core.hooksPath 2>$null
-if ($LASTEXITCODE -eq 0 -and $existingHooksPath) {
+if ($LASTEXITCODE -ne 0) { $existingHooksPath = $null }
+
+$localHooksPath = git config --local --get core.hooksPath 2>$null
+if ($LASTEXITCODE -ne 0) { $localHooksPath = $null }
+
+if ($existingHooksPath) {
     Write-Host "core.hooksPath jest ustawione na '$existingHooksPath'."
     Write-Host "Instaluje z tymczasowym nadpisaniem tego ustawienia (tylko na czas tego polecenia)."
     $emptyGlobalConfig = Join-Path ([System.IO.Path]::GetTempPath()) "wayside-empty-gitconfig-$PID.ini"
     New-Item -ItemType File -Path $emptyGlobalConfig -Force | Out-Null
     $env:GIT_CONFIG_GLOBAL = $emptyGlobalConfig
+}
+
+if ($localHooksPath) {
+    Write-Host "core.hooksPath jest przypiete lokalnie do '$localHooksPath' - zdejmuje na czas instalacji."
+    git config --local --unset-all core.hooksPath
 }
 
 Write-Host "Instaluje hak pre-commit (uv run pre-commit install)..."
@@ -109,6 +136,14 @@ $preCommitInstallExitCode = $LASTEXITCODE
 if ($env:GIT_CONFIG_GLOBAL) {
     Remove-Item $env:GIT_CONFIG_GLOBAL -ErrorAction SilentlyContinue
     Remove-Item Env:\GIT_CONFIG_GLOBAL -ErrorAction SilentlyContinue
+}
+
+# Przywrocenie idzie PRZED sprawdzeniem kodu wyjscia, bo skrypt nie moze
+# zostawic repozytorium bez przypiecia takze wtedy, gdy instalacja padla:
+# bez `core.hooksPath` git wrocilby do globalnej sciezki dewelopera i hak
+# poufnosci nie wywolalby sie przy nastepnym commicie.
+if ($localHooksPath) {
+    git config --local core.hooksPath $localHooksPath
 }
 
 if ($preCommitInstallExitCode -ne 0) {

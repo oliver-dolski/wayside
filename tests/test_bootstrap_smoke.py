@@ -122,3 +122,54 @@ def test_bootstrap_does_not_tell_user_to_reopen_shell_as_normal_path():
     """
     tekst = _bootstrap_text()
     assert "odswiezenia PATH z rejestru" in tekst
+
+
+# Idempotencja bootstrapu. Wykryte 2026-09-03 przy zmianie nazwy katalogu
+# projektu, ktora wymusila drugi przebieg skryptu: odbil sie o `Cowardly
+# refusing to install hooks with core.hooksPath set`.
+#
+# Przyczyna nie miala nic wspolnego ze zmiana nazwy. `core.hooksPath` moze
+# siedziec w dwoch zakresach naraz, a skrypt sam przypina `.git/hooks`
+# LOKALNIE na koncu swojego pierwszego przebiegu. Obejscie przez
+# `GIT_CONFIG_GLOBAL` zdejmuje wylacznie zakres globalny, wiec przy drugim
+# przebiegu skrypt widzial wlasne przypiecie i stosowal do niego obejscie
+# przeznaczone dla czegos innego. Wywrocilby sie KAZDY drugi przebieg,
+# z dowolnego powodu - nie tylko po zmianie nazwy katalogu.
+
+
+def test_bootstrap_reads_hooks_path_in_both_scopes():
+    tekst = _bootstrap_text()
+    assert "git config --get core.hooksPath" in tekst, "brak odczytu zakresu efektywnego"
+    assert "git config --local --get core.hooksPath" in tekst, "brak odczytu zakresu lokalnego"
+
+
+def test_bootstrap_unsets_local_hooks_path_before_install():
+    tekst = _bootstrap_text()
+
+    zdjecie = tekst.index("git config --local --unset-all core.hooksPath")
+    instalacja = tekst.index("uv run pre-commit install", zdjecie)
+
+    assert zdjecie < instalacja, (
+        "Lokalne core.hooksPath musi byc zdjete PRZED `pre-commit install`. "
+        "Obejscie przez GIT_CONFIG_GLOBAL nie dotyka .git/config, wiec samo "
+        "nie wystarcza."
+    )
+
+
+def test_bootstrap_restores_local_hooks_path_even_when_install_failed():
+    """Przywrocenie musi stac PRZED rzuceniem wyjatku o kodzie instalacji.
+
+    Inaczej nieudana instalacja zostawia repozytorium bez lokalnego przypiecia,
+    czyli git wraca do globalnej sciezki hakow dewelopera, a hak poufnosci nie
+    wywola sie przy nastepnym commicie. To gorszy stan niz sama porazka
+    instalacji, bo wyglada niewinnie.
+    """
+    tekst = _bootstrap_text()
+
+    przywrocenie = tekst.index("git config --local core.hooksPath $localHooksPath")
+    rzut = tekst.index("uv run pre-commit install zakonczylo sie kodem", przywrocenie)
+
+    assert przywrocenie < rzut, (
+        "Przywrocenie lokalnego core.hooksPath musi poprzedzac sprawdzenie "
+        "kodu wyjscia instalacji."
+    )

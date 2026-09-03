@@ -9,3 +9,46 @@ fixtures:
       i odpowiedz), bez uwierzytelnienia, poprawny naglowek MBAP. Adresacja
       z zakresu dokumentacyjnego RFC 5737, adresy MAC lokalnie administrowane.
     protocol: modbus-tcp
+  - path: modbus_write_non_standard_port.pcap
+    sha256: "29759efe261f44f2afa3fee2666cc9d1f8382354dcd4fe184a68619c5a5ff0c1"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_non_standard_port
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Ta sama wymiana zapisu 0x06 co fixture bazowy, ale serwer nasluchuje
+      na porcie 10502 zamiast 502 - dowod, ze rozpoznanie Modbus/TCP idzie
+      po ksztalcie naglowka MBAP, niezaleznie od numeru portu (PROTO-01).
+    protocol: modbus-tcp
+  - path: modbus_malformed_mbap.pcap
+    sha256: "f5e5f89d633bf3cedc329b4c552871c5209fba1a0cd943c50de7315997005d29"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_malformed_mbap
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Plik celowo uszkodzony: dwie ramki, kazda lamiaca inny warunek
+      walidacji MBAP. Ramka pierwsza ma niezerowy identyfikator protokolu
+      w bajtach 2:4 ladunku. Ramka druga ma pole dlugosci w bajtach 4:6
+      niespojne z faktyczna liczba pozostalych bajtow. Zadna z ramek nie
+      moze przejsc validate_mbap.
+    protocol: modbus-tcp
+  - path: truncated_mid_record.pcap
+    sha256: "bd669457f770d73a8ef205c96c98210573130eb8871bf1dd1c1109c867bd1f6c"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_truncated_mid_record
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Plik celowo uszkodzony: ten sam zapis co fixture bazowy, zapisany bez
+      ostatnich dziesieciu bajtow, tak zeby plik konczyl sie w srodku
+      ostatniego rekordu. Magic globalny pozostaje poprawny - to jest
+      fixture na obciecie wykrywane strukturalnie, nie po liczbie pakietow.
+    protocol: modbus-tcp
+  - path: empty_valid_header.pcap
+    sha256: "704e5e5b3234433c01fcfd1b20a306e77e985038120492dc53965c3edd38a4ea"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_empty_valid_header
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Plik zawierajacy wylacznie dwudziestoczterobajtowy naglowek globalny
+      klasycznego pcapa, zero rekordow. Strukturalnie poprawny i legalnie
+      pusty (D-01) - nie jest to plik uszkodzony.
+    protocol: none

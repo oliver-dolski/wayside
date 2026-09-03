@@ -25,10 +25,15 @@ SECTIONS: tuple[str, ...] = (
 )
 
 
-def render_markdown(analysis: dict, *, generated_at: datetime) -> str:
+def render_markdown(
+    analysis: dict, *, generated_at: datetime, warnings: tuple[str, ...] = ()
+) -> str:
     """Renderuje `analysis` do markdown, zwyklymi funkcjami Pythona.
     Znacznik czasu wygenerowania raportu wchodzi WYLACZNIE tutaj, przez
-    argument `generated_at` (D-02) - `analysis.json` go nie niesie."""
+    argument `generated_at` (D-02) - `analysis.json` go nie niesie.
+    Analogicznie `warnings` (ostrzezenia z `AnalyzeResult`, np. zrzut
+    strukturalnie pusty, D-01) wchodzi tylko tutaj - nie jest czescia
+    schematu `analysis.json`."""
     capture = analysis.get("capture", {})
     findings = analysis.get("findings", [])
 
@@ -77,6 +82,10 @@ def render_markdown(analysis: dict, *, generated_at: datetime) -> str:
 
     lines.append(f"## {SECTIONS[3]}")
     lines.append("")
+    for warning in warnings:
+        lines.append(f"- {warning}")
+    if warnings:
+        lines.append("")
     lines.append(
         "Ten raport pochodzi z pionowego przekroju: jeden zrzut, jeden "
         "check, jeden punkt normy. Model strefy i kanalu jest placeholderem "

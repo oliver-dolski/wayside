@@ -14,10 +14,19 @@ from pathlib import Path
 
 import typer
 
-from wayside.pcap import summarize
+from wayside.pcap import CaptureFormatError, CaptureTruncatedError, summarize
 from wayside.pipeline import analyze as run_analyze
 
 app = typer.Typer(add_completion=False)
+
+# Kody wyjscia komendy `analyze`, rozroznialne dla kazdego trybu porazki
+# (D-01) - nigdy jeden ogolny kod na wszystko. `EXIT_UNREADABLE` rowne 2
+# jest zachowane swiadomie: `tests/test_cli_output_snapshot.py` i kontrakt
+# komendy `inspect` z Fazy 1 na niej stoja.
+EXIT_OK = 0
+EXIT_UNREADABLE = 2
+EXIT_TRUNCATED = 3
+EXIT_UNSUPPORTED_FORMAT = 4
 
 
 def _version_callback(value: bool) -> None:
@@ -48,7 +57,7 @@ def inspect(
         summary = summarize(path)
     except FileNotFoundError:
         typer.echo(f"Nie znaleziono pliku zrzutu: {path}", err=True)
-        raise typer.Exit(code=2) from None
+        raise typer.Exit(code=EXIT_UNREADABLE) from None
     except Exception as exc:
         # `read_capture` sprawdza tylko istnienie sciezki, a `Path.exists()`
         # jest prawdziwe takze dla katalogu. Poza tym istniejacy, ale
@@ -57,7 +66,7 @@ def inspect(
         # z nazwy bez wiazania CLI z wewnetrznymi typami scapy. Uzytkownik
         # narzedzia ma dostac komunikat i kod 2, nie surowy traceback.
         typer.echo(f"Nie udalo sie odczytac zrzutu {path}: {exc}", err=True)
-        raise typer.Exit(code=2) from None
+        raise typer.Exit(code=EXIT_UNREADABLE) from None
 
     typer.echo(f"Plik: {summary.path}")
     typer.echo(f"Liczba pakietow: {summary.packet_count}")
@@ -88,13 +97,21 @@ def analyze(
         )
     except FileNotFoundError:
         typer.echo(f"Nie znaleziono pliku zrzutu: {path}", err=True)
-        raise typer.Exit(code=2) from None
+        raise typer.Exit(code=EXIT_UNREADABLE) from None
+    except CaptureTruncatedError as exc:
+        # D-01: obciecie wykryte strukturalnie przez `audit_capture_structure`
+        # PRZED jakimkolwiek zapisem - `out_dir` zostaje bez zadnego pliku.
+        typer.echo(f"Zrzut obciety: {exc}", err=True)
+        raise typer.Exit(code=EXIT_TRUNCATED) from None
+    except CaptureFormatError as exc:
+        typer.echo(f"Format zrzutu nieobslugiwany: {exc}", err=True)
+        raise typer.Exit(code=EXIT_UNSUPPORTED_FORMAT) from None
     except Exception as exc:
         # Ten sam szkielet co `inspect`: uzytkownik ma dostac czytelny
         # komunikat i kod 2, nie surowy traceback zwiazany z wewnetrznymi
         # typami scapy albo silnika checkow.
         typer.echo(f"Nie udalo sie przeanalizowac zrzutu {path}: {exc}", err=True)
-        raise typer.Exit(code=2) from None
+        raise typer.Exit(code=EXIT_UNREADABLE) from None
 
     typer.echo(f"Zapisano: {result.analysis_path}")
     typer.echo(f"Zapisano: {result.report_path}")

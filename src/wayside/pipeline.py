@@ -22,7 +22,7 @@ from wayside.model import (
     dump_deterministic,
     write_atomic,
 )
-from wayside.pcap import read_capture
+from wayside.pcap import audit_capture_structure, read_capture
 from wayside.protocols import modbus_tcp
 from wayside.standards import mapper as standards_mapper
 
@@ -77,12 +77,20 @@ def _build_conversations(segments: list[decode.Segment]) -> list[dict]:
 
 
 def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> AnalyzeResult:
-    """Wykonuje kroki potoku w kolejnosci: odczyt zrzutu, dekodowanie,
-    dysekcja Modbus, model strefy, model analizy bez findingow, silnik
-    checkow, rozwiazanie powolan na norme, przypisanie ryzyka, zapis
-    `analysis.json`, renderowanie i zapis `report.md`."""
+    """Wykonuje kroki potoku w kolejnosci: audyt strukturalny (brama D-01),
+    odczyt zrzutu, dekodowanie, dysekcja Modbus, model strefy, model analizy
+    bez findingow, silnik checkow, rozwiazanie powolan na norme, przypisanie
+    ryzyka, zapis `analysis.json`, renderowanie i zapis `report.md`."""
     pcap_path = Path(pcap_path)
     out_dir = Path(out_dir)
+
+    # Brama D-01: audyt strukturalny PRZED jakimkolwiek zapisem albo
+    # dekodowaniem. Zrzut obciety albo o nieznanym formacie (CaptureTruncated
+    # Error/CaptureFormatError) nie dochodzi do potoku wcale, wiec zaden
+    # czesciowy artefakt nie powstaje - ten sam ksztalt rozdzielonej bramki
+    # co `scripts/confidentiality_guard.py`.
+    capture_structure = audit_capture_structure(pcap_path)
+
     out_dir.mkdir(parents=True, exist_ok=True)
 
     packets = read_capture(pcap_path)
@@ -90,10 +98,13 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     events = modbus_tcp.dissect_all(segments)
 
     warnings: list[str] = []
-    if len(packets) == 0:
+    if capture_structure.is_structurally_empty:
+        # D-01: zrzut pusty jest zrzutem legalnym, nigdy odrzucanym jako
+        # blad - ale cisza na jego temat bylaby cicha, pewna odpowiedzia.
         warnings.append(
-            "Zrzut nie niesie zadnego pakietu - zrzut strukturalnie "
-            "poprawny i pusty."
+            "Zrzut jest strukturalnie poprawny i nie zawiera ani jednego "
+            "pakietu - brak findingow w tym przebiegu nie jest wynikiem "
+            "analizy, tylko brakiem materialu."
         )
     elif not events:
         warnings.append(
@@ -159,7 +170,9 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     analysis_path = out_dir / "analysis.json"
     write_atomic(analysis_path, analysis_text)
 
-    report_markdown = report.render_markdown(analysis, generated_at=generated_at)
+    report_markdown = report.render_markdown(
+        analysis, generated_at=generated_at, warnings=tuple(warnings)
+    )
     report_path = out_dir / "report.md"
     write_atomic(report_path, report_markdown)
 

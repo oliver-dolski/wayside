@@ -26,8 +26,11 @@ function Update-PathFromRegistry {
 
 Write-Host "== Wayside bootstrap =="
 
+$uvZainstalowaneWTejSesji = $false
+
 if (-not (Test-CommandExists 'uv')) {
     Write-Host "uv nie znalezione na PATH."
+    $uvZainstalowaneWTejSesji = $true
 
     if (Test-CommandExists 'winget') {
         Write-Host "Instaluje uv przez winget..."
@@ -134,3 +137,17 @@ Write-Host ""
 Write-Host "== Bootstrap zakonczony =="
 Write-Host "Uruchomienie CLI:  uv run wayside inspect <plik.pcap>"
 Write-Host "Uruchomienie testow: uv run pytest"
+
+# Jesli uv zostalo zainstalowane wlasnie teraz, ta podpowiedz nie zadziala
+# w powloce, ktora wywolala ten skrypt: proces potomny nie moze zmienic
+# srodowiska procesu rodzica. Odswiezenie PATH wyzej dziala wewnatrz TEGO
+# procesu, dzieki czemu `uv sync` powyzej sie wykonalo, ale okno, z ktorego
+# skrypt zostal uruchomiony, dalej ma swoja stara kopie PATH. Kodem tego
+# naprawic nie da sie w ogole, wiec mowimy o tym wprost.
+# Zmierzone 2026-09-03 na czystym Windows 11 przy UAT fazy 1, test 2.
+if ($uvZainstalowaneWTejSesji) {
+    Write-Host ""
+    Write-Host "UWAGA: uv zostalo zainstalowane podczas tego uruchomienia."
+    Write-Host "Zamknij to okno i otworz nowe, zanim wywolasz powyzsze polecenia -"
+    Write-Host "biezace okno ma jeszcze PATH sprzed instalacji."
+}

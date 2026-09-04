@@ -24,6 +24,8 @@ FIXTURE_EMPTY_HEADER = "tests/fixtures/pcap/empty_valid_header.pcap"
 FIXTURE_WRITE_PCAPNG = "tests/fixtures/pcap/modbus_write_single_register.pcapng"
 FIXTURE_SNAPLEN_TRUNCATED = "tests/fixtures/pcap/snaplen_truncated_frames.pcap"
 FIXTURE_CORRUPTED_RECORD_LENGTH = "tests/fixtures/pcap/corrupted_record_length.pcap"
+FIXTURE_POLL_CYCLE_SHORT_WINDOW = "tests/fixtures/pcap/modbus_poll_cycle_short_window.pcap"
+FIXTURE_POLL_CYCLE_FULL_WINDOW = "tests/fixtures/pcap/modbus_poll_cycle_full_window.pcap"
 
 _GENERATED_AT_KEY_PATTERN = re.compile(r"generat|wygenerowan", re.IGNORECASE)
 
@@ -397,6 +399,32 @@ def test_report_zakres_section_states_snaplen_truncated_frame_count(tmp_path):
     zakres_section = report_text[zakres_start:metodyka_start]
 
     assert "Ramek ucietych przez snaplen: 2" in zakres_section
+
+
+# --- INGEST-04: ostrzezenie o oknie zrzutu krotszym niz prog wobec ---------
+# --- zmierzonego odstepu odpytywania (plan 03-03, Task 3) ------------------
+
+
+def test_poll_cycle_short_window_produces_coverage_warning_with_both_numbers(tmp_path):
+    result = _run_analyze_path(FIXTURE_POLL_CYCLE_SHORT_WINDOW, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "5.0" in result.stderr
+    assert "5.01" in result.stderr
+
+    analysis = _load_analysis(tmp_path)
+    cycles = analysis["coverage"]["polling_cycles"]
+    assert len(cycles) == 1
+    assert cycles[0]["measured_cycle_s"] == 5.0
+    assert cycles[0]["request_count"] == 2
+
+
+def test_poll_cycle_full_window_produces_no_cycle_warning(tmp_path):
+    # Ta polowa jest ta, bez ktorej warunek zawsze prawdziwy przeszedlby
+    # niezauwazony: okno obejmujace wiele powtorzen cyklu NIE zapala
+    # ostrzezenia o odstepie miedzy zadaniami.
+    result = _run_analyze_path(FIXTURE_POLL_CYCLE_FULL_WINDOW, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "odstep miedzy" not in result.stderr
 
 
 def test_empty_valid_header_report_inwentarz_section_states_no_host(tmp_path):

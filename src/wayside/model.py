@@ -183,12 +183,15 @@ def build_analysis(
     findings: list[dict],
     methodology: dict,
     assets: list[dict],
+    coverage: dict,
 ) -> dict:
     """Skleja slownik `analysis.json`.
 
     Zgodnie z D-02 nie dolacza zadnego pola ze znacznikiem czasu
     wygenerowania analizy - `capture` niesie wylacznie okno czasowe
     wyprowadzone z `pkt.time`, przekazane juz gotowe przez wywolujacego.
+    `coverage` niesie ocene pokrycia okna zrzutu wobec zmierzonego odstepu
+    odpytywania (INGEST-04), zbudowana przez `wayside.coverage`.
     """
     return {
         "capture": capture,
@@ -199,6 +202,7 @@ def build_analysis(
         "findings": findings,
         "methodology": methodology,
         "assets": assets,
+        "coverage": coverage,
     }
 
 

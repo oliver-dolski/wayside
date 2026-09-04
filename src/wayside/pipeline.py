@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from wayside import decode, report, risk, zones
+from wayside import coverage, decode, report, risk, zones
 from wayside.assets import inventory
 from wayside.checks import engine as checks_engine
 from wayside.model import (
@@ -100,8 +100,9 @@ def _build_conversations(segments: list[decode.Segment]) -> list[dict]:
 def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> AnalyzeResult:
     """Wykonuje kroki potoku w kolejnosci: audyt strukturalny (brama D-01),
     odczyt zrzutu, dekodowanie, dysekcja Modbus, budowa inwentarza hostow,
-    bramka prowieniencji nad inwentarzem (Z-02), model strefy, model analizy
-    bez findingow, silnik checkow, rozwiazanie powolan na norme, przypisanie
+    bramka prowieniencji nad inwentarzem (Z-02), model strefy, pomiar cyklu
+    odpytywania i ocena pokrycia okna zrzutu (INGEST-04), model analizy bez
+    findingow, silnik checkow, rozwiazanie powolan na norme, przypisanie
     ryzyka, zapis `analysis.json`, renderowanie i zapis `report.md`."""
     pcap_path = Path(pcap_path)
     out_dir = Path(out_dir)
@@ -160,6 +161,28 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     conversations = _build_conversations(segments)
     protocol_events = [dataclasses.asdict(event) for event in events]
 
+    capture_section = _build_capture_section(pcap_path, packets, capture_structure)
+    # Zaokraglenie do szesciu miejsc po przecinku zdejmuje szum reprezentacji
+    # zmiennoprzecinkowej (roznica dwoch znacznikow czasu daje np.
+    # 5.009999990463257 zamiast 5.01) - ta sama konwencja co formatowanie
+    # dlugosci okna w komendzie `inspect` (zalozenie Z-15).
+    window_duration_s = (
+        round(capture_section["last_seen"] - capture_section["first_seen"], 6)
+        if capture_section["first_seen"] is not None
+        and capture_section["last_seen"] is not None
+        else None
+    )
+    polling_cycles = coverage.measure_polling_cycles(protocol_events)
+    coverage_section = coverage.build_coverage_section(
+        cycles=polling_cycles, window_duration_s=window_duration_s
+    )
+    # INGEST-04: zrzut za krotki wobec zmierzonego odstepu odpytywania
+    # konczy sie ostrzezeniem niosacym obie liczby, nigdy cicha, zielona
+    # odpowiedzia - ta sama dyscyplina co ostrzezenie o snaplenie wyzej.
+    warnings.extend(
+        coverage.coverage_warnings(cycles=polling_cycles, window_duration_s=window_duration_s)
+    )
+
     assets = inventory.build_assets(segments=segments)
     # Bramka prowieniencji stoi na producencie danych, PRZED serializacja
     # (T-3-04): pole inwentarza bez znacznika pochodzenia nie dochodzi do
@@ -176,13 +199,14 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     }
 
     analysis = build_analysis(
-        capture=_build_capture_section(pcap_path, packets, capture_structure),
+        capture=capture_section,
         conversations=conversations,
         protocol_events=protocol_events,
         zone_model=zone_model,
         findings=[],
         methodology=methodology,
         assets=assets,
+        coverage=coverage_section,
     )
 
     checks = checks_engine.discover_checks()

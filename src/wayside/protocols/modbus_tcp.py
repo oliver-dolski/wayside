@@ -111,6 +111,7 @@ class ModbusEvent:
     direction: str
     src_ip: str
     dst_ip: str
+    timestamp: float
 
 
 def validate_mbap(raw: bytes) -> MbapHeader | None:
@@ -201,6 +202,7 @@ def dissect_all(segments: list[Segment]) -> list[ModbusEvent]:
                 direction=direction,
                 src_ip=segment.src_ip,
                 dst_ip=segment.dst_ip,
+                timestamp=segment.timestamp,
             )
         )
 

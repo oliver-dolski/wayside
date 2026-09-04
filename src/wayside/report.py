@@ -91,7 +91,19 @@ def render_markdown(
     snaplen_truncated_sentence = (
         f"Ramek ucietych przez snaplen: {snaplen_truncated_count}."
     )
-    lines.append(f"{window_sentence} {snaplen_sentence} {snaplen_truncated_sentence}")
+    # PROTO-03: wartosc zero renderowana jawnie, tak samo jak liczba ramek
+    # ucietych przez snaplen wyzej - odczyt przez .get z wartoscia zapasowa,
+    # zeby model budowany recznie w tests/test_report_render.py nadal sie
+    # renderowal.
+    low_confidence_count = len(analysis.get("low_confidence_events", []))
+    low_confidence_sentence = (
+        "Zdarzen rozpoznanych z niska pewnoscia (modbus-rtu-over-tcp): "
+        f"{low_confidence_count}."
+    )
+    lines.append(
+        f"{window_sentence} {snaplen_sentence} {snaplen_truncated_sentence} "
+        f"{low_confidence_sentence}"
+    )
     lines.append("")
 
     lines.append(f"## {SECTIONS[2]}")

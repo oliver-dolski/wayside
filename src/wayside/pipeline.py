@@ -25,7 +25,7 @@ from wayside.model import (
     write_atomic,
 )
 from wayside.pcap import CaptureStructure, audit_capture_structure, read_capture
-from wayside.protocols import modbus_tcp
+from wayside.protocols import modbus_rtu_tunnel, modbus_tcp
 from wayside.standards import mapper as standards_mapper
 
 __all__ = ["AnalyzeResult", "analyze"]
@@ -99,11 +99,13 @@ def _build_conversations(segments: list[decode.Segment]) -> list[dict]:
 
 def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> AnalyzeResult:
     """Wykonuje kroki potoku w kolejnosci: audyt strukturalny (brama D-01),
-    odczyt zrzutu, dekodowanie, dysekcja Modbus, budowa inwentarza hostow,
-    bramka prowieniencji nad inwentarzem (Z-02), model strefy, pomiar cyklu
-    odpytywania i ocena pokrycia okna zrzutu (INGEST-04), model analizy bez
-    findingow, silnik checkow, rozwiazanie powolan na norme, przypisanie
-    ryzyka, zapis `analysis.json`, renderowanie i zapis `report.md`."""
+    odczyt zrzutu, dekodowanie, dysekcja Modbus, dyskryminator Modbus RTU
+    tunelowanego po TCP nad ta sama lista segmentow (PROTO-03), budowa
+    inwentarza hostow, bramka prowieniencji nad inwentarzem (Z-02), model
+    strefy, pomiar cyklu odpytywania i ocena pokrycia okna zrzutu
+    (INGEST-04), model analizy bez findingow, silnik checkow, rozwiazanie
+    powolan na norme, przypisanie ryzyka, zapis `analysis.json`,
+    renderowanie i zapis `report.md`."""
     pcap_path = Path(pcap_path)
     out_dir = Path(out_dir)
 
@@ -119,6 +121,11 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     packets = read_capture(pcap_path)
     segments = decode.decode_segments(packets)
     events = modbus_tcp.dissect_all(segments)
+    # PROTO-03: dyskryminator wolany na TEJ SAMEJ liscie segmentow co
+    # dissect_all - wzajemne wykluczenie miedzy natywnym Modbus/TCP i
+    # rozpoznaniem RTU-po-TCP jest wlasnoscia modbus_rtu_tunnel.detect_all
+    # (zalozenie Z-17), nie kolejnosci wywolan tutaj.
+    low_confidence_events = modbus_rtu_tunnel.detect_all(segments)
 
     warnings: list[str] = []
     if capture_structure.is_structurally_empty:
@@ -149,6 +156,21 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
             "na tym zrzucie jest falszowana, a brak zdarzenia protokolu nie "
             "jest dowodem jego nieobecnosci."
         )
+    if low_confidence_events:
+        # PROTO-03: zdarzenie rozpoznane dyskryminatorem sumy kontrolnej stoi
+        # poza lista zdarzen protokolu i poza kazdym findingiem - narzedzie
+        # nazywa liczbe takich zdarzen, protokol i podstawe rozpoznania, oraz
+        # mozliwosc falszywego dopasowania sumy kontrolnej na ruchu nie
+        # bedacym Modbusem (zalozenie Z-18, zagrozenie T-3-13).
+        warnings.append(
+            f"{len(low_confidence_events)} zdarzenie(a) w tym zrzucie "
+            f"rozpoznane sa dyskryminatorem sumy kontrolnej "
+            f"{modbus_rtu_tunnel.RTU_DETECTION_BASIS} jako "
+            "modbus-rtu-over-tcp, z niska pewnoscia, poza lista zdarzen "
+            "protokolu i poza kazdym findingiem. Rozpoznanie niesie "
+            "mozliwosc falszywego dopasowania sumy kontrolnej na ruchu nie "
+            "bedacym Modbusem."
+        )
 
     observed_ips = sorted(
         {segment.src_ip for segment in segments} | {segment.dst_ip for segment in segments}
@@ -160,6 +182,9 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
 
     conversations = _build_conversations(segments)
     protocol_events = [dataclasses.asdict(event) for event in events]
+    low_confidence_events_section = [
+        dataclasses.asdict(event) for event in low_confidence_events
+    ]
 
     capture_section = _build_capture_section(pcap_path, packets, capture_structure)
     # Zaokraglenie do szesciu miejsc po przecinku zdejmuje szum reprezentacji
@@ -207,6 +232,7 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         methodology=methodology,
         assets=assets,
         coverage=coverage_section,
+        low_confidence_events=low_confidence_events_section,
     )
 
     checks = checks_engine.discover_checks()

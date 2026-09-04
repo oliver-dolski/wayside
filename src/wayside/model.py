@@ -184,6 +184,7 @@ def build_analysis(
     methodology: dict,
     assets: list[dict],
     coverage: dict,
+    low_confidence_events: list[dict],
 ) -> dict:
     """Skleja slownik `analysis.json`.
 
@@ -192,6 +193,13 @@ def build_analysis(
     wyprowadzone z `pkt.time`, przekazane juz gotowe przez wywolujacego.
     `coverage` niesie ocene pokrycia okna zrzutu wobec zmierzonego odstepu
     odpytywania (INGEST-04), zbudowana przez `wayside.coverage`.
+    `low_confidence_events` niesie zdarzenia rozpoznane dyskryminatorem
+    sumy kontrolnej `wayside.protocols.modbus_rtu_tunnel.detect_all` -
+    klucz istnieje ZAWSZE, takze przy pustej liscie, i jest strukturalnie
+    ODDZIELONY od `protocol_events`: silnik checkow czyta wylacznie
+    `protocol_events`, wiec rozpoznanie o niskiej pewnosci nigdy nie moze
+    stac sie podstawa findingu przez sam fakt obecnosci na wspolnej liscie
+    (zalozenie Z-18, PROTO-03).
     """
     return {
         "capture": capture,
@@ -203,6 +211,7 @@ def build_analysis(
         "methodology": methodology,
         "assets": assets,
         "coverage": coverage,
+        "low_confidence_events": low_confidence_events,
     }
 
 

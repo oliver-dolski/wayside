@@ -34,11 +34,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_WRITE = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_write_single_register.pcap"
 FIXTURE_EMPTY = REPO_ROOT / "tests" / "fixtures" / "pcap" / "empty_valid_header.pcap"
 FIXTURE_PCAPNG = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_write_single_register.pcapng"
+FIXTURE_RTU_OVER_TCP = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_rtu_over_tcp.pcap"
 
 FIXTURES: dict[str, Path] = {
     "write": FIXTURE_WRITE,
     "empty": FIXTURE_EMPTY,
     "pcapng": FIXTURE_PCAPNG,
+    "rtu_over_tcp": FIXTURE_RTU_OVER_TCP,
 }
 
 # Linia znacznika czasu wygenerowania raportu (D-02) - jedyna dopuszczalna

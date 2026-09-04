@@ -26,6 +26,7 @@ FIXTURE_SNAPLEN_TRUNCATED = "tests/fixtures/pcap/snaplen_truncated_frames.pcap"
 FIXTURE_CORRUPTED_RECORD_LENGTH = "tests/fixtures/pcap/corrupted_record_length.pcap"
 FIXTURE_POLL_CYCLE_SHORT_WINDOW = "tests/fixtures/pcap/modbus_poll_cycle_short_window.pcap"
 FIXTURE_POLL_CYCLE_FULL_WINDOW = "tests/fixtures/pcap/modbus_poll_cycle_full_window.pcap"
+FIXTURE_RTU_OVER_TCP = "tests/fixtures/pcap/modbus_rtu_over_tcp.pcap"
 
 _GENERATED_AT_KEY_PATTERN = re.compile(r"generat|wygenerowan", re.IGNORECASE)
 
@@ -437,3 +438,97 @@ def test_empty_valid_header_report_inwentarz_section_states_no_host(tmp_path):
     inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
 
     assert inwentarz_section.strip() != ""
+
+
+# --- PROTO-03: Modbus RTU tunelowany po TCP rozdzielony strukturalnie od ---
+# --- protocol_events, zero findingow (plan 03-04, Task 3) ------------------
+
+
+def test_rtu_over_tcp_fixture_has_two_low_confidence_events_and_empty_protocol_events(
+    tmp_path,
+):
+    result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    assert len(analysis["low_confidence_events"]) == 2
+    assert analysis["protocol_events"] == []
+
+
+def test_rtu_over_tcp_fixture_has_empty_findings(tmp_path):
+    # To jest polowa, bez ktorej rozdzielenie strukturalne nie ma dowodu:
+    # jesli ktos kiedykolwiek przepnie zdarzenia o niskiej pewnosci do
+    # protocol_events, ten test zaczerwieni sie natychmiast, a test na sama
+    # dlugosc listy low_confidence_events przeszedlby dalej.
+    result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    analysis = _load_analysis(tmp_path)
+    assert analysis["findings"] == []
+
+
+def test_rtu_over_tcp_low_confidence_events_carry_protocol_confidence_and_basis(tmp_path):
+    result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    for event in analysis["low_confidence_events"]:
+        assert event["protocol"] == "modbus-rtu-over-tcp"
+        assert event["confidence"] == "low"
+        assert event["basis"] == "crc16-modbus-match"
+
+
+def test_baseline_fixture_has_empty_low_confidence_events_and_two_protocol_events(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    assert analysis["low_confidence_events"] == []
+    assert len(analysis["protocol_events"]) == 2
+
+
+def test_rtu_over_tcp_report_zakres_section_states_low_confidence_count(tmp_path):
+    result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    zakres_start = report_text.index("## Zakres")
+    metodyka_start = report_text.index("## Metodyka")
+    zakres_section = report_text[zakres_start:metodyka_start]
+
+    assert "Zdarzen rozpoznanych z niska pewnoscia" in zakres_section
+    assert "2" in zakres_section
+
+
+def test_rtu_over_tcp_report_ograniczenia_section_names_possible_false_match(tmp_path):
+    result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    ograniczenia_start = report_text.index("## Ograniczenia")
+    findingi_start = report_text.index("## Findingi")
+    ograniczenia_section = report_text[ograniczenia_start:findingi_start]
+
+    assert "falszywego dopasowania sumy kontrolnej" in ograniczenia_section
+
+
+def test_baseline_report_ograniczenia_section_lacks_false_match_sentence(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    ograniczenia_start = report_text.index("## Ograniczenia")
+    findingi_start = report_text.index("## Findingi")
+    ograniczenia_section = report_text[ograniczenia_start:findingi_start]
+
+    assert "falszywego dopasowania sumy kontrolnej" not in ograniczenia_section
+
+
+def test_two_runs_on_rtu_over_tcp_fixture_give_byte_identical_analysis_json(tmp_path):
+    out_a = tmp_path / "a"
+    out_b = tmp_path / "b"
+    result_a = _run_analyze_path(FIXTURE_RTU_OVER_TCP, out_a)
+    result_b = _run_analyze_path(FIXTURE_RTU_OVER_TCP, out_b)
+    assert result_a.returncode == 0, result_a.stderr
+    assert result_b.returncode == 0, result_b.stderr
+
+    assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()

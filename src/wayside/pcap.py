@@ -61,6 +61,28 @@ if _XDG_CACHE_HOME_BEFORE_IMPORT is None:
     os.environ["XDG_CACHE_HOME"] = _SCAPY_CACHE_FALLBACK
 
 try:
+    # `scapy.route` przy imporcie modulu wykonuje `conf.route = Route()`,
+    # a `Route.__init__` przy `conf.route_autoload` prawdziwym odpytuje
+    # system o tablice routingu. Na Windows idzie to przez `GetIpForwardTable2`
+    # w `scapy.arch.windows._read_routes_c` i konczy sie NIEDETERMINISTYCZNIE
+    # naruszeniem ochrony pamieci (kod wyjscia 0xC0000005) w `_extract_ip`,
+    # ktory czyta struktury zwrocone przez to wywolanie. Objaw: mniej wiecej
+    # co trzeci pelny przebieg pakietu testow mial jeden podproces
+    # `wayside.cli analyze` ubity bez zadnego wyjscia, za kazdym razem w innym
+    # tescie. Zdiagnozowane sladem z `PYTHONFAULTHANDLER=1`.
+    #
+    # Ta sciezka nie jest tu potrzebna do niczego: narzedzie jest pasywne
+    # i nie wysyla ani jednego pakietu, wiec tablica routingu i tak nigdy
+    # nie zostanie uzyta. `scapy.route` wjezdza tranzytywnie razem
+    # z `scapy.layers.l2` (przez `scapy.ansmachine` i `scapy.sendrecv`),
+    # wiec flagi musza byc ustawione TUTAJ, przed pierwszym importem
+    # jakiejkolwiek warstwy - to jest jedyne miejsce w pakiecie, ktore
+    # importuje scapy jako pierwsze.
+    from scapy.config import conf as _scapy_conf  # noqa: E402
+
+    _scapy_conf.route_autoload = False
+    _scapy_conf.route6_autoload = False
+
     from scapy.utils import rdpcap  # noqa: E402
 finally:
     if _XDG_CACHE_HOME_BEFORE_IMPORT is None:

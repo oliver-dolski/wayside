@@ -45,11 +45,15 @@ _PROBE = (
     "import wayside.decode;"
     "import wayside.protocols.modbus_tcp;"
     "import scapy.main;"
+    "import scapy.config;"
     "print(json.dumps({"
     "'cache_folder': str(scapy.main.SCAPY_CACHE_FOLDER),"
     "'xdg_after_import': os.environ.get('XDG_CACHE_HOME'),"
     "'scapy_all_imported': 'scapy.all' in sys.modules,"
     "'scapy_libpcap_imported': 'scapy.arch.libpcap' in sys.modules,"
+    "'route_autoload': scapy.config.conf.route_autoload,"
+    "'route6_autoload': scapy.config.conf.route6_autoload,"
+    "'route_count': len(scapy.config.conf.route.routes),"
     "}))"
 )
 
@@ -117,6 +121,28 @@ def test_scapy_arch_libpcap_import_is_conscious_widening():
     jest swiadomym poszerzeniem tej fazy, nie regresja."""
     probe = _probe({"XDG_CACHE_HOME": None})
     assert probe["scapy_libpcap_imported"] is True
+
+
+def test_read_path_never_queries_system_routing_table():
+    """Sciezka odczytu nie odpytuje systemu o tablice routingu.
+
+    `scapy.route` przy imporcie wykonuje `conf.route = Route()`, a `Route`
+    z domyslnym `conf.route_autoload` woala systemowy odczyt tras. Na Windows
+    idzie to przez `GetIpForwardTable2` i konczylo sie niedeterministycznym
+    naruszeniem ochrony pamieci (0xC0000005) w `scapy.arch.windows._extract_ip`,
+    ubijajac mniej wiecej co trzeci pelny przebieg pakietu testow w losowym
+    miejscu. Modul `wayside.pcap` gasi obie flagi przed pierwszym importem
+    warstwy - ten test pilnuje, ze gasi je skutecznie i ze zaden przyszly
+    import nie wejdzie przed niego.
+
+    Poza stabilnoscia jest to tez granica projektowa: narzedzie jest pasywne,
+    wiec nie ma powodu, zeby pytalo system o cokolwiek zwiazanego z wysylka.
+    """
+    probe = _probe({"XDG_CACHE_HOME": None})
+
+    assert probe["route_autoload"] is False
+    assert probe["route6_autoload"] is False
+    assert probe["route_count"] == 0
 
 
 def test_decode_full_fixture_in_subprocess_exits_zero():

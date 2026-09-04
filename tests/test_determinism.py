@@ -35,12 +35,27 @@ FIXTURE_WRITE = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_write_single
 FIXTURE_EMPTY = REPO_ROOT / "tests" / "fixtures" / "pcap" / "empty_valid_header.pcap"
 FIXTURE_PCAPNG = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_write_single_register.pcapng"
 FIXTURE_RTU_OVER_TCP = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_rtu_over_tcp.pcap"
+FIXTURE_GATEWAY = (
+    REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_gateway_multi_unit_id.pcap"
+)
+FIXTURE_HANDSHAKE = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_tcp_handshake.pcap"
+FIXTURE_SNAPLEN = (
+    REPO_ROOT / "tests" / "fixtures" / "pcap" / "snaplen_truncated_frames.pcap"
+)
 
 FIXTURES: dict[str, Path] = {
     "write": FIXTURE_WRITE,
     "empty": FIXTURE_EMPTY,
     "pcapng": FIXTURE_PCAPNG,
     "rtu_over_tcp": FIXTURE_RTU_OVER_TCP,
+    # Fixture bramy wchodzi tu jako pierwszy z fazy 3 nie dlatego, ze jest
+    # nowy, tylko dlatego, ze jako jedyny buduje zbior `unit_ids` - a zbior
+    # jest ta struktura, ktora rozjezdza sie miedzy przebiegami najlatwiej.
+    # Reszta fazy przechodzi przez te sama sciezke serializacji, wiec bez
+    # tych trzech pozycji bramka determinizmu pilnowala kodu z fazy 2.
+    "gateway": FIXTURE_GATEWAY,
+    "handshake": FIXTURE_HANDSHAKE,
+    "snaplen": FIXTURE_SNAPLEN,
 }
 
 # Linia znacznika czasu wygenerowania raportu (D-02) - jedyna dopuszczalna

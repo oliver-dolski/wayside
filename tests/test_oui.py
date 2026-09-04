@@ -510,3 +510,104 @@ def test_decision_record_resolved_option_matches_tree_state():
             "Rozstrzygniecie 'bez-danych-w-repo' zaklada brak tabeli "
             "producentow w repozytorium, a plik jest sledzony przez git."
         )
+
+
+# --- ASSET-02: POZYTYWNA sciezka lookupu przez caly potok --------------------
+#
+# Luka zamknieta po weryfikacji fazy 3 (03-VERIFICATION.md, W-1). Wszystkie
+# fixture'y w drzewie maja adresy MAC lokalnie administrowane (`02:00:...`),
+# wiec producent jest na nich ZAWSZE nieustalony i zadna asercja nad nimi nie
+# odroznia dzialajacego lookupu od zepsutego zlozenia w `pipeline.analyze`.
+# Ciche rozpiecie `vendor_lookup` przechodzilo caly pakiet bez ani jednej
+# porazki.
+#
+# Zrzut budowany w katalogu tymczasowym, nie dopisywany do `tests/fixtures/`:
+# jego jedynym zadaniem jest niesienie prawdziwego prefiksu IEEE, a fixture
+# w drzewie ciagnalby za soba wpis w manifescie i sume kontrolna, ktora
+# rozjechalaby sie przy kazdym odswiezeniu tabeli producentow.
+#
+# Nazwa producenta NIE jest wpisana w tescie na sztywno - jest odczytywana
+# z tej samej tabeli, ktora czyta potok. Test pilnuje ZLOZENIA (czy nazwa
+# z tabeli dochodzi do artefaktow), nie tresci rejestru IEEE, ktora moze sie
+# zmienic przy odswiezeniu pliku.
+
+VENDOR_PROBE_MAC = "00:80:F4:11:22:33"
+VENDOR_PROBE_IP = "192.0.2.40"
+PEER_MAC = "02:00:00:00:00:07"
+PEER_IP = "192.0.2.41"
+
+
+def _write_probe_capture(path: Path) -> None:
+    import wayside.pcap  # noqa: F401  - izolacja cache scapy PRZED importem warstw
+
+    from scapy.layers.inet import IP, TCP
+    from scapy.layers.l2 import Ether
+    from scapy.utils import wrpcap
+
+    payload = bytes.fromhex("0001000000060106000000ff")
+    packet = (
+        Ether(src=VENDOR_PROBE_MAC, dst=PEER_MAC)
+        / IP(src=VENDOR_PROBE_IP, dst=PEER_IP)
+        / TCP(sport=502, dport=50500, flags="PA")
+        / payload
+    )
+    wrpcap(str(path), [packet])
+
+
+def test_probe_mac_prefix_is_present_in_the_committed_table():
+    """Bezpiecznik testu nizej: gdy ten prefiks zniknie z tabeli przy jej
+    odswiezeniu, ma sie zapalic TUTAJ, z czytelnym powodem, a nie w tescie
+    zlozenia jako niejasna porazka asercji."""
+    table = load_oui_table()
+
+    assert lookup_vendor(VENDOR_PROBE_MAC, table) is not None
+
+
+def test_vendor_from_real_oui_prefix_reaches_analysis_and_report(tmp_path):
+    from datetime import datetime, timezone
+
+    from wayside.pipeline import analyze
+
+    capture = tmp_path / "vendor_probe.pcap"
+    _write_probe_capture(capture)
+    expected_vendor = lookup_vendor(VENDOR_PROBE_MAC, load_oui_table())
+
+    result = analyze(
+        capture,
+        out_dir=tmp_path / "out",
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    host = next(
+        entry
+        for entry in result.analysis["assets"]
+        if entry["ip"]["value"] == VENDOR_PROBE_IP
+    )
+    assert host["oui_vendor"]["value"] == expected_vendor
+    assert host["oui_vendor"]["provenance"] == "inferred:oui-lookup"
+    assert f"- Producent: {expected_vendor} (inferred:oui-lookup)" in result.report_markdown
+
+
+def test_host_with_locally_administered_mac_stays_undetermined_in_the_same_run(tmp_path):
+    """Druga polowa: bez niej test wyzej przeszedlby takze wtedy, gdyby potok
+    przypisywal te sama nazwe producenta kazdemu hostowi."""
+    from datetime import datetime, timezone
+
+    from wayside.pipeline import analyze
+
+    capture = tmp_path / "vendor_probe.pcap"
+    _write_probe_capture(capture)
+
+    result = analyze(
+        capture,
+        out_dir=tmp_path / "out",
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    peer = next(
+        entry for entry in result.analysis["assets"] if entry["ip"]["value"] == PEER_IP
+    )
+    assert peer["oui_vendor"] == {
+        "value": None,
+        "provenance": "not-derivable-passively",
+    }

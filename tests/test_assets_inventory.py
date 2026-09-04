@@ -12,7 +12,16 @@ dokumentacyjnego RFC 5737 (192.0.2.0/24), adresy MAC lokalnie administrowane
 
 from __future__ import annotations
 
-from wayside.assets.inventory import build_assets
+from wayside.assets.inventory import (
+    CONFIDENCE_LEVELS,
+    FORBIDDEN_ROLE_LABELS,
+    ROLE_LABELS,
+    ROLE_MODBUS_BOTH,
+    ROLE_MODBUS_CLIENT,
+    ROLE_MODBUS_SERVER,
+    ROLE_UNDETERMINED,
+    build_assets,
+)
 from wayside.decode import Segment
 from wayside.model import assert_provenance_complete
 
@@ -513,6 +522,166 @@ def test_event_address_absent_from_segments_never_creates_a_host_entry():
 
 def test_assert_provenance_complete_passes_with_unit_ids_and_gateway():
     events = [_event(unit_id=1), _event(unit_id=2)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+
+    assert_provenance_complete(assets, path="assets")
+
+
+# --- Rola behawioralna z dowodem i poziomem pewnosci (plan 03-06, Task 2) ---
+
+
+def test_role_labels_is_closed_set_of_four_behavioural_values():
+    assert len(ROLE_LABELS) == 4
+    assert ROLE_MODBUS_CLIENT in ROLE_LABELS
+    assert ROLE_MODBUS_SERVER in ROLE_LABELS
+    assert ROLE_MODBUS_BOTH in ROLE_LABELS
+    assert ROLE_UNDETERMINED in ROLE_LABELS
+
+
+def test_no_forbidden_organisational_label_occurs_in_any_role_label():
+    assert FORBIDDEN_ROLE_LABELS
+    for role in ROLE_LABELS:
+        for forbidden in FORBIDDEN_ROLE_LABELS:
+            assert forbidden.lower() not in role.lower()
+
+
+def test_confidence_levels_has_exactly_two_values_and_no_high():
+    assert CONFIDENCE_LEVELS == ("niska", "srednia")
+    assert not any("wysok" in level for level in CONFIDENCE_LEVELS)
+
+
+def test_sender_only_of_requests_is_modbus_client():
+    events = [_event(unit_id=1)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
+
+    assert client["role"] == {
+        "value": ROLE_MODBUS_CLIENT,
+        "provenance": "inferred:modbus-traffic-direction",
+    }
+
+
+def test_receiver_only_of_requests_is_modbus_server():
+    events = [_event(unit_id=1)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["role"] == {
+        "value": ROLE_MODBUS_SERVER,
+        "provenance": "inferred:modbus-traffic-direction",
+    }
+
+
+def test_address_both_sending_and_receiving_requests_is_client_and_server():
+    events = [
+        _event(unit_id=1, src_ip=CLIENT_IP, dst_ip=SERVER_IP),
+        _event(unit_id=1, src_ip=SERVER_IP, dst_ip=CLIENT_IP),
+    ]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
+
+    assert client["role"]["value"] == ROLE_MODBUS_BOTH
+    assert client["role"]["provenance"] == "inferred:modbus-traffic-direction"
+
+
+def test_address_without_any_modbus_event_has_role_undetermined_as_string():
+    assets = build_assets(segments=_client_server_segments(), events=[])
+    client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
+
+    # ASSET-07: wartoscia pola jest LANCUCH `nieustalona`, nie `None` i nie brak
+    # klucza. Rola nieustalona jest widocznym wpisem, nie pustym wierszem - to
+    # jedyne pole inwentarza, w ktorym brak wiedzy ma wartosc inna niz `null`.
+    assert client["role"]["value"] == "nieustalona"
+    assert client["role"]["value"] is not None
+    assert client["role"]["provenance"] == "not-derivable-passively"
+
+
+def test_every_role_value_belongs_to_the_closed_label_set():
+    events = [
+        _event(unit_id=1, src_ip=CLIENT_IP, dst_ip=SERVER_IP),
+        _event(unit_id=1, src_ip=SERVER_IP, dst_ip=CLIENT_IP),
+    ]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+
+    assert all(entry["role"]["value"] in ROLE_LABELS for entry in assets)
+
+
+def test_role_carries_evidence_and_confidence():
+    events = [_event(unit_id=1), _event(unit_id=2), _event(unit_id=3)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["role_evidence"]["provenance"] == "observed"
+    assert server["role_evidence"]["value"]
+    assert "3" in server["role_evidence"]["value"]
+    assert "0" in server["role_evidence"]["value"]
+    assert server["role_confidence"]["value"] in CONFIDENCE_LEVELS
+    assert server["role_confidence"]["provenance"] == "inferred:event-count-and-direction"
+
+
+def test_address_without_events_has_evidence_stating_zero_events_as_observed():
+    assets = build_assets(segments=_client_server_segments(), events=[])
+    client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
+
+    assert client["role_evidence"]["provenance"] == "observed"
+    assert "0" in client["role_evidence"]["value"]
+
+
+def test_one_event_gives_low_confidence():
+    events = [_event(unit_id=1)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["role_confidence"]["value"] == "niska"
+
+
+def test_two_events_give_low_confidence_below_the_threshold():
+    events = [_event(unit_id=1), _event(unit_id=2)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["role_confidence"]["value"] == "niska"
+
+
+def test_three_directionally_consistent_events_give_medium_confidence():
+    events = [_event(unit_id=1), _event(unit_id=2), _event(unit_id=3)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["role_confidence"]["value"] == "srednia"
+
+
+def test_three_events_in_both_directions_give_low_confidence():
+    events = [
+        _event(unit_id=1, src_ip=CLIENT_IP, dst_ip=SERVER_IP),
+        _event(unit_id=2, src_ip=CLIENT_IP, dst_ip=SERVER_IP),
+        _event(unit_id=3, src_ip=SERVER_IP, dst_ip=CLIENT_IP),
+    ]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["role_confidence"]["value"] == "niska"
+
+
+def test_address_without_events_has_low_confidence():
+    assets = build_assets(segments=_client_server_segments(), events=[])
+    client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
+
+    assert client["role_confidence"]["value"] == "niska"
+
+
+def test_assert_provenance_complete_passes_with_role_fields():
+    events = [_event(unit_id=1), _event(unit_id=2), _event(unit_id=3)]
 
     assets = build_assets(segments=_client_server_segments(), events=events)
 

@@ -21,9 +21,82 @@ from collections.abc import Callable
 
 from wayside.assets.oui import PROVENANCE_METHOD_OUI
 from wayside.decode import Segment
-from wayside.model import inferred, not_derivable, observed
+from wayside.model import (
+    PROVENANCE_NOT_DERIVABLE,
+    ObservedField,
+    inferred,
+    not_derivable,
+    observed,
+)
 
-__all__ = ["build_assets"]
+__all__ = [
+    "ROLE_MODBUS_CLIENT",
+    "ROLE_MODBUS_SERVER",
+    "ROLE_MODBUS_BOTH",
+    "ROLE_UNDETERMINED",
+    "ROLE_LABELS",
+    "FORBIDDEN_ROLE_LABELS",
+    "CONFIDENCE_LEVELS",
+    "MIN_EVENTS_FOR_MEDIUM_CONFIDENCE",
+    "build_assets",
+]
+
+ROLE_MODBUS_CLIENT = "klient Modbus"
+ROLE_MODBUS_SERVER = "serwer Modbus"
+ROLE_MODBUS_BOTH = "klient i serwer Modbus"
+ROLE_UNDETERMINED = "nieustalona"
+
+# Zamkniety zbior etykiet roli, na wzor `ALLOWED_SEVERITIES` w `risk.py`
+# (zalozenie Z-26). Wszystkie cztery wartosci sa BEHAWIORALNE: mowia, co adres
+# robil w zaobserwowanym ruchu, nie czym urzadzenie jest w procesie. Etykieta
+# organizacyjna wymaga wiedzy, ktorej pasywny zrzut nie niesie, a zamkniety
+# zbior zamienia te dyscypline z konwencji autora we wlasnosc kodu.
+ROLE_LABELS: tuple[str, ...] = (
+    ROLE_MODBUS_CLIENT,
+    ROLE_MODBUS_SERVER,
+    ROLE_MODBUS_BOTH,
+    ROLE_UNDETERMINED,
+)
+
+# Etykiety organizacyjne, czyli DANE TESTOWE dla bramki maszynowej z planu
+# 03-06 Task 3 - w tym samym stylu co `EXTERNAL_DISSECTOR_PATTERNS`
+# w `tests/test_no_external_dissector.py`. Zyja w kodzie produkcyjnym po to,
+# zeby bramka i implementacja miały jedno zrodlo prawdy zamiast dwoch list,
+# ktore rozjada sie przy pierwszej zmianie. Kazda z nich twierdzilaby cos
+# o funkcji urzadzenia w procesie - a z kierunku ruchu w jednym oknie tego
+# ustalic nie mozna (03-RESEARCH.md, Pitfall 4).
+FORBIDDEN_ROLE_LABELS: tuple[str, ...] = (
+    "stanowisko operatorskie",
+    "stacja inzynierska",
+    "stacja inżynierska",
+    "historian",
+    "system nadzorczy",
+    "sterownik programowalny",
+    "HMI",
+    "engineering workstation",
+    "operator workstation",
+    "SCADA",
+    "PLC",
+    "RTU",
+    "IED",
+)
+
+# Zamkniety zbior poziomow pewnosci roli (zalozenie Z-27). Wartosci `wysoka`
+# NIE MA i nie bedzie: ograniczeniem nie jest liczebnosc probki, tylko to, ze
+# zaobserwowane okno moze nie obejmowac zachowania odwrotnego - laptop
+# inzyniera, ktory przez kwadrans tylko odczytywal, wyglada tak samo przy
+# dziesieciu zdarzeniach co przy tysiacu. Trzeci poziom w zbiorze bylby
+# zaproszeniem do jego uzycia.
+CONFIDENCE_LEVELS: tuple[str, ...] = ("niska", "srednia")
+
+# Prog pewnosci sredniej (zalozenie Z-28). Trzy zdarzenia to najmniejsza
+# liczba, przy ktorej kierunek przestaje byc pojedyncza wymiana. Liczba jest
+# arbitralna w tym samym stopniu co kazda inna i dlatego stoi jako nazwana
+# stala, a nie jako liczba w warunku.
+MIN_EVENTS_FOR_MEDIUM_CONFIDENCE = 3
+
+PROVENANCE_METHOD_ROLE = "modbus-traffic-direction"
+PROVENANCE_METHOD_ROLE_CONFIDENCE = "event-count-and-direction"
 
 
 def build_assets(
@@ -77,10 +150,16 @@ def build_assets(
     # funkcji - do wyniku wchodzi lista posortowana, nigdy kolejnosc iteracji
     # zbioru.
     unit_ids_by_server: dict[str, set[int]] = {}
+    # Liczone sa WYLACZNIE zdarzenia o kierunku `request`: odpowiedz jest
+    # lustrem zadania, wiec policzenie obu podwoiloby te sama obserwacje.
+    requests_sent: dict[str, int] = {}
+    requests_received: dict[str, int] = {}
     for event in events or []:
         if event.get("direction") != "request":
             continue
         unit_ids_by_server.setdefault(event["dst_ip"], set()).add(event["unit_id"])
+        requests_sent[event["src_ip"]] = requests_sent.get(event["src_ip"], 0) + 1
+        requests_received[event["dst_ip"]] = requests_received.get(event["dst_ip"], 0) + 1
 
     def _oui_vendor_field(mac: str | None) -> object:
         if mac is None or vendor_lookup is None:
@@ -106,6 +185,40 @@ def build_assets(
         # w zrzucie identycznie jak urzadzenie bez bramy.
         return not_derivable()
 
+    def _role_field(sent: int, received: int) -> object:
+        if sent > 0 and received > 0:
+            return inferred(ROLE_MODBUS_BOTH, PROVENANCE_METHOD_ROLE)
+        if sent > 0:
+            return inferred(ROLE_MODBUS_CLIENT, PROVENANCE_METHOD_ROLE)
+        if received > 0:
+            return inferred(ROLE_MODBUS_SERVER, PROVENANCE_METHOD_ROLE)
+        # ASSET-07: jedyne pole inwentarza, w ktorym brak wiedzy ma WARTOSC,
+        # a nie `null`. Rola nieustalona ma byc widocznym wierszem raportu,
+        # bo host pominiety w inwentarzu wyglada jak host, ktorego nie ma,
+        # a host z pusta rubryka wyglada jak usterka renderowania. Znacznik
+        # pochodzenia niesie ten sam komunikat co wszedzie indziej.
+        return ObservedField(value=ROLE_UNDETERMINED, provenance=PROVENANCE_NOT_DERIVABLE)
+
+    def _role_evidence_field(sent: int, received: int) -> object:
+        if sent == 0 and received == 0:
+            # Zero zaobserwowanych zdarzen jest OBSERWACJA, nie brakiem
+            # obserwacji - stad znacznik `observed` takze tutaj.
+            return observed(
+                "Zero zdarzen Modbus powiazanych z tym adresem w tym zrzucie "
+                "(zadania wyslane: 0, zadania odebrane: 0)."
+            )
+        return observed(
+            f"Zadania Modbus wyslane przez ten adres: {sent}; "
+            f"zadania Modbus odebrane przez ten adres: {received}."
+        )
+
+    def _role_confidence_field(sent: int, received: int) -> object:
+        total = sent + received
+        directions_seen = (1 if sent > 0 else 0) + (1 if received > 0 else 0)
+        if total >= MIN_EVENTS_FOR_MEDIUM_CONFIDENCE and directions_seen == 1:
+            return inferred("srednia", PROVENANCE_METHOD_ROLE_CONFIDENCE)
+        return inferred("niska", PROVENANCE_METHOD_ROLE_CONFIDENCE)
+
     def _visit(ip: str, mac: str | None) -> None:
         if ip not in hosts:
             order.append(ip)
@@ -116,6 +229,13 @@ def build_assets(
                 "oui_vendor": _oui_vendor_field(mac),
                 "unit_ids": _unit_ids_field(ip),
                 "gateway": _gateway_field(ip),
+                "role": _role_field(requests_sent.get(ip, 0), requests_received.get(ip, 0)),
+                "role_evidence": _role_evidence_field(
+                    requests_sent.get(ip, 0), requests_received.get(ip, 0)
+                ),
+                "role_confidence": _role_confidence_field(
+                    requests_sent.get(ip, 0), requests_received.get(ip, 0)
+                ),
             }
             return
 

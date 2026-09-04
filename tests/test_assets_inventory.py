@@ -12,6 +12,8 @@ dokumentacyjnego RFC 5737 (192.0.2.0/24), adresy MAC lokalnie administrowane
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from wayside.assets.inventory import (
     CONFIDENCE_LEVELS,
     FORBIDDEN_ROLE_LABELS,
@@ -24,6 +26,7 @@ from wayside.assets.inventory import (
 )
 from wayside.decode import Segment
 from wayside.model import assert_provenance_complete
+from wayside.report import render_markdown
 
 CLIENT_IP = "192.0.2.10"
 SERVER_IP = "192.0.2.20"
@@ -686,3 +689,112 @@ def test_assert_provenance_complete_passes_with_role_fields():
     assets = build_assets(segments=_client_server_segments(), events=events)
 
     assert_provenance_complete(assets, path="assets")
+
+
+# --- Bramka na etykiete organizacyjna (plan 03-06, Task 3) -------------------
+#
+# Bramka dziala w dwoch warstwach. Pierwsza pilnuje samego zbioru etykiet
+# (test_no_forbidden_organisational_label_occurs_in_any_role_label wyzej),
+# druga - warstwy renderowania, ktora mogla by etykiete rozwinac o wlasny
+# komentarz. Obie czytaja `FORBIDDEN_ROLE_LABELS` z modulu produkcyjnego:
+# lista przepisana w tescie rozjedzie sie z produkcyjna przy pierwszym
+# dopisanym wpisie.
+
+
+def _host_entry(*, ip: str, role: str) -> dict:
+    return {
+        "ip": {"value": ip, "provenance": "observed"},
+        "mac": {"value": None, "provenance": "not-derivable-passively"},
+        "oui_vendor": {"value": None, "provenance": "not-derivable-passively"},
+        "unit_ids": {"value": None, "provenance": "not-derivable-passively"},
+        "gateway": {"value": None, "provenance": "not-derivable-passively"},
+        "role": {"value": role, "provenance": "inferred:modbus-traffic-direction"},
+        "role_evidence": {"value": "Zadania Modbus wyslane przez ten adres: 1; "
+                                   "zadania Modbus odebrane przez ten adres: 0.",
+                          "provenance": "observed"},
+        "role_confidence": {"value": "niska",
+                            "provenance": "inferred:event-count-and-direction"},
+    }
+
+
+def test_rendered_role_rows_carry_no_organisational_label():
+    analysis = {
+        "capture": {"filename": "x.pcap"},
+        "findings": [],
+        "assets": [
+            _host_entry(ip=f"192.0.2.{index + 1}", role=role)
+            for index, role in enumerate(ROLE_LABELS)
+        ],
+    }
+
+    rendered = render_markdown(
+        analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
+    ).lower()
+    role_rows = [line for line in rendered.splitlines() if line.strip().startswith("- rola:")]
+
+    assert len(role_rows) == len(ROLE_LABELS)
+    for row in role_rows:
+        for forbidden in FORBIDDEN_ROLE_LABELS:
+            assert forbidden.lower() not in row
+
+
+def test_role_evidence_row_stands_directly_under_the_role_row():
+    analysis = {
+        "capture": {"filename": "x.pcap"},
+        "findings": [],
+        "assets": [_host_entry(ip="192.0.2.1", role=ROLE_MODBUS_CLIENT)],
+    }
+
+    lines = render_markdown(
+        analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
+    ).splitlines()
+    role_index = next(i for i, line in enumerate(lines) if line.startswith("- Rola:"))
+
+    assert lines[role_index + 1].startswith("- Dowod roli:")
+
+
+def test_gateway_true_renders_probable_gateway_sentence_with_device_count():
+    host = _host_entry(ip="192.0.2.30", role=ROLE_MODBUS_SERVER)
+    host["unit_ids"] = {"value": [1, 2, 3], "provenance": "observed"}
+    host["gateway"] = {"value": True, "provenance": "inferred:multiple-unit-ids"}
+    analysis = {"capture": {"filename": "x.pcap"}, "findings": [], "assets": [host]}
+
+    rendered = render_markdown(
+        analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
+    )
+
+    assert "prawdopodobna brama" in rendered
+    assert "3" in rendered
+
+
+def test_gateway_null_renders_undetermined_and_never_denies_a_gateway():
+    analysis = {
+        "capture": {"filename": "x.pcap"},
+        "findings": [],
+        "assets": [_host_entry(ip="192.0.2.1", role=ROLE_MODBUS_CLIENT)],
+    }
+
+    rendered = render_markdown(
+        analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
+    )
+    gateway_row = next(
+        line for line in rendered.splitlines() if line.startswith("- Brama:")
+    )
+
+    assert "nieustalone" in gateway_row
+    assert "prawdopodobna brama" not in gateway_row.lower().removeprefix("- brama:")
+
+
+def test_unit_ids_row_renders_values_separated_by_commas():
+    host = _host_entry(ip="192.0.2.30", role=ROLE_MODBUS_SERVER)
+    host["unit_ids"] = {"value": [1, 2, 3], "provenance": "observed"}
+    analysis = {"capture": {"filename": "x.pcap"}, "findings": [], "assets": [host]}
+
+    rendered = render_markdown(
+        analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
+    )
+    row = next(
+        line for line in rendered.splitlines() if line.startswith("- Podadresy Unit ID:")
+    )
+
+    assert "1, 2, 3" in row

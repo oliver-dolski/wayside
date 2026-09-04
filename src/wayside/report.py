@@ -26,6 +26,13 @@ SECTIONS: tuple[str, ...] = (
 )
 
 
+# Pola wpisu hosta renderowane wlasnym punktem z etykieta czytelna dla
+# czlowieka, ponizej petli ogolnej po kluczach wpisu.
+_HOST_FIELDS_WITH_OWN_ROW: frozenset[str] = frozenset(
+    {"oui_vendor", "unit_ids", "gateway", "role", "role_evidence", "role_confidence"}
+)
+
+
 def render_markdown(
     analysis: dict, *, generated_at: datetime, warnings: tuple[str, ...] = ()
 ) -> str:
@@ -134,10 +141,11 @@ def render_markdown(
             lines.append(f"### {ip_field['value']}")
             lines.append("")
             for field_name, field_value in host.items():
-                # ASSET-02: pole oui_vendor ma wlasny punkt z etykieta
-                # "Producent" nizej, wiec jest wylaczone z tej petli
-                # ogolnej, zeby nie renderowac go dwa razy.
-                if field_name == "oui_vendor":
+                # Pola z wlasnymi punktami nizej (ASSET-02, ASSET-04 do
+                # ASSET-07) sa wylaczone z tej petli ogolnej, zeby nie
+                # renderowac ich dwa razy - raz pod nazwa klucza, raz pod
+                # etykieta czytelna dla czlowieka.
+                if field_name in _HOST_FIELDS_WITH_OWN_ROW:
                     continue
                 value = field_value["value"]
                 provenance = field_value["provenance"]
@@ -151,6 +159,58 @@ def render_markdown(
                 vendor_provenance = oui_vendor["provenance"]
                 rendered_vendor = "nieustalony" if vendor_value is None else vendor_value
                 lines.append(f"- Producent: {rendered_vendor} ({vendor_provenance})")
+
+            unit_ids = host.get("unit_ids")
+            if unit_ids is not None:
+                unit_ids_value = unit_ids["value"]
+                rendered_unit_ids = (
+                    "nieustalone"
+                    if unit_ids_value is None
+                    else ", ".join(str(unit_id) for unit_id in unit_ids_value)
+                )
+                lines.append(
+                    f"- Podadresy Unit ID: {rendered_unit_ids} ({unit_ids['provenance']})"
+                )
+
+            gateway = host.get("gateway")
+            if gateway is not None:
+                if gateway["value"]:
+                    # Liczba urzadzen logicznych wyliczana z dlugosci listy
+                    # podadresow tego samego hosta, nie z osobnego pola modelu:
+                    # jedno zrodlo tej liczby, dwa miejsca jej uzycia.
+                    logical_devices = len((unit_ids or {}).get("value") or [])
+                    rendered_gateway = (
+                        f"prawdopodobna brama z {logical_devices} "
+                        "urzadzeniami logicznymi za nia"
+                    )
+                else:
+                    # Przy wartosci `null` NIE renderujemy zdania o tym, ze host
+                    # brama nie jest (zalozenie Z-25): to ta sama pulapka co
+                    # wartosc `false` w modelu, tylko przeniesiona do tekstu.
+                    rendered_gateway = "nieustalone"
+                lines.append(
+                    f"- Brama: {rendered_gateway} ({gateway['provenance']})"
+                )
+
+            role = host.get("role")
+            if role is not None:
+                lines.append(f"- Rola: {role['value']} ({role['provenance']})")
+
+            # Dowod roli stoi BEZPOSREDNIO pod rola: etykieta bez towarzyszacego
+            # dowodu w tym samym miejscu jest sygnalem, ktorego doswiadczony
+            # recenzent szuka najpierw (PITFALLS.md, Pitfall 9).
+            role_evidence = host.get("role_evidence")
+            if role_evidence is not None:
+                lines.append(
+                    f"- Dowod roli: {role_evidence['value']} ({role_evidence['provenance']})"
+                )
+
+            role_confidence = host.get("role_confidence")
+            if role_confidence is not None:
+                lines.append(
+                    f"- Pewnosc roli: {role_confidence['value']} "
+                    f"({role_confidence['provenance']})"
+                )
             lines.append("")
 
     lines.append(f"## {SECTIONS[4]}")

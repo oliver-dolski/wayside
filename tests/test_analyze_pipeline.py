@@ -28,6 +28,7 @@ FIXTURE_CORRUPTED_RECORD_LENGTH = "tests/fixtures/pcap/corrupted_record_length.p
 FIXTURE_POLL_CYCLE_SHORT_WINDOW = "tests/fixtures/pcap/modbus_poll_cycle_short_window.pcap"
 FIXTURE_POLL_CYCLE_FULL_WINDOW = "tests/fixtures/pcap/modbus_poll_cycle_full_window.pcap"
 FIXTURE_RTU_OVER_TCP = "tests/fixtures/pcap/modbus_rtu_over_tcp.pcap"
+FIXTURE_GATEWAY = "tests/fixtures/pcap/modbus_gateway_multi_unit_id.pcap"
 
 _GENERATED_AT_KEY_PATTERN = re.compile(r"generat|wygenerowan", re.IGNORECASE)
 
@@ -613,3 +614,72 @@ def test_missing_oui_table_gives_named_warning_and_analyze_still_succeeds(tmp_pa
         host["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
         for host in result.analysis["assets"]
     )
+
+
+# --- Brama z wieloma Unit ID i rola w raporcie (plan 03-06, Task 3) ----------
+
+
+def test_gateway_fixture_report_names_probable_gateway_with_device_count(tmp_path):
+    result = _run_analyze_path(FIXTURE_GATEWAY, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+    gateway_rows = [
+        line for line in report_text.splitlines() if line.startswith("- Brama:")
+    ]
+    named = [line for line in gateway_rows if "prawdopodobna brama" in line]
+
+    # Dwa hosty, ale tylko jeden z nich wystawia wiele wartosci Unit ID -
+    # zdanie o bramie ma paść dokladnie raz, nie przy kazdym wierszu.
+    assert len(gateway_rows) == 2
+    assert len(named) == 1
+    assert "3" in named[0]
+
+
+def test_baseline_fixture_report_never_names_a_probable_gateway(tmp_path):
+    """Druga polowa bramki: bez niej zdanie renderowane bezwarunkowo
+    przeszlo by test wyzej."""
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    assert "prawdopodobna brama" not in report_text
+
+
+def test_gateway_fixture_report_host_block_carries_all_five_new_rows(tmp_path):
+    result = _run_analyze_path(FIXTURE_GATEWAY, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    for label in ("- Podadresy Unit ID:", "- Brama:", "- Rola:", "- Dowod roli:", "- Pewnosc roli:"):
+        assert label in report_text
+
+
+def test_gateway_fixture_analysis_has_two_assets_with_unit_ids_and_gateway(tmp_path):
+    result = _run_analyze_path(FIXTURE_GATEWAY, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    analysis = _load_analysis(tmp_path)
+    assert len(analysis["assets"]) == 2
+
+    server = next(
+        entry for entry in analysis["assets"] if entry["ip"]["value"] == "192.0.2.30"
+    )
+    assert server["unit_ids"] == {"value": [1, 2, 3], "provenance": "observed"}
+    assert server["gateway"] == {
+        "value": True,
+        "provenance": "inferred:multiple-unit-ids",
+    }
+
+
+def test_two_runs_on_gateway_fixture_give_byte_identical_analysis_json(tmp_path):
+    out_a = tmp_path / "a"
+    out_b = tmp_path / "b"
+    result_a = _run_analyze_path(FIXTURE_GATEWAY, out_a)
+    result_b = _run_analyze_path(FIXTURE_GATEWAY, out_b)
+    assert result_a.returncode == 0, result_a.stderr
+    assert result_b.returncode == 0, result_b.stderr
+
+    assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()

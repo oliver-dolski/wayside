@@ -752,3 +752,47 @@ def test_two_runs_on_handshake_fixture_give_byte_identical_analysis_json(tmp_pat
     assert result_b.returncode == 0, result_b.stderr
 
     assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()
+
+
+# --- FLOW-03/REPORT-02: sekcja ograniczen w pelnym przebiegu (plan 03-07, Task 3) ---
+
+
+def test_limitations_section_carries_run_numbers_and_undetermined_field_rows(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+    section = report_text.split("## Ograniczenia", 1)[1].split("\n## ", 1)[0]
+
+    assert "Zakres tego przebiegu" in section
+    assert "adresow zaobserwowanych 2" in section
+    assert "sesji z ladunkiem 1" in section
+    assert "pole `" in section
+    assert " wpisow" in section
+
+
+def test_report_from_every_fixture_makes_no_completeness_claim(tmp_path):
+    from wayside.flow import COMPLETENESS_CLAIM_TERMS
+
+    for index, fixture in enumerate(
+        (FIXTURE_RELATIVE, FIXTURE_RTU_OVER_TCP, FIXTURE_GATEWAY, FIXTURE_HANDSHAKE)
+    ):
+        out_dir = tmp_path / str(index)
+        result = _run_analyze_path(fixture, out_dir)
+        assert result.returncode == 0, result.stderr
+
+        text = (out_dir / "report.md").read_text(encoding="utf-8").lower()
+        for term in COMPLETENESS_CLAIM_TERMS:
+            assert term.lower() not in text, (fixture, term)
+
+
+def test_limitations_section_carries_every_vantage_point_sentence(tmp_path):
+    from wayside.flow import VANTAGE_POINT_LIMITATIONS
+
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    for sentence in VANTAGE_POINT_LIMITATIONS:
+        assert sentence in report_text

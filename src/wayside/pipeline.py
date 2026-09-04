@@ -258,6 +258,42 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     )
     assert_provenance_complete(comm_matrix, path="comm_matrix")
 
+    # FLOW-03: sesje TCP zlozone WYLACZNIE z pakietow bez ladunku nie maja
+    # wiersza w macierzy (zalozenie Z-31), wiec bez policzenia zniknelyby bez
+    # sladu. Kanoniczne klucze z pakietow, ktorych nie ma wsrod kluczy
+    # zbudowanych z segmentow.
+    session_keys_with_payload = {
+        decode._canonical_session_key(
+            segment.src_ip, segment.src_port, segment.dst_ip, segment.dst_port
+        )
+        for segment in segments
+    }
+    payloadless_session_keys: set[str] = set()
+    for pkt in packets:
+        if not pkt.haslayer(decode.IP) or not pkt.haslayer(decode.TCP):
+            continue
+        tcp_layer = pkt[decode.TCP]
+        key = decode._canonical_session_key(
+            str(pkt[decode.IP].src),
+            int(tcp_layer.sport),
+            str(pkt[decode.IP].dst),
+            int(tcp_layer.dport),
+        )
+        if key not in session_keys_with_payload:
+            payloadless_session_keys.add(key)
+
+    # Kolejnosc ostrzezen w sekcji ograniczen jest deterministyczna: zdania
+    # o martwym polu widzenia ida PO ostrzezeniach z planow 03-03, 03-04
+    # i 03-05, i ta kolejnosc jest ustalona raz.
+    warnings.extend(
+        flow.vantage_point_limitations(
+            host_count=len(assets),
+            session_count=len(comm_matrix),
+            payloadless_session_count=len(payloadless_session_keys),
+            window_duration_s=window_duration_s,
+        )
+    )
+
     methodology = {
         "rubric_version": risk.RUBRIC_VERSION,
         "note": (

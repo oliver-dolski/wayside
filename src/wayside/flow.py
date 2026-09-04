@@ -67,12 +67,14 @@ PROVENANCE_METHOD_FIRST_SENDER = "first-observed-sender"
 # w `assets/inventory.py`. Zyja w kodzie produkcyjnym, zeby bramka i tekst
 # raportu mialy jedno zrodlo prawdy.
 COMPLETENESS_CLAIM_TERMS: tuple[str, ...] = (
+    "kompletn",
     "wszystkie urzadzenia",
     "wszystkich urzadzen",
+    "wszystkie hosty",
+    "wszystkich hostow",
     "pelna lista",
+    "pelny inwentarz",
     "pelny obraz",
-    "kompletna lista",
-    "kompletny obraz",
     "cala siec",
     "calej sieci",
     "complete list",
@@ -92,7 +94,7 @@ VANTAGE_POINT_LIMITATIONS: tuple[str, ...] = (
     "bramy. Adres sieciowy w tym raporcie moze wiec odpowiadac wiecej niz jednemu "
     "urzadzeniu fizycznemu.",
     "Wiele hostow ukrytych za jednym adresem po translacji adresow jest z tego "
-    "punktu nieodrozniallnych. Jeden wiersz inwentarza moze odpowiadac wiecej niz "
+    "punktu nieodroznialnych. Jeden wiersz inwentarza moze odpowiadac wiecej niz "
     "jednemu urzadzeniu.",
 )
 
@@ -248,17 +250,20 @@ def vantage_point_limitations(
     sesji i jak dlugie okno faktycznie widziano, wiaze ograniczenie z tym
     konkretnym zrzutem (FLOW-03).
     """
-    lines = list(VANTAGE_POINT_LIMITATIONS)
-
     if window_duration_s is None:
         window_sentence = "okno czasowe zrzutu nie zostalo ustalone"
     else:
         window_sentence = f"okno czasowe zrzutu ma dlugosc {window_duration_s} s"
-    lines.append(
+
+    # Zdanie z liczbami stoi PIERWSZE, przed zdaniami stalymi: formula ogolna
+    # czytana jako pierwsza jest odbierana jako zastrzezenie prawne i pomijana,
+    # a liczby z tego przebiegu wiaza ograniczenie z tym konkretnym zrzutem.
+    lines = [
         f"Zakres tego przebiegu: adresow zaobserwowanych {host_count}, sesji "
         f"z ladunkiem {session_count}, sesji bez ani jednego segmentu z ladunkiem "
         f"{payloadless_session_count}, {window_sentence}."
-    )
+    ]
+    lines.extend(VANTAGE_POINT_LIMITATIONS)
 
     if payloadless_session_count:
         lines.append(

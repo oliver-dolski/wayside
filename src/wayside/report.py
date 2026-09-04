@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from wayside import risk
+from wayside.model import collect_not_derivable_fields
 
 __all__ = ["SECTIONS", "render_markdown"]
 
@@ -267,6 +268,27 @@ def render_markdown(
         "zaprojektowana topologia sieci. Numeracja punktu normy jest "
         "prowizoryczna i czeka na zestawienie z legalnym egzemplarzem normy."
     )
+    lines.append("")
+
+    # REPORT-02: lista pol nieustalonych powstaje z TEGO modelu, nie z listy
+    # pisanej recznie - dopisanie nowego pola inwentarza albo macierzy trafia
+    # tu samo, bez zmiany w warstwie renderowania.
+    not_derivable_rows = collect_not_derivable_fields(analysis)
+    if not_derivable_rows:
+        lines.append(
+            "Pola, ktorych nie da sie ustalic z tego zrzutu, zebrane po nazwie pola:"
+        )
+        lines.append("")
+        for row in not_derivable_rows:
+            lines.append(
+                f"- sekcja `{row['section']}`, pole `{row['field']}`: "
+                f"{row['count']} z {row['total']} wpisow"
+            )
+    else:
+        lines.append(
+            "W tym przebiegu kazde pole sekcji inwentarza i macierzy komunikacji "
+            "zostalo ustalone z zaobserwowanego ruchu."
+        )
     lines.append("")
 
     lines.append(f"## {SECTIONS[6]}")

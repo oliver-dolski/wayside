@@ -34,6 +34,7 @@ __all__ = [
     "not_derivable",
     "iter_observed_fields",
     "assert_provenance_complete",
+    "collect_not_derivable_fields",
 ]
 
 # Nosnik prowieniencji pola (zalozenie Z-01): kazde pole inwentarza niesie
@@ -106,6 +107,46 @@ def iter_observed_fields(node: object, path: str = "") -> Iterator[tuple[str, di
     if isinstance(node, list):
         for index, item in enumerate(node):
             yield from iter_observed_fields(item, f"{path}[{index}]")
+
+
+def collect_not_derivable_fields(
+    analysis: dict, sections: tuple[str, ...] = ("assets", "comm_matrix")
+) -> list[dict]:
+    """Wypisuje pola nieustalone pasywnie, zagregowane po nazwie pola.
+
+    Korzysta z `iter_observed_fields`, czyli z tego samego przejscia, ktore
+    napedza bramke `assert_provenance_complete`. Jedno przejscie, dwa
+    zastosowania: bramka SPRAWDZA, a ta funkcja WYPISUJE. Drugi, rownolegly
+    obchod modelu rozjechalby sie z bramka przy pierwszym nowym ksztalcie pola.
+
+    Agregacja po nazwie pola, nie po wpisie (zalozenie Z-32): lista per host
+    rosnie liniowo z liczba hostow i przy realnym zrzucie zamienia sekcje
+    ograniczen w wyliczanke, ktorej nikt nie czyta.
+
+    Sekcja nieobecna w modelu nie podnosi wyjatku i nie daje pozycji.
+    """
+    rows: list[dict] = []
+    for section in sections:
+        entries = analysis.get(section)
+        if not entries:
+            continue
+        counts: dict[str, int] = {}
+        for entry in entries:
+            for path, field in iter_observed_fields(entry):
+                if field["provenance"] != PROVENANCE_NOT_DERIVABLE:
+                    continue
+                field_name = path.rsplit(".", 1)[-1]
+                counts[field_name] = counts.get(field_name, 0) + 1
+        for field_name in sorted(counts):
+            rows.append(
+                {
+                    "section": section,
+                    "field": field_name,
+                    "count": counts[field_name],
+                    "total": len(entries),
+                }
+            )
+    return sorted(rows, key=lambda row: (row["section"], row["field"]))
 
 
 def assert_provenance_complete(node: object, path: str = "") -> None:

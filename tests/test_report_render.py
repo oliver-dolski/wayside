@@ -14,6 +14,12 @@ import re
 from datetime import datetime, timezone
 
 from wayside import risk
+from wayside.flow import (
+    COMPLETENESS_CLAIM_TERMS,
+    VANTAGE_POINT_LIMITATIONS,
+    vantage_point_limitations,
+)
+from wayside.model import collect_not_derivable_fields
 from wayside.report import SECTIONS, render_markdown
 
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -202,3 +208,180 @@ def test_render_markdown_is_deterministic_for_same_model_and_timestamp():
     )
 
     assert first == second
+
+
+# --- FLOW-03/REPORT-02: sekcja ograniczen (plan 03-07, Task 3) --------------
+
+
+def _host(*, ip: str, mac_known: bool = True) -> dict:
+    return {
+        "ip": {"value": ip, "provenance": "observed"},
+        "mac": (
+            {"value": "02:00:00:00:00:01", "provenance": "observed"}
+            if mac_known
+            else {"value": None, "provenance": "not-derivable-passively"}
+        ),
+    }
+
+
+def _matrix_row() -> dict:
+    return {
+        "session_id": {"value": 0, "provenance": "observed"},
+        "source": {"value": "192.0.2.10:1024", "provenance": "observed"},
+        "target": {"value": "192.0.2.20:502", "provenance": "observed"},
+        "direction": {
+            "value": "192.0.2.10:1024 -> 192.0.2.20:502",
+            "provenance": "observed",
+        },
+        "initiator": {"value": None, "provenance": "not-derivable-passively"},
+        "protocol": {"value": "tcp", "provenance": "observed"},
+        "volume_bytes": {"value": 100, "provenance": "observed"},
+        "packet_count": {"value": 2, "provenance": "observed"},
+    }
+
+
+def _limitations_body(analysis: dict, warnings: tuple[str, ...] = ()) -> str:
+    text = render_markdown(analysis, generated_at=GENERATED_AT, warnings=warnings)
+    bodies = _section_bodies(text)
+    return bodies[SECTIONS.index("Ograniczenia")]
+
+
+def test_collect_not_derivable_fields_on_model_without_sections_is_empty():
+    assert collect_not_derivable_fields({}) == []
+    assert collect_not_derivable_fields({"assets": [], "comm_matrix": []}) == []
+
+
+def test_collect_not_derivable_fields_on_fully_determined_model_is_empty():
+    analysis = {"assets": [_host(ip="192.0.2.10")], "comm_matrix": []}
+
+    assert collect_not_derivable_fields(analysis) == []
+
+
+def test_collect_not_derivable_fields_counts_entries_and_total():
+    analysis = {
+        "assets": [_host(ip="192.0.2.10", mac_known=False), _host(ip="192.0.2.20")]
+    }
+
+    rows = collect_not_derivable_fields(analysis, sections=("assets",))
+
+    assert rows == [{"section": "assets", "field": "mac", "count": 1, "total": 2}]
+
+
+def test_collect_not_derivable_fields_is_sorted_by_section_then_field():
+    analysis = {
+        "assets": [_host(ip="192.0.2.10", mac_known=False)],
+        "comm_matrix": [_matrix_row()],
+    }
+
+    rows = collect_not_derivable_fields(analysis)
+
+    assert [(row["section"], row["field"]) for row in rows] == sorted(
+        (row["section"], row["field"]) for row in rows
+    )
+
+
+def test_same_field_name_in_two_sections_gives_two_separate_rows():
+    analysis = {
+        "assets": [
+            {"role": {"value": None, "provenance": "not-derivable-passively"}}
+        ],
+        "comm_matrix": [
+            {"role": {"value": None, "provenance": "not-derivable-passively"}}
+        ],
+    }
+
+    rows = collect_not_derivable_fields(analysis)
+
+    assert len(rows) == 2
+    assert {row["section"] for row in rows} == {"assets", "comm_matrix"}
+
+
+def test_vantage_point_limitations_carries_every_constant_sentence():
+    lines = vantage_point_limitations(
+        host_count=2, session_count=1, payloadless_session_count=0, window_duration_s=1.5
+    )
+
+    for sentence in VANTAGE_POINT_LIMITATIONS:
+        assert sentence in lines
+
+
+def test_vantage_point_limitations_carries_numbers_of_this_run():
+    lines = vantage_point_limitations(
+        host_count=7, session_count=3, payloadless_session_count=0, window_duration_s=2.5
+    )
+    joined = " ".join(lines)
+
+    assert "7" in joined
+    assert "3" in joined
+    assert "2.5" in joined
+
+
+def test_vantage_point_limitations_without_window_says_so_instead_of_empty_value():
+    lines = vantage_point_limitations(
+        host_count=0, session_count=0, payloadless_session_count=0, window_duration_s=None
+    )
+    joined = " ".join(lines)
+
+    assert "nie zostalo ustalone" in joined
+    assert "None" not in joined
+
+
+def test_limitations_section_names_blind_spots():
+    analysis = {
+        "capture": {"filename": "x.pcap", "packet_count": 2},
+        "findings": [],
+        "assets": [_host(ip="192.0.2.10", mac_known=False)],
+        "comm_matrix": [_matrix_row()],
+    }
+    warnings = tuple(
+        vantage_point_limitations(
+            host_count=1,
+            session_count=1,
+            payloadless_session_count=0,
+            window_duration_s=1.0,
+        )
+    )
+
+    body = _limitations_body(analysis, warnings=warnings)
+
+    for sentence in VANTAGE_POINT_LIMITATIONS:
+        assert sentence in body
+    assert "sekcja `assets`, pole `mac`: 1 z 1 wpisow" in body
+    assert "sekcja `comm_matrix`, pole `initiator`: 1 z 1 wpisow" in body
+
+
+def test_limitations_section_states_explicitly_when_nothing_is_undetermined():
+    analysis = {
+        "capture": {"filename": "x.pcap", "packet_count": 2},
+        "findings": [],
+        "assets": [_host(ip="192.0.2.10")],
+        "comm_matrix": [],
+    }
+
+    body = _limitations_body(analysis)
+
+    assert "kazde pole sekcji inwentarza i macierzy komunikacji zostalo ustalone" in body
+
+
+def test_report_makes_no_completeness_claim():
+    """Bramka maszynowa FLOW-03. Lista czytana z modulu produkcyjnego, nie
+    przepisana tutaj: kopia rozjedzie sie przy pierwszym dopisanym wpisie."""
+    analysis = {
+        "capture": {"filename": "x.pcap", "packet_count": 2},
+        "findings": [],
+        "assets": [_host(ip="192.0.2.10", mac_known=False)],
+        "comm_matrix": [_matrix_row()],
+    }
+    warnings = tuple(
+        vantage_point_limitations(
+            host_count=1,
+            session_count=1,
+            payloadless_session_count=1,
+            window_duration_s=1.0,
+        )
+    )
+
+    text = render_markdown(analysis, generated_at=GENERATED_AT, warnings=warnings).lower()
+
+    for term in COMPLETENESS_CLAIM_TERMS:
+        assert term.lower() not in text

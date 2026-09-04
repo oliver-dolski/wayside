@@ -21,7 +21,9 @@ i nie ulega zmianie.
 from __future__ import annotations
 
 import ast
+import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -37,6 +39,17 @@ from wayside.assets.oui import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Grupa 4 importuje `scripts/gen_oui_db.py` jak `tests/test_standards_catalog.py`
+# importuje `scripts/confidentiality_guard.py` - przez wstawienie katalogu
+# `scripts/` do `sys.path`, bo `scripts/` nie jest pakietem instalowanym.
+_SCRIPTS_DIR = REPO_ROOT / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+import gen_oui_db  # noqa: E402
+
+DECISION_RECORD_PATH = REPO_ROOT / "docs" / "decisions" / "0002-redystrybucja-rejestru-oui.md"
 
 
 # --- Stale modulu: ksztalt kontraktu z bloku <interfaces> planu ------------
@@ -302,3 +315,198 @@ def test_find_network_imports_ignores_docstring_mention(tmp_path):
     )
 
     assert _find_network_imports(tmp_path) == []
+
+
+# --- Grupa 4: scripts/gen_oui_db.py, generator tabeli producentow (Task 4) --
+#
+# CSV minimalny w ksztalcie rejestru IEEE OUI: naglowek z nazwami kolumn
+# odczytywanymi przez `csv.DictReader` (nie zakladanymi z pamieci), jeden
+# wiersz z prefiksem niepoprawnym, jeden wiersz z nazwa pusta po oczyszczeniu
+# bialych znakow i dwa wiersze o TYM SAMYM prefiksie - dowod na regule
+# "ostatni wpis wygrywa", zgodna z porzadkiem pierwszenstwa `load_oui_table`.
+_SAMPLE_OUI_CSV = (
+    "Registry,Assignment,Organization Name,Organization Address\n"
+    "MA-L,AABBCC,Organizacja Testowa Jeden,Adres jeden\n"
+    "MA-L,001122,Organizacja Testowa Dwa,Adres dwa\n"
+    "MA-L,zzzzzz,Organizacja Prefiks Niepoprawny,Adres trzy\n"
+    "MA-L,334455,   ,Adres cztery\n"
+    "MA-L,001122,Organizacja Testowa Dwa Zaktualizowana,Adres piec\n"
+)
+
+
+def test_build_table_parses_sorts_and_keeps_last_occurrence_on_duplicate_prefix():
+    rows = gen_oui_db.build_table(_SAMPLE_OUI_CSV)
+
+    assert rows == [
+        ("001122", "Organizacja Testowa Dwa Zaktualizowana"),
+        ("AABBCC", "Organizacja Testowa Jeden"),
+    ]
+
+
+def test_build_table_rejects_source_missing_expected_columns():
+    with pytest.raises(ValueError):
+        gen_oui_db.build_table("KolumnaA,KolumnaB\n1,2\n")
+
+
+def test_fetch_oui_csv_reads_local_source_without_touching_network(tmp_path):
+    source_path = tmp_path / "oui.csv"
+    source_path.write_text(_SAMPLE_OUI_CSV, encoding="utf-8")
+
+    text = gen_oui_db.fetch_oui_csv(source_path=source_path)
+
+    assert text == _SAMPLE_OUI_CSV
+
+
+def test_fetch_oui_csv_rejects_non_https_url():
+    with pytest.raises(ValueError):
+        gen_oui_db.fetch_oui_csv(url="http://example.invalid/oui.csv")
+
+
+def test_write_table_output_is_loadable_and_matches_input_rows(tmp_path):
+    rows = gen_oui_db.build_table(_SAMPLE_OUI_CSV)
+    output_path = tmp_path / "oui_table.tsv"
+
+    gen_oui_db.write_table(rows, output_path, source="zrodlo-testowe")
+    loaded = load_oui_table(output_path)
+
+    assert loaded == dict(rows)
+
+
+def test_gen_oui_db_cli_with_source_two_runs_produce_identical_bytes(tmp_path):
+    source_path = tmp_path / "oui.csv"
+    source_path.write_text(_SAMPLE_OUI_CSV, encoding="utf-8")
+
+    outputs = []
+    for name in ("run1.tsv", "run2.tsv"):
+        output_path = tmp_path / name
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "gen_oui_db.py"),
+                "--source",
+                str(source_path),
+                "--output",
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        outputs.append(output_path)
+
+    assert outputs[0].read_bytes() == outputs[1].read_bytes()
+
+
+def test_gen_oui_db_main_with_source_never_calls_urlopen(tmp_path, monkeypatch):
+    source_path = tmp_path / "oui.csv"
+    source_path.write_text(_SAMPLE_OUI_CSV, encoding="utf-8")
+    output_path = tmp_path / "oui_table.tsv"
+
+    def _fail_urlopen(*_args, **_kwargs):
+        raise AssertionError(
+            "urllib.request.urlopen nie powinien byc wolany, gdy podano --source."
+        )
+
+    monkeypatch.setattr(gen_oui_db.urllib.request, "urlopen", _fail_urlopen)
+
+    exit_code = gen_oui_db.main(
+        ["--source", str(source_path), "--output", str(output_path)]
+    )
+
+    assert exit_code == 0
+    assert output_path.exists()
+
+
+def test_gen_oui_db_main_without_source_uses_network_fetch(tmp_path, monkeypatch):
+    # Dowod na druga polowe kryterium: BEZ --source skrypt siega do sieci
+    # (tutaj podstawionej), zamiast po cichu spadac na zrodlo lokalne.
+    captured_urls: list[str] = []
+
+    class _FakeHeaders:
+        def get_content_charset(self):
+            return "utf-8"
+
+    class _FakeResponse:
+        headers = _FakeHeaders()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc_info):
+            return False
+
+        def read(self):
+            return _SAMPLE_OUI_CSV.encode("utf-8")
+
+    def _fake_urlopen(url, timeout=None):  # noqa: ARG001
+        captured_urls.append(url)
+        return _FakeResponse()
+
+    monkeypatch.setattr(gen_oui_db.urllib.request, "urlopen", _fake_urlopen)
+
+    output_path = tmp_path / "oui_table.tsv"
+    exit_code = gen_oui_db.main(["--output", str(output_path)])
+
+    assert exit_code == 0
+    assert captured_urls == [gen_oui_db.IEEE_OUI_CSV_URL]
+    assert output_path.exists()
+
+
+def test_committed_oui_table_loads_without_raising_and_is_non_empty():
+    # Nie porownuje sumy kontrolnej pliku: `* text=auto` w `.gitattributes`
+    # normalizuje koniec linii przy pobraniu, wiec taka asercja bylaby
+    # testem konfiguracji gita, nie testem danych (plan, Task 4).
+    table = load_oui_table(OUI_TABLE_PATH)
+    assert len(table) > 0
+
+
+# --- Grupa 5: rekord decyzji 0002 spojny ze stanem drzewa (Task 4) ---------
+#
+# Bez tego testu rekord decyzji jest notatka, a nie bramka: pierwsza cicha
+# zmiana stanu drzewa (usuniecie albo dodanie oui_table.tsv bez rewizji
+# rekordu) rozjezdzalaby sie z nim bez sladu.
+
+_RESOLVED_OPTION_RE = re.compile(r"^resolved_option:\s*(\S+)\s*$", re.MULTILINE)
+_KNOWN_OPTIONS = frozenset(
+    {"commit-pelnej-tabeli", "commit-podzbioru-ot", "bez-danych-w-repo"}
+)
+
+
+def _is_git_tracked(path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", str(path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def test_decision_record_resolved_option_matches_tree_state():
+    text = DECISION_RECORD_PATH.read_text(encoding="utf-8")
+    match = _RESOLVED_OPTION_RE.search(text)
+    assert match is not None, (
+        "Rekord decyzji 0002 nie niesie pola 'resolved_option' w frontmatterze."
+    )
+    resolved_option = match.group(1)
+    assert resolved_option in _KNOWN_OPTIONS, (
+        f"Pole 'resolved_option' niesie wartosc spoza trzech opcji checkpointu: "
+        f"{resolved_option!r}."
+    )
+
+    table_tracked = _is_git_tracked(OUI_TABLE_PATH)
+
+    if resolved_option in {"commit-pelnej-tabeli", "commit-podzbioru-ot"}:
+        assert OUI_TABLE_PATH.exists(), (
+            "Rozstrzygniecie zaklada obecnosc tabeli producentow na dysku, "
+            "a pliku tam nie ma."
+        )
+        assert table_tracked, (
+            "Rozstrzygniecie zaklada commit tabeli producentow, a plik nie "
+            "jest sledzony przez git."
+        )
+    else:
+        assert not table_tracked, (
+            "Rozstrzygniecie 'bez-danych-w-repo' zaklada brak tabeli "
+            "producentow w repozytorium, a plik jest sledzony przez git."
+        )

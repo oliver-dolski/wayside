@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from wayside import coverage, decode, report, risk, zones
-from wayside.assets import inventory
+from wayside.assets import inventory, oui
 from wayside.checks import engine as checks_engine
 from wayside.model import (
     Evidence,
@@ -208,7 +208,29 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         coverage.coverage_warnings(cycles=polling_cycles, window_duration_s=window_duration_s)
     )
 
-    assets = inventory.build_assets(segments=segments)
+    # ASSET-02: tabela producentow OUI wczytywana DOKLADNIE RAZ na przebieg,
+    # PRZED budowa inwentarza - plik ma kilkadziesiat tysiecy wierszy, a
+    # odczyt na hosta zamienilby liniowa prace w kwadratowa. Niepowodzenie
+    # (zalozenie Z-21) daje vendor_lookup rowne None i JAWNE ostrzezenie -
+    # nigdy ciche pole nieustalone, ktore wygladaloby identycznie jak pole
+    # nieustalone z powodu adresu MAC lokalnie administrowanego albo
+    # nieobecnego.
+    try:
+        oui_table = oui.load_oui_table()
+    except oui.OuiTableError:
+        vendor_lookup = None
+        warnings.append(
+            "Tabela producentow OUI nie jest dolaczona do tego wydania "
+            "narzedzia - pole producenta jest nieustalone dla kazdego "
+            "hosta w tym przebiegu, niezaleznie od tego, czy jego adres "
+            "MAC byl widoczny."
+        )
+    else:
+
+        def vendor_lookup(mac: str) -> str | None:
+            return oui.lookup_vendor(mac, oui_table)
+
+    assets = inventory.build_assets(segments=segments, vendor_lookup=vendor_lookup)
     # Bramka prowieniencji stoi na producencie danych, PRZED serializacja
     # (T-3-04): pole inwentarza bez znacznika pochodzenia nie dochodzi do
     # `analysis.json`. Zakres bramki jest sekcja `assets`, nie cale drzewo

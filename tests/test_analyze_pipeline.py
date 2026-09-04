@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -532,3 +533,83 @@ def test_two_runs_on_rtu_over_tcp_fixture_give_byte_identical_analysis_json(tmp_
     assert result_b.returncode == 0, result_b.stderr
 
     assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()
+
+
+# --- ASSET-02: pole oui_vendor - inwentarz, raport, ostrzezenie o braku tabeli
+# (plan 03-05, Task 2) -------------------------------------------------------
+
+
+def test_baseline_fixture_assets_carry_oui_vendor_key_with_provenance(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    for host in analysis["assets"]:
+        assert "oui_vendor" in host
+        assert host["oui_vendor"]["provenance"] in (
+            "not-derivable-passively",
+            "inferred:oui-lookup",
+        )
+
+
+def test_report_markdown_inwentarz_section_carries_producent_bullet(tmp_path):
+    # Adresy MAC fixture'ow tego projektu sa lokalnie administrowane
+    # (zalozenie Z-03/gen_fixtures.py) - nie maja dopasowania w rejestrze
+    # IEEE niezaleznie od tego, czy tabela lezy w drzewie (Task 4, `<action>`:
+    # "producent pozostanie nieustalony takze z pelna tabela"). Ten test jest
+    # wiec bezpieczny wobec kazdego rozstrzygniecia checkpointu Task 3.
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    inwentarz_start = report_text.index("## Inwentarz")
+    ograniczenia_start = report_text.index("## Ograniczenia")
+    inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
+
+    assert "Producent" in inwentarz_section
+    assert "nieustalony" in inwentarz_section
+    assert "not-derivable-passively" in inwentarz_section
+
+
+def test_two_runs_on_baseline_fixture_give_byte_identical_analysis_json_with_oui_vendor(
+    tmp_path,
+):
+    out_a = tmp_path / "a"
+    out_b = tmp_path / "b"
+    result_a = _run_analyze(out_a)
+    result_b = _run_analyze(out_b)
+    assert result_a.returncode == 0, result_a.stderr
+    assert result_b.returncode == 0, result_b.stderr
+
+    assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()
+
+
+def test_missing_oui_table_gives_named_warning_and_analyze_still_succeeds(tmp_path, monkeypatch):
+    # Robustne wobec obu rozstrzygniec checkpointu Task 3 tego planu: zamiast
+    # polegac na faktycznej (nie)obecnosci src/wayside/assets/oui_table.tsv
+    # na dysku w chwili uruchomienia testu, ten test wymusza OuiTableError
+    # przez monkeypatch na wayside.pipeline.oui.load_oui_table - dokladnie
+    # droga, ktora Task 2 tego planu nazywa wprost jako zapasowa, gdyby
+    # tabela juz lezala w drzewie po Task 4. Wywoluje pipeline.analyze
+    # bezposrednio (nie przez subprocess CLI), bo monkeypatch nie przechodzi
+    # granicy procesu.
+    from wayside import pipeline as pipeline_module
+
+    def _raise_oui_table_error(path=None):
+        raise pipeline_module.oui.OuiTableError(
+            "tabela producentow nieobecna (wymuszone testem, Task 2 plan 03-05)"
+        )
+
+    monkeypatch.setattr(pipeline_module.oui, "load_oui_table", _raise_oui_table_error)
+
+    result = pipeline_module.analyze(
+        REPO_ROOT / FIXTURE_RELATIVE,
+        out_dir=tmp_path,
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    assert any("Tabela producentow OUI" in warning for warning in result.warnings)
+    assert all(
+        host["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
+        for host in result.analysis["assets"]
+    )

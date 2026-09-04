@@ -181,7 +181,11 @@ def test_lookup_vendor_empty_table_returns_none():
 # tests/test_no_external_dissector.py skanuje SCAN_SCOPE, a nie caly system
 # plikow.
 
-_MANUF_HEADER_MARKER = "Wireshark Ethernet OUI"
+# Sklejony w czasie dzialania z osobnych literalow - patrz docstring
+# tests/test_standards_catalog.py: zaden POJEDYNCZY fragment zrodla tego
+# pliku nie moze niesc calego naglowka doslownie, inaczej ten wlasny plik
+# testowy stalby sie wlasnym falszywym alarmem tej bramki.
+_MANUF_HEADER_MARKER = " ".join(("Wireshark", "Ethernet", "OUI"))
 
 
 def _git_tracked_files(repo_root: Path) -> list[Path]:

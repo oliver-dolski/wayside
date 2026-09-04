@@ -134,10 +134,23 @@ def render_markdown(
             lines.append(f"### {ip_field['value']}")
             lines.append("")
             for field_name, field_value in host.items():
+                # ASSET-02: pole oui_vendor ma wlasny punkt z etykieta
+                # "Producent" nizej, wiec jest wylaczone z tej petli
+                # ogolnej, zeby nie renderowac go dwa razy.
+                if field_name == "oui_vendor":
+                    continue
                 value = field_value["value"]
                 provenance = field_value["provenance"]
                 rendered_value = "nieustalone" if value is None else value
                 lines.append(f"- {field_name}: {rendered_value} ({provenance})")
+            # Odczyt przez .get z obsluga braku klucza, zeby model budowany
+            # recznie w tests/test_report_render.py nadal sie renderowal.
+            oui_vendor = host.get("oui_vendor")
+            if oui_vendor is not None:
+                vendor_value = oui_vendor["value"]
+                vendor_provenance = oui_vendor["provenance"]
+                rendered_vendor = "nieustalony" if vendor_value is None else vendor_value
+                lines.append(f"- Producent: {rendered_vendor} ({vendor_provenance})")
             lines.append("")
 
     lines.append(f"## {SECTIONS[4]}")

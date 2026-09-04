@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from wayside.assets.inventory import build_assets
 from wayside.decode import Segment
+from wayside.model import assert_provenance_complete
 
 CLIENT_IP = "192.0.2.10"
 SERVER_IP = "192.0.2.20"
@@ -192,6 +193,150 @@ def test_two_different_macs_for_same_ip_gives_not_derivable():
 
 
 # --- ordering: kolejnosc pierwszego napotkania, identyczna przy powtorzeniu -
+
+
+# --- ASSET-02: oui_vendor, vendor_lookup wstrzykiwany (Z-20), plan 03-05 ---
+
+
+def test_build_assets_without_vendor_lookup_gives_not_derivable_oui_vendor():
+    segments = [
+        _segment(
+            packet_number=1,
+            session_id=0,
+            src_ip=CLIENT_IP,
+            src_port=50000,
+            dst_ip=SERVER_IP,
+            dst_port=502,
+            src_mac=CLIENT_MAC,
+            dst_mac=SERVER_MAC,
+        )
+    ]
+
+    assets = build_assets(segments=segments)
+
+    assert all(
+        entry["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
+        for entry in assets
+    )
+
+
+def test_build_assets_with_vendor_lookup_returning_name_gives_inferred_oui_vendor():
+    segments = [
+        _segment(
+            packet_number=1,
+            session_id=0,
+            src_ip=CLIENT_IP,
+            src_port=50000,
+            dst_ip=SERVER_IP,
+            dst_port=502,
+            src_mac=CLIENT_MAC,
+            dst_mac=SERVER_MAC,
+        )
+    ]
+
+    assets = build_assets(
+        segments=segments,
+        vendor_lookup=lambda mac: "Organizacja Testowa" if mac == CLIENT_MAC else None,
+    )
+
+    client_entry = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
+    assert client_entry["oui_vendor"] == {
+        "value": "Organizacja Testowa",
+        "provenance": "inferred:oui-lookup",
+    }
+    server_entry = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+    assert server_entry["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
+
+
+def test_build_assets_vendor_lookup_returning_none_gives_not_derivable_oui_vendor():
+    segments = [
+        _segment(
+            packet_number=1,
+            session_id=0,
+            src_ip=CLIENT_IP,
+            src_port=50000,
+            dst_ip=SERVER_IP,
+            dst_port=502,
+            src_mac=CLIENT_MAC,
+            dst_mac=SERVER_MAC,
+        )
+    ]
+
+    assets = build_assets(segments=segments, vendor_lookup=lambda mac: None)
+
+    assert all(
+        entry["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
+        for entry in assets
+    )
+
+
+def test_build_assets_host_without_mac_never_calls_vendor_lookup():
+    segments = [
+        _segment(
+            packet_number=1,
+            session_id=0,
+            src_ip=CLIENT_IP,
+            src_port=50000,
+            dst_ip=SERVER_IP,
+            dst_port=502,
+            src_mac=None,
+            dst_mac=None,
+        )
+    ]
+    call_count = 0
+
+    def _counting_lookup(mac: str) -> str | None:
+        nonlocal call_count
+        call_count += 1
+        return "Organizacja Testowa"
+
+    assets = build_assets(segments=segments, vendor_lookup=_counting_lookup)
+
+    assert call_count == 0
+    assert all(
+        entry["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
+        for entry in assets
+    )
+
+
+def test_assert_provenance_complete_passes_on_build_assets_result_with_oui_vendor():
+    segments = [
+        _segment(
+            packet_number=1,
+            session_id=0,
+            src_ip=CLIENT_IP,
+            src_port=50000,
+            dst_ip=SERVER_IP,
+            dst_port=502,
+            src_mac=CLIENT_MAC,
+            dst_mac=SERVER_MAC,
+        )
+    ]
+
+    assets = build_assets(
+        segments=segments, vendor_lookup=lambda mac: "Organizacja Testowa"
+    )
+
+    assert_provenance_complete(assets, path="assets")
+
+
+def test_build_assets_every_host_entry_carries_oui_vendor_key():
+    segments = [
+        _segment(
+            packet_number=1,
+            session_id=0,
+            src_ip=CLIENT_IP,
+            src_port=50000,
+            dst_ip=SERVER_IP,
+            dst_port=502,
+            src_mac=CLIENT_MAC,
+            dst_mac=None,
+        )
+    ]
+
+    assets = build_assets(segments=segments)
+
+    assert all("oui_vendor" in entry for entry in assets)
 
 
 def test_ordering_is_first_seen_order_and_deterministic_across_repeated_calls():

@@ -17,18 +17,39 @@ cudzego adresu jako adresu hosta.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Callable
 
+from wayside.assets.oui import PROVENANCE_METHOD_OUI
 from wayside.decode import Segment
-from wayside.model import not_derivable, observed
+from wayside.model import inferred, not_derivable, observed
 
 __all__ = ["build_assets"]
 
 
-def build_assets(*, segments: list[Segment]) -> list[dict]:
+def build_assets(
+    *,
+    segments: list[Segment],
+    vendor_lookup: Callable[[str], str | None] | None = None,
+) -> list[dict]:
     """Buduje liste hostow w kolejnosci pierwszego zaobserwowania adresu IP
-    w pliku. Kazdy wpis ma klucze `ip` i `mac`, kazda wartosc jest slownikiem
-    o ksztalcie `{"value": ..., "provenance": ...}` (wynik
+    w pliku. Kazdy wpis ma klucze `ip`, `mac` i `oui_vendor`, kazda wartosc
+    jest slownikiem o ksztalcie `{"value": ..., "provenance": ...}` (wynik
     `dataclasses.asdict` na `ObservedField`).
+
+    `vendor_lookup` jest funkcja przyjmujaca adres MAC i zwracajaca nazwe
+    producenta albo `None` (zalozenie Z-20). Ten modul NIE importuje
+    `wayside.assets.oui.lookup_vendor` ani `load_oui_table` - wywolujacy
+    (`wayside.pipeline.analyze`) wstrzykuje gotowa funkcje domknieta nad
+    wczytana tabela, wiec ten plik i jego testy pozostaja calkowicie
+    niezalezne od tego, czy plik danych lezy w drzewie repozytorium.
+
+    Regula pola `oui_vendor`, w tej kolejnosci: adres MAC hosta nieustalony
+    (brak warstwy Ethernet albo niezgodnosc wedlug Z-03) daje
+    `not_derivable()` BEZ wolania `vendor_lookup`; `vendor_lookup` rowne
+    `None` daje `not_derivable()`; wynik `vendor_lookup` rowny `None` daje
+    `not_derivable()`; wynik niepusty daje
+    `inferred(nazwa, PROVENANCE_METHOD_OUI)` - producent jest WNIOSKIEM z
+    tabeli, nigdy obserwacja z ruchu (zalozenie Z-23).
 
     Uzywa `dict` plus osobnej listy `order` dla kolejnosci wstawiania -
     nigdy `set` na sciezce do wyniku, bo `model.dump_deterministic` sortuje
@@ -39,6 +60,14 @@ def build_assets(*, segments: list[Segment]) -> list[dict]:
     order: list[str] = []
     first_mac: dict[str, str | None] = {}
 
+    def _oui_vendor_field(mac: str | None) -> object:
+        if mac is None or vendor_lookup is None:
+            return not_derivable()
+        vendor_name = vendor_lookup(mac)
+        if vendor_name is None:
+            return not_derivable()
+        return inferred(vendor_name, PROVENANCE_METHOD_OUI)
+
     def _visit(ip: str, mac: str | None) -> None:
         if ip not in hosts:
             order.append(ip)
@@ -46,6 +75,7 @@ def build_assets(*, segments: list[Segment]) -> list[dict]:
             hosts[ip] = {
                 "ip": observed(ip),
                 "mac": observed(mac) if mac is not None else not_derivable(),
+                "oui_vendor": _oui_vendor_field(mac),
             }
             return
 
@@ -54,7 +84,9 @@ def build_assets(*, segments: list[Segment]) -> list[dict]:
         # juz nie zmienia. Adres MAC nieobecny przy pierwszym napotkaniu
         # zostaje not_derivable() na stale, nawet jesli pozniejszy segment
         # niesie adres MAC - brak wiedzy na starcie nie zamienia sie w
-        # pewnosc pozniej.
+        # pewnosc pozniej. Pole oui_vendor NIE jest przeliczane tutaj - jest
+        # ustalane wylacznie przy pierwszym napotkaniu adresu IP, spojnie z
+        # polem mac, ktorego wtedy dotyczy.
         if first_mac[ip] is not None and mac is not None and mac != first_mac[ip]:
             hosts[ip]["mac"] = not_derivable()
 

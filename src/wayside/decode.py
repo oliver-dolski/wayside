@@ -29,7 +29,13 @@ logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.layers.l2 import Ether  # noqa: E402,F401
 from scapy.layers.inet import IP, TCP  # noqa: E402
 
-__all__ = ["SESSION_KEY_SEPARATOR", "Segment", "decode_segments"]
+__all__ = [
+    "SESSION_KEY_SEPARATOR",
+    "Segment",
+    "SessionInitiator",
+    "decode_segments",
+    "find_session_initiators",
+]
 
 SESSION_KEY_SEPARATOR = "<->"
 
@@ -48,6 +54,24 @@ class Segment:
     payload: bytes
     src_mac: str | None
     dst_mac: str | None
+
+
+@dataclass(frozen=True)
+class SessionInitiator:
+    """Strona, ktora otworzyla sesje TCP, ustalona z pakietu uzgodnienia
+    polaczenia zaobserwowanego w tym zrzucie.
+
+    Czego ten typ NIE oznacza: OBECNOSC wpisu jest obserwacja pakietu
+    otwierajacego polaczenie (flaga SYN bez flagi ACK), a jego BRAK oznacza
+    inicjatora NIEUSTALONEGO, nie inicjatora zgadnietego. Zrzut zaczynajacy sie
+    w srodku trwajacej sesji nie niesie tej informacji w ogole, a pierwszy
+    nadawca ladunku nie jest jej zamiennikiem - to jest osobne pole `direction`
+    ze znacznikiem `inferred:first-observed-sender` (zalozenie Z-30).
+    """
+
+    session_id: int
+    ip: str
+    port: int
 
 
 def _canonical_session_key(src_ip: str, src_port: int, dst_ip: str, dst_port: int) -> str:
@@ -121,3 +145,61 @@ def decode_segments(packets) -> list[Segment]:
         )
 
     return segments
+
+
+def find_session_initiators(packets, segments: list[Segment]) -> dict[int, SessionInitiator]:
+    """Zwraca odwzorowanie identyfikatora sesji na strone, ktora ja otworzyla.
+
+    Stoi OBOK `decode_segments`, nie wewnatrz niego: pakiet z flaga SYN nie ma
+    ladunku z definicji protokolu, wiec filtr pustego ladunku w `decode_segments`
+    go odrzuca. Rozbicie tamtego filtru zmienialoby liczbe segmentow widziana
+    przez `dissect_all`, czyli kontrakt z Fazy 2, bez konsumenta tej zmiany.
+
+    Klucz sesji pochodzi z `_canonical_session_key`, czyli z jedynego zrodla
+    kluczy w tym module - nowa funkcja nie buduje wlasnego, rownoleglego
+    klucza, bo numeracja rozjechalaby sie z `decode_segments` przy pierwszej
+    zmianie kanonizacji.
+
+    Sesja bez ani jednego segmentu z ladunkiem NIE dostaje wpisu (zalozenie
+    Z-31): nie wystepuje w zadnej innej sekcji modelu, wiec wpis tutaj
+    rozjechalby przestrzen identyfikatorow miedzy sekcjami.
+    """
+    session_ids: dict[str, int] = {}
+    for segment in segments:
+        key = _canonical_session_key(
+            segment.src_ip, segment.src_port, segment.dst_ip, segment.dst_port
+        )
+        session_ids.setdefault(key, segment.session_id)
+
+    initiators: dict[int, SessionInitiator] = {}
+    for pkt in packets:
+        if not pkt.haslayer(IP) or not pkt.haslayer(TCP):
+            continue
+
+        tcp_layer = pkt[TCP]
+        # Pole `flags` warstwy TCP w scapy jest polem flag o literach
+        # `FSRPAUECN`, wiec test literowy jest tu czytelniejszy od maski
+        # bitowej. Pakiet OTWIERAJACY polaczenie ma flage SYN i NIE MA flagi
+        # ACK - odpowiedz serwera (SYN razem z ACK) nie jest otwarciem.
+        if "S" not in tcp_layer.flags or "A" in tcp_layer.flags:
+            continue
+
+        ip_layer = pkt[IP]
+        key = _canonical_session_key(
+            str(ip_layer.src), int(tcp_layer.sport), str(ip_layer.dst), int(tcp_layer.dport)
+        )
+        session_id = session_ids.get(key)
+        if session_id is None:
+            continue
+
+        # Pierwszy pakiet w kolejnosci pliku wygrywa; kolejne nie nadpisuja.
+        initiators.setdefault(
+            session_id,
+            SessionInitiator(
+                session_id=session_id,
+                ip=str(ip_layer.src),
+                port=int(tcp_layer.sport),
+            ),
+        )
+
+    return initiators

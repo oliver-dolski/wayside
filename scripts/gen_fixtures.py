@@ -71,6 +71,12 @@ _PCAPNG_BYTE_ORDER_MAGIC_LE = 0x1A2B3C4D
 # dysektora na smiec.
 SNAPLEN_TRUNCATION_LEN = 54
 
+# Brama Modbus z wieloma Unit ID (Faza 3) - trzeci adres, rozny od adresu
+# serwera bazowego, zeby test bramy nie przechodzil przypadkiem na danych
+# innego testu (zalozenie Z-10).
+GATEWAY_IP = "192.0.2.30"
+GATEWAY_MAC = "02:00:00:00:00:03"
+
 __all__ = [
     "GENERATORS",
     "gen_modbus_write_single_register",
@@ -82,6 +88,10 @@ __all__ = [
     "gen_truncated_mid_block",
     "gen_snaplen_truncated_frames",
     "gen_corrupted_record_length",
+    "gen_modbus_poll_cycle_short_window",
+    "gen_modbus_poll_cycle_full_window",
+    "gen_modbus_gateway_multi_unit_id",
+    "gen_modbus_tcp_handshake",
     "main",
 ]
 
@@ -463,6 +473,177 @@ def gen_corrupted_record_length(output_dir: Path) -> Path:
     return output_path
 
 
+# --- Faza 3: fixture'y budowane przez scapy (Task 2, 03-02-PLAN.md) --------
+
+
+def gen_modbus_poll_cycle_short_window(output_dir: Path) -> Path:
+    """Cztery pakiety, dwa zadania Modbus odlegle o piec sekund w oknie
+    zrzutu krotszym niz dziesiec sekund.
+
+    Zadanie pierwsze w chwili `BASE_TIMESTAMP`, odpowiedz pierwsza w chwili
+    `BASE_TIMESTAMP + 0.01`, zadanie drugie w chwili `BASE_TIMESTAMP + 5.0`,
+    odpowiedz druga w chwili `BASE_TIMESTAMP + 5.01`. Najdluzszy odstep
+    miedzy zadaniami wynosi piec sekund, okno zrzutu 5.01 sekundy - okno
+    jest wiec krotsze niz dwa pelne odstepy i krotsze niz trzy pelne odstepy,
+    wiec ten plik wywoluje warunek ostrzezenia niezaleznie od tego, ktory
+    mnoznik progu z zakresu od dwoch do trzech zostanie wybrany w planie
+    03-03 (zalozenie Z-08).
+    """
+    packets = []
+    for i, (offset, trans_id) in enumerate([(0.0, 1), (5.0, 2)]):
+        request = (
+            Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+            / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+            / TCP(sport=50200, dport=MODBUS_PORT, seq=2 * i + 1, ack=2 * i, flags="PA")
+            / ModbusADURequest(transId=trans_id, protoId=0, unitId=1)
+            / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
+        )
+        response = (
+            Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+            / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+            / TCP(sport=MODBUS_PORT, dport=50200, seq=2 * i + 1, ack=2 * i + 2, flags="PA")
+            / ModbusADUResponse(transId=trans_id, protoId=0, unitId=1)
+            / ModbusPDU06WriteSingleRegisterResponse(registerAddr=0x0001, registerValue=0x002A)
+        )
+        request.time = BASE_TIMESTAMP + offset
+        response.time = BASE_TIMESTAMP + offset + 0.01
+        packets.extend([request, response])
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "modbus_poll_cycle_short_window.pcap"
+    wrpcap(str(output_path), packets)
+    return output_path
+
+
+def gen_modbus_poll_cycle_full_window(output_dir: Path) -> Path:
+    """Dwanascie pakietow, szesc zadan Modbus odleglych o jedna sekunde,
+    w oknie zrzutu obejmujacym wiele powtorzen cyklu odpytywania.
+
+    Szesc zadan w chwilach `BASE_TIMESTAMP + n` dla n od zera do pieciu,
+    kazda odpowiedz w chwili zadania powiekszonej o `0.01`. Najdluzszy
+    odstep miedzy zadaniami wynosi jedna sekunde, okno zrzutu 5.01 sekundy,
+    wiec okno obejmuje piec pelnych odstepow - ten plik NIE wywoluje
+    warunku ostrzezenia dla zadnego mnoznika progu z zakresu od dwoch do
+    pieciu, czyli jest przypadkiem negatywnym odpornym na wynik checkpointu
+    z planu 03-03.
+    """
+    packets = []
+    for n in range(6):
+        trans_id = n + 1
+        request = (
+            Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+            / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+            / TCP(sport=50201, dport=MODBUS_PORT, seq=2 * n + 1, ack=2 * n, flags="PA")
+            / ModbusADURequest(transId=trans_id, protoId=0, unitId=1)
+            / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
+        )
+        response = (
+            Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+            / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+            / TCP(sport=MODBUS_PORT, dport=50201, seq=2 * n + 1, ack=2 * n + 2, flags="PA")
+            / ModbusADUResponse(transId=trans_id, protoId=0, unitId=1)
+            / ModbusPDU06WriteSingleRegisterResponse(registerAddr=0x0001, registerValue=0x002A)
+        )
+        request.time = BASE_TIMESTAMP + n
+        response.time = BASE_TIMESTAMP + n + 0.01
+        packets.extend([request, response])
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "modbus_poll_cycle_full_window.pcap"
+    wrpcap(str(output_path), packets)
+    return output_path
+
+
+def gen_modbus_gateway_multi_unit_id(output_dir: Path) -> Path:
+    """Szesc pakietow, trzy wymiany Modbus do jednego adresu serwera z trzema
+    roznymi wartosciami Unit ID - brama wystawiajaca trzy adresy logiczne.
+
+    Sesja miedzy `CLIENT_IP`/`CLIENT_MAC` i `GATEWAY_IP`/`GATEWAY_MAC`. Trzy
+    zadania z `unitId` rownym kolejno 1, 2 i 3, kazde z rosnacym `transId`,
+    trzy odpowiedzi o tych samych wartosciach `unitId`/`transId`.
+
+    Ten plik reprezentuje jeden host sieciowy wystawiajacy trzy adresy
+    logiczne za soba, NIE trzy hosty - to jest dokladnie ten ksztalt danych,
+    na ktorym naiwny inwentarz produkuje trzy wpisy zamiast jednego z
+    podadresami (ASSET-05).
+    """
+    packets = []
+    for i, unit_id in enumerate([1, 2, 3]):
+        trans_id = unit_id
+        request = (
+            Ether(src=CLIENT_MAC, dst=GATEWAY_MAC)
+            / IP(src=CLIENT_IP, dst=GATEWAY_IP, id=1)
+            / TCP(sport=50300, dport=MODBUS_PORT, seq=2 * i + 1, ack=2 * i, flags="PA")
+            / ModbusADURequest(transId=trans_id, protoId=0, unitId=unit_id)
+            / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
+        )
+        response = (
+            Ether(src=GATEWAY_MAC, dst=CLIENT_MAC)
+            / IP(src=GATEWAY_IP, dst=CLIENT_IP, id=1)
+            / TCP(sport=MODBUS_PORT, dport=50300, seq=2 * i + 1, ack=2 * i + 2, flags="PA")
+            / ModbusADUResponse(transId=trans_id, protoId=0, unitId=unit_id)
+            / ModbusPDU06WriteSingleRegisterResponse(registerAddr=0x0001, registerValue=0x002A)
+        )
+        request.time = BASE_TIMESTAMP + i * 0.01
+        response.time = BASE_TIMESTAMP + i * 0.01 + 0.005
+        packets.extend([request, response])
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "modbus_gateway_multi_unit_id.pcap"
+    wrpcap(str(output_path), packets)
+    return output_path
+
+
+def gen_modbus_tcp_handshake(output_dir: Path) -> Path:
+    """Piec pakietow: uzgodnienie trojetapowe TCP jawnie przed wymiana
+    Modbus, jedyny pasywny dowod strony inicjujacej sesje.
+
+    Kolejnosc: pakiet z `TCP(flags="S")` od klienta do serwera; pakiet z
+    `TCP(flags="SA")` od serwera do klienta; pakiet z `TCP(flags="A")` od
+    klienta do serwera; zadanie Modbus z `flags="PA"` od klienta; odpowiedz
+    Modbus z `flags="PA"` od serwera. Trzy pierwsze pakiety nie niosa zadnej
+    warstwy ponad TCP, wiec ich ladunek jest pusty - `decode_segments`
+    dzisiaj odrzuca kazdy segment bez ladunku, wiec te trzy pakiety sa
+    niewidoczne dla reszty potoku, ale pakiet z flaga SYN bez flagi ACK
+    pozostaje jedynym pasywnym dowodem inicjatora (FLOW-02). Fixture'y z
+    Fazy 2 nie zawieraja uzgodnienia polaczenia w ogole, wiec az do tego
+    pliku projekt nie ma materialu na przypadek pozytywny FLOW-02
+    (zalozenie Z-09).
+    """
+    syn = Ether(src=CLIENT_MAC, dst=SERVER_MAC) / IP(
+        src=CLIENT_IP, dst=SERVER_IP, id=1
+    ) / TCP(sport=50400, dport=MODBUS_PORT, seq=0, ack=0, flags="S")
+    syn_ack = Ether(src=SERVER_MAC, dst=CLIENT_MAC) / IP(
+        src=SERVER_IP, dst=CLIENT_IP, id=1
+    ) / TCP(sport=MODBUS_PORT, dport=50400, seq=0, ack=1, flags="SA")
+    ack = Ether(src=CLIENT_MAC, dst=SERVER_MAC) / IP(
+        src=CLIENT_IP, dst=SERVER_IP, id=1
+    ) / TCP(sport=50400, dport=MODBUS_PORT, seq=1, ack=1, flags="A")
+    request = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=50400, dport=MODBUS_PORT, seq=1, ack=1, flags="PA")
+        / ModbusADURequest(transId=1, protoId=0, unitId=1)
+        / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
+    )
+    response = (
+        Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+        / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+        / TCP(sport=MODBUS_PORT, dport=50400, seq=1, ack=1, flags="PA")
+        / ModbusADUResponse(transId=1, protoId=0, unitId=1)
+        / ModbusPDU06WriteSingleRegisterResponse(registerAddr=0x0001, registerValue=0x002A)
+    )
+
+    packets = [syn, syn_ack, ack, request, response]
+    for i, pkt in enumerate(packets):
+        pkt.time = BASE_TIMESTAMP + i * 0.01
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "modbus_tcp_handshake.pcap"
+    wrpcap(str(output_path), packets)
+    return output_path
+
+
 GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_write_single_register.pcap", gen_modbus_write_single_register),
     ("modbus_write_non_standard_port.pcap", gen_modbus_non_standard_port),
@@ -473,6 +654,10 @@ GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("truncated_mid_block.pcapng", gen_truncated_mid_block),
     ("snaplen_truncated_frames.pcap", gen_snaplen_truncated_frames),
     ("corrupted_record_length.pcap", gen_corrupted_record_length),
+    ("modbus_poll_cycle_short_window.pcap", gen_modbus_poll_cycle_short_window),
+    ("modbus_poll_cycle_full_window.pcap", gen_modbus_poll_cycle_full_window),
+    ("modbus_gateway_multi_unit_id.pcap", gen_modbus_gateway_multi_unit_id),
+    ("modbus_tcp_handshake.pcap", gen_modbus_tcp_handshake),
 )
 
 

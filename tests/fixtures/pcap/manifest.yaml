@@ -99,3 +99,47 @@ fixtures:
       fixture'u uciecia przez snaplen: to jest korupcja pola dlugosci,
       nie legalne uciecie.
     protocol: modbus-tcp
+  - path: modbus_poll_cycle_short_window.pcap
+    sha256: "0fecc748a3e504487a9bc8b3fdb1a0f04a14cbecb872ba68a0303cd9ae45edfa"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_poll_cycle_short_window
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Cztery pakiety, dwa zadania Modbus write function code 0x06 w jednej
+      sesji TCP, odlegle o piec sekund. Okno zrzutu jest krotsze od dwoch
+      i od trzech pelnych odstepow miedzy zadaniami, wiec plik wywoluje
+      ostrzezenie o oknie zbyt krotkim wobec cyklu odpytywania.
+    protocol: modbus-tcp
+  - path: modbus_poll_cycle_full_window.pcap
+    sha256: "20963fa101af0f52a46a2042b450b21c67be23c0b589597be986fcd67e5158d0"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_poll_cycle_full_window
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Dwanascie pakietow, szesc zadan Modbus write function code 0x06
+      w jednej sesji TCP, odleglych o jedna sekunde. Okno zrzutu obejmuje
+      piec pelnych odstepow miedzy zadaniami - przypadek negatywny, plik
+      nie wywoluje ostrzezenia o oknie zbyt krotkim.
+    protocol: modbus-tcp
+  - path: modbus_gateway_multi_unit_id.pcap
+    sha256: "a7033b6ab9657fa2b79a686beee0ac9478de70a9a9e2ceac5237c1509dfe64c8"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_gateway_multi_unit_id
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Szesc pakietow, trzy wymiany Modbus write function code 0x06 do
+      jednego adresu serwera, z trzema roznymi wartosciami Unit ID. Jeden
+      host sieciowy wystawiajacy trzy adresy logiczne za soba, nie trzy
+      hosty - material na wykrycie bramy z wieloma Unit ID w inwentarzu.
+    protocol: modbus-tcp
+  - path: modbus_tcp_handshake.pcap
+    sha256: "cf92ac59c0e3cdb6b68f360c1e4677b7f9d3573ec5215c9067e3da7181d6b579"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_tcp_handshake
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Piec pakietow: uzgodnienie trojetapowe TCP (SYN, SYN-ACK, ACK) jawnie
+      przed wymiana Modbus write function code 0x06. Pakiet pierwszy niesie
+      flage SYN bez flagi ACK - jedyny pasywny dowod strony inicjujacej
+      sesje. Fixture'y wczesniejsze nie zawieraly uzgodnienia polaczenia.
+    protocol: modbus-tcp

@@ -101,7 +101,8 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     """Wykonuje kroki potoku w kolejnosci: audyt strukturalny (brama D-01),
     odczyt zrzutu, dekodowanie, dysekcja Modbus, dyskryminator Modbus RTU
     tunelowanego po TCP nad ta sama lista segmentow (PROTO-03), budowa
-    inwentarza hostow, bramka prowieniencji nad inwentarzem (Z-02), model
+    inwentarza hostow nad segmentami i nad zserializowanymi zdarzeniami
+    (ASSET-04, ASSET-05), bramka prowieniencji nad inwentarzem (Z-02), model
     strefy, pomiar cyklu odpytywania i ocena pokrycia okna zrzutu
     (INGEST-04), model analizy bez findingow, silnik checkow, rozwiazanie
     powolan na norme, przypisanie ryzyka, zapis `analysis.json`,
@@ -230,7 +231,13 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         def vendor_lookup(mac: str) -> str | None:
             return oui.lookup_vendor(mac, oui_table)
 
-    assets = inventory.build_assets(segments=segments, vendor_lookup=vendor_lookup)
+    # ASSET-04/ASSET-05: `events` to `protocol_events`, czyli zdarzenia JUZ
+    # zserializowane. Kolejnosc krokow jest tu kontraktem - budowa inwentarza
+    # idzie PO `dissect_all` i po serializacji, bo Unit ID pod adresem serwera
+    # pochodzi ze zdarzen, nie z samych segmentow.
+    assets = inventory.build_assets(
+        segments=segments, events=protocol_events, vendor_lookup=vendor_lookup
+    )
     # Bramka prowieniencji stoi na producencie danych, PRZED serializacja
     # (T-3-04): pole inwentarza bez znacznika pochodzenia nie dochodzi do
     # `analysis.json`. Zakres bramki jest sekcja `assets`, nie cale drzewo

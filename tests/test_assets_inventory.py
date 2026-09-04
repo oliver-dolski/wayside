@@ -367,3 +367,153 @@ def test_ordering_is_first_seen_order_and_deterministic_across_repeated_calls():
 
     assert first_run == second_run
     assert first_run == [THIRD_IP, CLIENT_IP, SERVER_IP]
+
+
+# --- Unit ID jako podadres i wykrycie prawdopodobnej bramy (plan 03-06, Task 1) ---
+#
+# Zdarzenia budowane slownikiem, w ksztalcie `analysis["protocol_events"]`, czyli
+# wyniku `dataclasses.asdict` na `ModbusEvent`. Funkcja pomocnicza z wartosciami
+# domyslnymi, zeby test rozniacy sie jedna wartoscia roznil sie jednym argumentem,
+# a nie calym literalem.
+
+
+def _event(
+    *,
+    unit_id: int,
+    direction: str = "request",
+    src_ip: str = CLIENT_IP,
+    dst_ip: str = SERVER_IP,
+    packet_number: int = 1,
+    session_id: int = 0,
+    transaction_id: int = 1,
+    function_code: int = 0x06,
+    function_name: str = "Write Single Register",
+    kind: str = "write",
+    timestamp: float = 0.0,
+) -> dict:
+    return {
+        "packet_number": packet_number,
+        "session_id": session_id,
+        "unit_id": unit_id,
+        "transaction_id": transaction_id,
+        "function_code": function_code,
+        "function_name": function_name,
+        "kind": kind,
+        "direction": direction,
+        "src_ip": src_ip,
+        "dst_ip": dst_ip,
+        "timestamp": timestamp,
+    }
+
+
+def _client_server_segments() -> list[Segment]:
+    return [
+        _segment(
+            packet_number=1,
+            session_id=0,
+            src_ip=CLIENT_IP,
+            src_port=1024,
+            dst_ip=SERVER_IP,
+            dst_port=502,
+            src_mac=CLIENT_MAC,
+            dst_mac=SERVER_MAC,
+        )
+    ]
+
+
+def test_build_assets_without_events_gives_not_derivable_unit_ids_and_gateway():
+    assets = build_assets(segments=_client_server_segments())
+
+    for entry in assets:
+        assert entry["unit_ids"] == {"value": None, "provenance": "not-derivable-passively"}
+        assert entry["gateway"] == {"value": None, "provenance": "not-derivable-passively"}
+
+
+def test_build_assets_with_only_response_events_gives_not_derivable_unit_ids():
+    events = [_event(unit_id=1, direction="response", src_ip=SERVER_IP, dst_ip=CLIENT_IP)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+
+    for entry in assets:
+        assert entry["unit_ids"] == {"value": None, "provenance": "not-derivable-passively"}
+        assert entry["gateway"] == {"value": None, "provenance": "not-derivable-passively"}
+
+
+def test_unit_ids_are_sorted_ascending_regardless_of_file_order():
+    events = [
+        _event(unit_id=3, packet_number=1),
+        _event(unit_id=1, packet_number=3),
+        _event(unit_id=2, packet_number=5),
+    ]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["unit_ids"]["value"] == [1, 2, 3]
+
+
+def test_unit_ids_are_collected_under_destination_and_carry_observed():
+    events = [_event(unit_id=7)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["unit_ids"] == {"value": [7], "provenance": "observed"}
+
+
+def test_sender_of_requests_has_not_derivable_unit_ids():
+    events = [_event(unit_id=7)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
+
+    assert client["unit_ids"] == {"value": None, "provenance": "not-derivable-passively"}
+
+
+def test_multi_unit_id_flags_probable_gateway():
+    events = [_event(unit_id=1), _event(unit_id=2), _event(unit_id=3)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    assert server["gateway"] == {
+        "value": True,
+        "provenance": "inferred:multiple-unit-ids",
+    }
+
+
+def test_single_unit_id_gives_gateway_none_never_false():
+    events = [_event(unit_id=1), _event(unit_id=1)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+
+    # Asercja na `is None`, nie na sama falszywosc: `False` i `None` sa w
+    # Pythonie oba falszywe, wiec `assert not value` przepuscilaby dokladnie
+    # ten blad, ktoremu zalozenie Z-25 zapobiega.
+    assert server["gateway"]["value"] is None
+    assert server["gateway"]["provenance"] == "not-derivable-passively"
+
+
+def test_three_unit_ids_under_one_address_give_one_entry_not_three():
+    events = [_event(unit_id=1), _event(unit_id=2), _event(unit_id=3)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+
+    assert [entry["ip"]["value"] for entry in assets] == [CLIENT_IP, SERVER_IP]
+
+
+def test_event_address_absent_from_segments_never_creates_a_host_entry():
+    events = [_event(unit_id=1, dst_ip=THIRD_IP)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+
+    assert THIRD_IP not in [entry["ip"]["value"] for entry in assets]
+
+
+def test_assert_provenance_complete_passes_with_unit_ids_and_gateway():
+    events = [_event(unit_id=1), _event(unit_id=2)]
+
+    assets = build_assets(segments=_client_server_segments(), events=events)
+
+    assert_provenance_complete(assets, path="assets")

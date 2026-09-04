@@ -29,12 +29,25 @@ __all__ = ["build_assets"]
 def build_assets(
     *,
     segments: list[Segment],
+    events: list[dict] | None = None,
     vendor_lookup: Callable[[str], str | None] | None = None,
 ) -> list[dict]:
     """Buduje liste hostow w kolejnosci pierwszego zaobserwowania adresu IP
-    w pliku. Kazdy wpis ma klucze `ip`, `mac` i `oui_vendor`, kazda wartosc
-    jest slownikiem o ksztalcie `{"value": ..., "provenance": ...}` (wynik
-    `dataclasses.asdict` na `ObservedField`).
+    w pliku. Kazdy wpis ma klucze `ip`, `mac`, `oui_vendor`, `unit_ids`
+    i `gateway`, kazda wartosc jest slownikiem o ksztalcie
+    `{"value": ..., "provenance": ...}` (wynik `dataclasses.asdict` na
+    `ObservedField`).
+
+    `events` jest lista slownikow w ksztalcie `analysis["protocol_events"]`,
+    czyli wynikiem `dataclasses.asdict` na `ModbusEvent`. Wartosc `None`
+    znaczy tyle co lista pusta - kazdy wywolujacy sprzed tego argumentu
+    dziala dalej bez zmiany.
+
+    Regula pol `unit_ids` i `gateway` (ASSET-04, ASSET-05): wartosci Unit ID
+    sa zbierane WYLACZNIE pod adresem docelowym zdarzen o kierunku `request`,
+    bo Unit ID adresuje urzadzenie logiczne po stronie serwera. Adres bez ani
+    jednej takiej wartosci daje `not_derivable()` w obu polach. Adres
+    z wartosciami daje `observed(lista posortowana rosnaco)`.
 
     `vendor_lookup` jest funkcja przyjmujaca adres MAC i zwracajaca nazwe
     producenta albo `None` (zalozenie Z-20). Ten modul NIE importuje
@@ -60,6 +73,15 @@ def build_assets(
     order: list[str] = []
     first_mac: dict[str, str | None] = {}
 
+    # `set` jest tu dopuszczalny WYLACZNIE jako struktura robocza wewnatrz
+    # funkcji - do wyniku wchodzi lista posortowana, nigdy kolejnosc iteracji
+    # zbioru.
+    unit_ids_by_server: dict[str, set[int]] = {}
+    for event in events or []:
+        if event.get("direction") != "request":
+            continue
+        unit_ids_by_server.setdefault(event["dst_ip"], set()).add(event["unit_id"])
+
     def _oui_vendor_field(mac: str | None) -> object:
         if mac is None or vendor_lookup is None:
             return not_derivable()
@@ -67,6 +89,22 @@ def build_assets(
         if vendor_name is None:
             return not_derivable()
         return inferred(vendor_name, PROVENANCE_METHOD_OUI)
+
+    def _unit_ids_field(ip: str) -> object:
+        seen = unit_ids_by_server.get(ip)
+        if not seen:
+            return not_derivable()
+        return observed(sorted(seen))
+
+    def _gateway_field(ip: str) -> object:
+        seen = unit_ids_by_server.get(ip)
+        if seen is not None and len(seen) > 1:
+            return inferred(True, "multiple-unit-ids")
+        # Galezi zwracajacej `False` tu nie ma i nie bedzie (zalozenie Z-25):
+        # jedna wartosc Unit ID pod adresem jest brakiem dowodu na brame, nie
+        # dowodem jej braku - brama z jednym podpietym urzadzeniem wyglada
+        # w zrzucie identycznie jak urzadzenie bez bramy.
+        return not_derivable()
 
     def _visit(ip: str, mac: str | None) -> None:
         if ip not in hosts:
@@ -76,6 +114,8 @@ def build_assets(
                 "ip": observed(ip),
                 "mac": observed(mac) if mac is not None else not_derivable(),
                 "oui_vendor": _oui_vendor_field(mac),
+                "unit_ids": _unit_ids_field(ip),
+                "gateway": _gateway_field(ip),
             }
             return
 

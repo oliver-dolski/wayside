@@ -22,6 +22,8 @@ FIXTURE_TRUNCATED_RECORD = "tests/fixtures/pcap/truncated_mid_record.pcap"
 FIXTURE_TRUNCATED_BLOCK = "tests/fixtures/pcap/truncated_mid_block.pcapng"
 FIXTURE_EMPTY_HEADER = "tests/fixtures/pcap/empty_valid_header.pcap"
 FIXTURE_WRITE_PCAPNG = "tests/fixtures/pcap/modbus_write_single_register.pcapng"
+FIXTURE_SNAPLEN_TRUNCATED = "tests/fixtures/pcap/snaplen_truncated_frames.pcap"
+FIXTURE_CORRUPTED_RECORD_LENGTH = "tests/fixtures/pcap/corrupted_record_length.pcap"
 
 _GENERATED_AT_KEY_PATTERN = re.compile(r"generat|wygenerowan", re.IGNORECASE)
 
@@ -313,6 +315,88 @@ def test_report_markdown_zakres_section_carries_window_and_snaplen(tmp_path):
 
     assert "Snaplen" in zakres_section
     assert "Okno czasowe" in zakres_section
+
+
+# --- INGEST-05: zrzut uszkodzony strukturalnie, rozny od zrzutu obcietego ---
+# (plan 03-03, Task 1)
+
+
+def test_corrupted_record_length_exits_with_corrupt_code_and_no_artifacts(tmp_path):
+    result = _run_analyze_path(FIXTURE_CORRUPTED_RECORD_LENGTH, tmp_path)
+    assert result.returncode == 5, result.stdout + result.stderr
+    assert "uszkodzony" in result.stderr
+    assert "Traceback (most recent call last)" not in result.stderr
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_truncated_still_exits_with_truncated_code_after_corrupt_introduced(tmp_path):
+    # Regresja: przeklasyfikowanie trzech warunkow na CaptureCorruptError nie
+    # przesuwa sciezki bledu obciecia strumienia (Z-11).
+    result = _run_analyze_path(FIXTURE_TRUNCATED_RECORD, tmp_path)
+    assert result.returncode == 3, result.stdout + result.stderr
+
+    result_pcapng = _run_analyze_path(FIXTURE_TRUNCATED_BLOCK, tmp_path)
+    assert result_pcapng.returncode == 3, result_pcapng.stdout + result_pcapng.stderr
+
+
+def test_unrecognized_magic_still_exits_with_unsupported_format_code_after_corrupt_introduced(
+    tmp_path,
+):
+    bad_file = tmp_path / "not_a_capture.bin"
+    bad_file.write_bytes(b"NOTAMAGIC" + b"\x00" * 20)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    result = _run_analyze_path(str(bad_file), out_dir)
+    assert result.returncode == 4, result.stdout + result.stderr
+
+
+# --- INGEST-03: ostrzezenie o ramkach ucietych przez snaplen (plan 03-03, Task 1) ---
+
+
+def test_snaplen_truncation_produces_named_warning(tmp_path):
+    result = _run_analyze_path(FIXTURE_SNAPLEN_TRUNCATED, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "54" in result.stderr
+    assert "falszow" in result.stderr
+
+    analysis = _load_analysis(tmp_path)
+    capture = analysis["capture"]
+    assert capture["snaplen_truncated_packet_count"] == 2
+    assert capture["snaplen_truncated_first_packet_number"] == 1
+
+
+def test_baseline_fixture_has_zero_snaplen_truncated_packets(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    capture = analysis["capture"]
+    assert capture["snaplen_truncated_packet_count"] == 0
+    assert capture["snaplen_truncated_first_packet_number"] is None
+
+
+def test_two_runs_on_snaplen_truncated_fixture_give_byte_identical_analysis_json(tmp_path):
+    out_a = tmp_path / "a"
+    out_b = tmp_path / "b"
+    result_a = _run_analyze_path(FIXTURE_SNAPLEN_TRUNCATED, out_a)
+    result_b = _run_analyze_path(FIXTURE_SNAPLEN_TRUNCATED, out_b)
+    assert result_a.returncode == 0, result_a.stderr
+    assert result_b.returncode == 0, result_b.stderr
+
+    assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()
+
+
+def test_report_zakres_section_states_snaplen_truncated_frame_count(tmp_path):
+    result = _run_analyze_path(FIXTURE_SNAPLEN_TRUNCATED, tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    zakres_start = report_text.index("## Zakres")
+    metodyka_start = report_text.index("## Metodyka")
+    zakres_section = report_text[zakres_start:metodyka_start]
+
+    assert "Ramek ucietych przez snaplen: 2" in zakres_section
 
 
 def test_empty_valid_header_report_inwentarz_section_states_no_host(tmp_path):

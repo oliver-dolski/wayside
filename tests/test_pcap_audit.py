@@ -16,7 +16,7 @@ from __future__ import annotations
 import struct
 from pathlib import Path
 
-from wayside.pcap import CaptureTruncatedError, audit_capture_structure
+from wayside.pcap import CaptureCorruptError, CaptureTruncatedError, audit_capture_structure
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "pcap"
@@ -206,3 +206,51 @@ def test_idb_block_shorter_than_snaplen_field_raises_truncated_without_block_con
         raise AssertionError("CaptureTruncatedError nie zostal podniesiony")
     except CaptureTruncatedError as exc:
         assert "snaplen" in str(exc)
+
+
+# --- Faza 3: uciecie przez snaplen i korupcja strukturalna (plan 03-03, Task 1) ---
+
+FIXTURE_SNAPLEN_TRUNCATED = FIXTURE_DIR / "snaplen_truncated_frames.pcap"
+FIXTURE_CORRUPTED_RECORD_LENGTH = FIXTURE_DIR / "corrupted_record_length.pcap"
+
+
+def test_snaplen_truncated_frames_reports_both_packet_numbers():
+    structure = audit_capture_structure(FIXTURE_SNAPLEN_TRUNCATED)
+
+    assert structure.snaplen_truncated_packet_numbers == (1, 2)
+
+
+def test_classic_fixture_without_snaplen_truncation_reports_empty_tuple():
+    structure = audit_capture_structure(FIXTURE_WRITE_CLASSIC)
+
+    assert structure.snaplen_truncated_packet_numbers == ()
+
+
+def test_pcapng_fixture_without_snaplen_truncation_reports_empty_tuple():
+    structure = audit_capture_structure(FIXTURE_WRITE_PCAPNG)
+
+    assert structure.snaplen_truncated_packet_numbers == ()
+
+
+def test_capture_corrupt_error_is_subclass_of_capture_truncated_error():
+    assert issubclass(CaptureCorruptError, CaptureTruncatedError)
+
+
+def test_corrupted_record_length_not_truncation():
+    # Bramka sprawdza dwie rzeczy naraz: bez drugiej polowy test przechodzi
+    # takze wtedy, gdy obie sciezki bledu zlaly sie w jedna (Z-11).
+    try:
+        audit_capture_structure(FIXTURE_CORRUPTED_RECORD_LENGTH)
+        raise AssertionError("CaptureCorruptError nie zostal podniesiony")
+    except CaptureCorruptError:
+        pass
+
+    try:
+        audit_capture_structure(FIXTURE_TRUNCATED_RECORD)
+        raise AssertionError("CaptureTruncatedError nie zostal podniesiony")
+    except CaptureCorruptError:
+        raise AssertionError(
+            "Zrzut obciety zostal bledniej sklasyfikowany jako uszkodzony strukturalnie"
+        )
+    except CaptureTruncatedError:
+        pass

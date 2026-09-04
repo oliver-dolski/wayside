@@ -85,7 +85,13 @@ def render_markdown(
             "snaplen nie zostal jednoznacznie ustalony"
         )
         snaplen_sentence = f"Snaplen nie zostal jednoznacznie ustalony ({snaplen_note})."
-    lines.append(f"{window_sentence} {snaplen_sentence}")
+    # Wartosc zero renderowana jawnie - brak ucietych ramek jest wynikiem
+    # analizy zrzutu, nie brakiem zdania o nim (INGEST-03).
+    snaplen_truncated_count = capture.get("snaplen_truncated_packet_count", 0)
+    snaplen_truncated_sentence = (
+        f"Ramek ucietych przez snaplen: {snaplen_truncated_count}."
+    )
+    lines.append(f"{window_sentence} {snaplen_sentence} {snaplen_truncated_sentence}")
     lines.append("")
 
     lines.append(f"## {SECTIONS[2]}")

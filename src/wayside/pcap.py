@@ -78,6 +78,7 @@ __all__ = [
     "PCAP_MAGICS",
     "PCAPNG_MAGIC",
     "CaptureTruncatedError",
+    "CaptureCorruptError",
     "CaptureFormatError",
     "CaptureStructure",
     "audit_capture_structure",
@@ -180,6 +181,14 @@ class CaptureTruncatedError(Exception):
     pakietow zwrocona przez `rdpcap`."""
 
 
+class CaptureCorruptError(CaptureTruncatedError):
+    """Struktura zrzutu jest niespojna sama ze soba, przy pelnej i spojnej
+    dlugosci pliku - rozne od `CaptureTruncatedError`, ktory oznacza strumien
+    konczacy sie przedwczesnie w srodku rekordu albo bloku (Z-11). Podklasa
+    istniejacego wyjatku, zeby kazdy dotychczasowy blok `except
+    CaptureTruncatedError` z Faz 1-2 nadal lapal ten przypadek."""
+
+
 class CaptureFormatError(Exception):
     """Plik ma magic nierozpoznany przez zaden obslugiwany format (klasyczny
     pcap albo pcapng)."""
@@ -195,6 +204,7 @@ class CaptureStructure:
     is_structurally_empty: bool  # naglowek poprawny, zero rekordow z pakietem
     snaplen: int | None  # None, gdy niejednoznaczny (patrz snaplen_note)
     snaplen_note: str | None  # niepuste WYLACZNIE gdy snaplen jest None
+    snaplen_truncated_packet_numbers: tuple[int, ...]  # 1-bazowe, przypadek legalny
 
 
 def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> CaptureStructure:
@@ -211,6 +221,7 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
 
         pos = PCAP_GLOBAL_HEADER_LEN
         record_count = 0
+        snaplen_truncated_packet_numbers: list[int] = []
         while pos < total_size:
             remaining = total_size - pos
             if remaining < PCAP_RECORD_HEADER_LEN:
@@ -226,8 +237,11 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
 
             # Wartosc z pliku niezaufanego nie jest indeksem, dopoki nie
             # przejdzie kontroli zakresu (T-2-02) - snaplen PRZED skokiem.
+            # Dlugosc przechwycona wieksza od snaplenu jest strukturalna
+            # niespojnoscia pola dlugosci, nie obcieciem strumienia (Z-11) -
+            # plik ma pelna, spojna dlugosc, ale sam sobie przeczy.
             if incl_len > snaplen:
-                raise CaptureTruncatedError(
+                raise CaptureCorruptError(
                     f"{path}: dlugosc przechwycona {incl_len} na przesunieciu {pos} "
                     f"bajtow przekracza snaplen {snaplen} z naglowka globalnego"
                 )
@@ -239,6 +253,16 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
                     f"{path}: dane rekordu obciete na przesunieciu {pos} bajtow "
                     f"(oczekiwano {incl_len}, dostepne {data_remaining})"
                 )
+
+            # Uciecie przez snaplen jest przypadkiem LEGALNYM (Z-14), rozny od
+            # warunku powyzej: rekord o dlugosci przechwyconej mniejszej od
+            # dlugosci oryginalnej zostal obciety przez snaplen podczas
+            # przechwytywania, a nie uszkodzony. Numeracja 1-bazowa, zgodna z
+            # konwencja `packet_number` w `decode.py` - `record_count` przed
+            # inkrementacja jest indeksem 0-bazowym biezacego rekordu.
+            if incl_len < _orig_len:
+                snaplen_truncated_packet_numbers.append(record_count + 1)
+
             pos += incl_len
             record_count += 1
 
@@ -249,6 +273,7 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
             is_structurally_empty=record_count == 0,
             snaplen=snaplen,
             snaplen_note=None,
+            snaplen_truncated_packet_numbers=tuple(snaplen_truncated_packet_numbers),
         )
 
 
@@ -272,6 +297,7 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
         pos = 0
         record_count = 0
         idb_snaplens: list[int] = []
+        snaplen_truncated_packet_numbers: list[int] = []
         while pos < total_size:
             remaining = total_size - pos
             if remaining < PCAPNG_BLOCK_HEADER_LEN:
@@ -283,8 +309,12 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
             block_header = handle.read(PCAPNG_BLOCK_HEADER_LEN)
             block_type, total_length = struct.unpack(order + "II", block_header)
 
+            # Dlugosc bloku niespojna sama ze soba (za krotka albo nie
+            # wielokrotnosc czterech) jest korupcja strukturalna, nie
+            # obcieciem strumienia (Z-11) - plik moze miec pelna, spojna
+            # dlugosc i nadal niesc to naruszenie.
             if total_length < 12 or total_length % 4 != 0:
-                raise CaptureTruncatedError(
+                raise CaptureCorruptError(
                     f"{path}: dlugosc bloku {total_length} na przesunieciu {pos} "
                     "bajtow nie jest wielokrotnoscia czterech albo jest mniejsza niz 12"
                 )
@@ -299,12 +329,31 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
             trailing_raw = handle.read(4)
             (trailing_length,) = struct.unpack(order + "I", trailing_raw)
             if trailing_length != total_length:
-                raise CaptureTruncatedError(
+                raise CaptureCorruptError(
                     f"{path}: niezgodnosc dlugosci bloku na przesunieciu {pos} "
                     f"bajtow (poczatek {total_length}, koniec {trailing_length})"
                 )
 
             if block_type == _PCAPNG_EPB_TYPE:
+                # Kontrola zakresu PRZED odczytem (T-3-09): blok krotszy niz
+                # 32 bajty nie ma miejsca na pola dlugosci przechwyconej
+                # (przesuniecie 20:24) i oryginalnej (przesuniecie 24:28) plus
+                # naglowek i koncowke - niepoprawny blok tego typu, korupcja
+                # strukturalna, nie obciecie.
+                if total_length < 32:
+                    raise CaptureCorruptError(
+                        f"{path}: blok Enhanced Packet Block na przesunieciu "
+                        f"{pos} bajtow (dlugosc {total_length}) jest za krotki, "
+                        "zeby zawierac pola dlugosci pakietu"
+                    )
+                handle.seek(pos + 20)
+                (captured_len, orig_len) = struct.unpack(order + "II", handle.read(8))
+                # Uciecie przez snaplen jest przypadkiem LEGALNYM (Z-14), ten
+                # sam warunek co w galezi klasycznego pcapa. Numeracja liczy
+                # WYLACZNIE bloki EPB, zgodnie z dzisiejszym `record_count` -
+                # bloki opisu interfejsu nie przesuwaja numeracji.
+                if captured_len < orig_len:
+                    snaplen_truncated_packet_numbers.append(record_count + 1)
                 record_count += 1
             elif block_type == _PCAPNG_IDB_TYPE:
                 # Kontrola zakresu PRZED odczytem (T-3-01): blok krotszy niz
@@ -349,6 +398,7 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
             is_structurally_empty=record_count == 0,
             snaplen=snaplen,
             snaplen_note=snaplen_note,
+            snaplen_truncated_packet_numbers=tuple(snaplen_truncated_packet_numbers),
         )
 
 

@@ -61,6 +61,7 @@ def _build_capture_section(
         timestamps = sorted(float(pkt.time) for pkt in packets)
         first_seen = timestamps[0]
         last_seen = timestamps[-1]
+    snaplen_truncated_numbers = capture_structure.snaplen_truncated_packet_numbers
     return {
         "filename": pcap_path.name,
         "sha256": sha256,
@@ -69,6 +70,10 @@ def _build_capture_section(
         "last_seen": last_seen,
         "snaplen": capture_structure.snaplen,
         "snaplen_note": capture_structure.snaplen_note,
+        "snaplen_truncated_packet_count": len(snaplen_truncated_numbers),
+        "snaplen_truncated_first_packet_number": (
+            snaplen_truncated_numbers[0] if snaplen_truncated_numbers else None
+        ),
     }
 
 
@@ -127,6 +132,21 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         warnings.append(
             "Zaden segment w zrzucie nie przeszedl walidacji MBAP - brak "
             "ruchu Modbus/TCP do analizy."
+        )
+    if capture_structure.snaplen_truncated_packet_numbers:
+        # INGEST-03: ramka uciety przez snaplen nie niesie pelnego ladunku,
+        # wiec brak zdarzenia protokolu na tym zrzucie nie jest dowodem jego
+        # nieobecnosci - narzedzie mowi to wprost, nigdy cicha, zielona
+        # odpowiedzia. Zdanie oznajmujace, bez terminu modalnego w linii z
+        # liczba (scripts/confidentiality_guard.py, warstwa strukturalna).
+        truncated_numbers = capture_structure.snaplen_truncated_packet_numbers
+        warnings.append(
+            f"Snaplen ustawiony na {capture_structure.snaplen} bajtow uciol "
+            f"{len(truncated_numbers)} z {len(packets)} ramek w tym zrzucie, "
+            f"pierwsza obcieta ramka to numer {truncated_numbers[0]}. Obcieta "
+            "ramka nie niesie pelnego ladunku, analiza funkcjonalna protokolu "
+            "na tym zrzucie jest falszowana, a brak zdarzenia protokolu nie "
+            "jest dowodem jego nieobecnosci."
         )
 
     observed_ips = sorted(

@@ -14,7 +14,12 @@ from pathlib import Path
 
 import typer
 
-from wayside.pcap import CaptureFormatError, CaptureTruncatedError, summarize
+from wayside.pcap import (
+    CaptureCorruptError,
+    CaptureFormatError,
+    CaptureTruncatedError,
+    summarize,
+)
 from wayside.pipeline import analyze as run_analyze
 
 app = typer.Typer(add_completion=False)
@@ -27,6 +32,11 @@ EXIT_OK = 0
 EXIT_UNREADABLE = 2
 EXIT_TRUNCATED = 3
 EXIT_UNSUPPORTED_FORMAT = 4
+# Zrzut uszkodzony strukturalnie - struktura niespojna sama ze soba przy
+# pelnej dlugosci pliku, rozne od obciecia strumienia (EXIT_TRUNCATED).
+# Kryterium 2 fazy 3 wymienia trzy tryby porazki jako trzy osobne slowa,
+# wiec kazdy dostaje wlasny kod wyjscia (zalozenie Z-12).
+EXIT_CORRUPT = 5
 
 
 def _version_callback(value: bool) -> None:
@@ -98,6 +108,12 @@ def analyze(
     except FileNotFoundError:
         typer.echo(f"Nie znaleziono pliku zrzutu: {path}", err=True)
         raise typer.Exit(code=EXIT_UNREADABLE) from None
+    except CaptureCorruptError as exc:
+        # `CaptureCorruptError` jest podklasa `CaptureTruncatedError` (Z-11),
+        # wiec ten blok MUSI stac PRZED `except CaptureTruncatedError` -
+        # odwrotna kolejnosc dawalaby kod 3 zamiast 5 dla kazdego przypadku.
+        typer.echo(f"Zrzut uszkodzony strukturalnie: {exc}", err=True)
+        raise typer.Exit(code=EXIT_CORRUPT) from None
     except CaptureTruncatedError as exc:
         # D-01: obciecie wykryte strukturalnie przez `audit_capture_structure`
         # PRZED jakimkolwiek zapisem - `out_dir` zostaje bez zadnego pliku.

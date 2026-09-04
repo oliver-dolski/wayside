@@ -218,3 +218,51 @@ def test_detect_all_returns_empty_list_on_three_existing_modbus_tcp_fixtures():
         packets = pcap.read_capture(REPO_ROOT / fixture)
         segments = decode.decode_segments(packets)
         assert detect_all(segments) == [], fixture
+
+
+# --- Task 2: generator fixture'a - dwie implementacje niezalezne sumy ------
+# kontrolnej zgadzaja sie na kazdym wektorze testowym uzytym w Task 1
+# --------------------------------------------------------------------------
+
+
+def _load_gen_fixtures_module():
+    """Laduje `scripts/gen_fixtures.py` jako modul przez
+    `importlib.util.spec_from_file_location` - tak samo jak silnik checkow
+    (`wayside.checks.engine._load_evaluator`) laduje evaluator siostrzany
+    wobec YAML, zeby import po sciezce byl spojny z jedynym innym miejscem
+    projektu, ktore go potrzebuje."""
+    import importlib.util
+
+    module_path = REPO_ROOT / "scripts" / "gen_fixtures.py"
+    spec = importlib.util.spec_from_file_location("gen_fixtures", module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_local_rtu_crc16_in_generator_agrees_with_module_crc16_on_every_vector():
+    gen_fixtures = _load_gen_fixtures_module()
+
+    for body in (b"", b"\x01", b"\x01\x06\x00\x01\x00\x2a", bytes([0x02, 0x07])):
+        assert gen_fixtures._rtu_crc16(body) == modbus_crc16(body), body
+
+
+# --- Task 2: fixture generowany - dwa ladunki oblewaja MBAP, przechodza ---
+# dyskryminator
+# --------------------------------------------------------------------------
+
+
+def test_generated_fixture_payloads_reject_mbap_and_pass_discriminator():
+    from wayside.protocols.modbus_tcp import validate_mbap
+
+    fixture_path = REPO_ROOT / "tests/fixtures/pcap/modbus_rtu_over_tcp.pcap"
+    packets = pcap.read_capture(fixture_path)
+    segments = decode.decode_segments(packets)
+
+    assert len(segments) == 2
+    for segment in segments:
+        assert validate_mbap(segment.payload) is None
+        assert looks_like_rtu_frame(segment.payload) is True
+
+    events = detect_all(segments)
+    assert [event.packet_number for event in events] == [1, 2]

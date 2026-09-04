@@ -52,6 +52,13 @@ MODBUS_PORT = 502
 MODBUS_NON_STANDARD_PORT = 10502
 BASE_TIMESTAMP = 1700000000.0
 
+# Port docelowy fixture'u Modbus RTU tunelowanego po TCP (plan 03-04),
+# zgodnie z blokiem <interfaces> planu - liczbowo taki sam jak
+# MODBUS_NON_STANDARD_PORT, ale to dwa osobne pliki fixture o zupelnie
+# roznym ladunku (naglowek MBAP kontra surowa ramka RTU bez naglowka), wiec
+# kolizja portu miedzy nimi nie ma znaczenia.
+RTU_TUNNEL_PORT = 10502
+
 # Nagłówek globalny klasycznego pcapa, mikrosekundowy, little-endian
 # (zgodne z `PCAP_MAGICS` w `wayside.pcap` po Task 2 tego planu).
 PCAP_CLASSIC_MAGIC_LE = 0xA1B2C3D4
@@ -92,6 +99,7 @@ __all__ = [
     "gen_modbus_poll_cycle_full_window",
     "gen_modbus_gateway_multi_unit_id",
     "gen_modbus_tcp_handshake",
+    "gen_modbus_rtu_over_tcp",
     "main",
 ]
 
@@ -644,6 +652,77 @@ def gen_modbus_tcp_handshake(output_dir: Path) -> Path:
     return output_path
 
 
+# --- Faza 3: fixture Modbus RTU tunelowany po TCP (plan 03-04, Task 2) -----
+
+
+def _rtu_crc16(data: bytes) -> int:
+    """Implementacja LOKALNA sumy kontrolnej CRC16/Modbus, NIEZALEZNA od
+    `wayside.protocols.modbus_rtu_tunnel.modbus_crc16` (zalozenie Z-16).
+
+    Import z `wayside` wciagnalby do tego skryptu caly graf importow warstwy
+    odczytu (scapy.layers.*, izolacja cache) razem z jej wlasnymi efektami
+    ubocznymi importu, ktore ten skrypt dzis wykonuje inaczej. Poza tym dwie
+    niezalezne implementacje, ktore musza sie zgodzic na kazdym wektorze
+    testowym `tests/test_modbus_rtu_tunnel.py`, sa mocniejszym dowodem
+    poprawnosci niz jedna wspolna, ktorej blad zgodzilby sie sam ze soba.
+    Parametry algorytmu (rejestr poczatkowy `0xFFFF`, wielomian odwrocony
+    `0xA001`) pochodza z tego samego zrodla co w module produkcyjnym -
+    "MODBUS over Serial Line Specification and Implementation Guide V1.02",
+    rozdzial 6.2.2, patrz docstring `wayside/protocols/modbus_rtu_tunnel.py`.
+    """
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            if crc & 1:
+                crc = (crc >> 1) ^ 0xA001
+            else:
+                crc >>= 1
+    return crc
+
+
+def gen_modbus_rtu_over_tcp(output_dir: Path) -> Path:
+    """Konwerter szeregowo-sieciowy, ktory przekazuje surowa ramke Modbus RTU
+    z magistrali wprost do gniazda TCP, bez rekonstrukcji naglowka MBAP.
+
+    Dwa pakiety w jednej sesji TCP: zadanie klienta i odpowiedz serwera, oba
+    o identycznym osmiobajtowym ladunku - Write Single Register dla tego
+    kodu funkcji odsyla ta sama tresc bez zmian. Cialo ramki: bajt adresu
+    `0x01`, bajt kodu funkcji `0x06`, adres rejestru `0x0001` i wartosc
+    rejestru `0x002A` w porzadku bajtu starszego jako pierwszego (cztery
+    bajty), suma kontrolna `_rtu_crc16` nad tymi szescioma bajtami, zapisana
+    w porzadku bajtu mlodszego jako pierwszego. Port docelowy jest
+    niestandardowy (`RTU_TUNNEL_PORT`) celowo: rozpoznanie w tym projekcie
+    nie zalezy od numeru portu (PROTO-01, Faza 2), a numer inny niz 502
+    zdejmuje pokuse napisania testu, ktory przechodzi z powodu portu, nie
+    z powodu ksztaltu ramki.
+    """
+    body = struct.pack(">BBHH", 0x01, 0x06, 0x0001, 0x002A)
+    frame = body + struct.pack("<H", _rtu_crc16(body))
+
+    request = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=50500, dport=RTU_TUNNEL_PORT, seq=1, ack=0, flags="PA")
+        / Raw(load=frame)
+    )
+    response = (
+        Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+        / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+        / TCP(sport=RTU_TUNNEL_PORT, dport=50500, seq=1, ack=1, flags="PA")
+        / Raw(load=frame)
+    )
+
+    packets = [request, response]
+    for i, pkt in enumerate(packets):
+        pkt.time = BASE_TIMESTAMP + i * 0.01
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "modbus_rtu_over_tcp.pcap"
+    wrpcap(str(output_path), packets)
+    return output_path
+
+
 GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_write_single_register.pcap", gen_modbus_write_single_register),
     ("modbus_write_non_standard_port.pcap", gen_modbus_non_standard_port),
@@ -658,6 +737,7 @@ GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_poll_cycle_full_window.pcap", gen_modbus_poll_cycle_full_window),
     ("modbus_gateway_multi_unit_id.pcap", gen_modbus_gateway_multi_unit_id),
     ("modbus_tcp_handshake.pcap", gen_modbus_tcp_handshake),
+    ("modbus_rtu_over_tcp.pcap", gen_modbus_rtu_over_tcp),
 )
 
 

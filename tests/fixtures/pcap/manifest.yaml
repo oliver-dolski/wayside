@@ -143,3 +143,16 @@ fixtures:
       flage SYN bez flagi ACK - jedyny pasywny dowod strony inicjujacej
       sesje. Fixture'y wczesniejsze nie zawieraly uzgodnienia polaczenia.
     protocol: modbus-tcp
+  - path: modbus_rtu_over_tcp.pcap
+    sha256: "3858f256043cd1ad21e2528f0c71ab1ff4ec0f082255679953f38861825dce05"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_rtu_over_tcp
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Dwa pakiety w jednej sesji TCP, port docelowy niestandardowy 10502.
+      Ladunek kazdego pakietu to surowa osmiobajtowa ramka Modbus RTU (adres
+      0x01, kod funkcji 0x06 Write Single Register, adres rejestru 0x0001,
+      wartosc 0x002A, suma kontrolna CRC16/Modbus), bez naglowka MBAP -
+      konwerter szeregowo-sieciowy przekazujacy ramke z magistrali wprost do
+      gniazda TCP. Zaden z ladunkow nie przechodzi walidacji MBAP.
+    protocol: modbus-rtu-over-tcp

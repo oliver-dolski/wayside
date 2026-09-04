@@ -10,9 +10,11 @@ Import `Ether` z `scapy.layers.l2` rejestruje mapowanie DLT_EN10MB -> Ether
 w `conf.l2types` jako efekt uboczny samego modulu (`scapy.layers.l2` woala
 `conf.l2types.register(...)` przy imporcie) - bez tego `rdpcap` nie
 rozpoznaje warstwy Ethernet i zwraca surowe pakiety `Raw`, nawet gdy IP/TCP
-sa tez zaimportowane gdzie indziej. `decode_segments` nie odwoluje sie do
-klasy `Ether` bezposrednio, ale import musi tu byc, zanim jakikolwiek kod tej
-sciezki odczytu wywola `rdpcap`.
+sa tez zaimportowane gdzie indziej. `decode_segments` OD FAZY 3 odwoluje sie
+do klasy `Ether` bezposrednio (`pkt.haslayer(Ether)`, `pkt[Ether]`), zeby
+wyciagnac adres warstwy drugiej dla inwentarza (ASSET-01) - import musi tu
+byc niezaleznie od tego uzycia, zanim jakikolwiek kod tej sciezki odczytu
+wywola `rdpcap`.
 """
 
 from __future__ import annotations
@@ -44,6 +46,8 @@ class Segment:
     dst_ip: str
     dst_port: int
     payload: bytes
+    src_mac: str | None
+    dst_mac: str | None
 
 
 def _canonical_session_key(src_ip: str, src_port: int, dst_ip: str, dst_port: int) -> str:
@@ -89,6 +93,13 @@ def decode_segments(packets) -> list[Segment]:
         src_port = int(tcp_layer.sport)
         dst_port = int(tcp_layer.dport)
 
+        if pkt.haslayer(Ether):
+            src_mac = str(pkt[Ether].src)
+            dst_mac = str(pkt[Ether].dst)
+        else:
+            src_mac = None
+            dst_mac = None
+
         session_key = _canonical_session_key(src_ip, src_port, dst_ip, dst_port)
         if session_key not in session_ids:
             session_ids[session_key] = next_session_id
@@ -104,6 +115,8 @@ def decode_segments(packets) -> list[Segment]:
                 dst_ip=dst_ip,
                 dst_port=dst_port,
                 payload=payload,
+                src_mac=src_mac,
+                dst_mac=dst_mac,
             )
         )
 

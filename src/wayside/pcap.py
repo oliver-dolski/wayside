@@ -170,6 +170,8 @@ _PCAPNG_BYTE_ORDER_MAGIC: dict[bytes, str] = {
 }
 
 _PCAPNG_EPB_TYPE = 0x00000006  # Enhanced Packet Block - rekord z pakietem
+_PCAPNG_IDB_TYPE = 0x00000001  # Interface Description Block - niesie snaplen
+_PCAPNG_IDB_MIN_LEN = 20  # naglowek(8) + linktype(2) + rezerwa(2) + snaplen(4) + trailer(4)
 
 
 class CaptureTruncatedError(Exception):
@@ -191,6 +193,8 @@ class CaptureStructure:
     endianness: str  # "little" | "big"
     record_count: int  # rekordy pcap albo bloki EPB pcapng
     is_structurally_empty: bool  # naglowek poprawny, zero rekordow z pakietem
+    snaplen: int | None  # None, gdy niejednoznaczny (patrz snaplen_note)
+    snaplen_note: str | None  # niepuste WYLACZNIE gdy snaplen jest None
 
 
 def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> CaptureStructure:
@@ -243,6 +247,8 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
             endianness=endianness,
             record_count=record_count,
             is_structurally_empty=record_count == 0,
+            snaplen=snaplen,
+            snaplen_note=None,
         )
 
 
@@ -265,6 +271,7 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
 
         pos = 0
         record_count = 0
+        idb_snaplens: list[int] = []
         while pos < total_size:
             remaining = total_size - pos
             if remaining < PCAPNG_BLOCK_HEADER_LEN:
@@ -299,13 +306,49 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
 
             if block_type == _PCAPNG_EPB_TYPE:
                 record_count += 1
+            elif block_type == _PCAPNG_IDB_TYPE:
+                # Kontrola zakresu PRZED odczytem (T-3-01): blok krotszy niz
+                # dwadziescia bajtow nie ma miejsca na pole snaplen na
+                # przesunieciu od 12 do 16, wiec konczy sie tu, nie przy
+                # sprobie odczytu spoza bloku. Komunikat niesie wylacznie
+                # przesuniecie w bajtach, nigdy zawartosc bloku.
+                if total_length < _PCAPNG_IDB_MIN_LEN:
+                    raise CaptureTruncatedError(
+                        f"{path}: blok Interface Description Block na "
+                        f"przesunieciu {pos} bajtow (dlugosc {total_length}) "
+                        "jest za krotki, zeby zawierac pole snaplen"
+                    )
+                handle.seek(pos + 12)
+                (idb_snaplen,) = struct.unpack(order + "I", handle.read(4))
+                idb_snaplens.append(idb_snaplen)
             pos += total_length
+
+        if not idb_snaplens:
+            snaplen: int | None = None
+            snaplen_note: str | None = (
+                f"{path}: brak bloku Interface Description Block w pliku "
+                "pcapng - snaplen nie zostal ustalony"
+            )
+        else:
+            unique_snaplens = set(idb_snaplens)
+            if len(unique_snaplens) == 1:
+                snaplen = idb_snaplens[0]
+                snaplen_note = None
+            else:
+                snaplen = None
+                snaplen_note = (
+                    f"{path}: {len(unique_snaplens)} blokow Interface "
+                    "Description Block niosa rozny snaplen - wartosc nie "
+                    "jest jednoznaczna"
+                )
 
         return CaptureStructure(
             capture_format="pcapng",
             endianness=endianness,
             record_count=record_count,
             is_structurally_empty=record_count == 0,
+            snaplen=snaplen,
+            snaplen_note=snaplen_note,
         )
 
 

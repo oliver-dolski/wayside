@@ -14,15 +14,17 @@ from datetime import datetime
 from pathlib import Path
 
 from wayside import decode, report, risk, zones
+from wayside.assets import inventory
 from wayside.checks import engine as checks_engine
 from wayside.model import (
     Evidence,
     Finding,
+    assert_provenance_complete,
     build_analysis,
     dump_deterministic,
     write_atomic,
 )
-from wayside.pcap import audit_capture_structure, read_capture
+from wayside.pcap import CaptureStructure, audit_capture_structure, read_capture
 from wayside.protocols import modbus_tcp
 from wayside.standards import mapper as standards_mapper
 
@@ -38,7 +40,9 @@ class AnalyzeResult:
     report_path: Path
 
 
-def _build_capture_section(pcap_path: Path, packets) -> dict:
+def _build_capture_section(
+    pcap_path: Path, packets, capture_structure: CaptureStructure
+) -> dict:
     """Buduje sekcje `capture`. Niesie `filename` (samo `pcap_path.name`),
     NIE pelna sciezke - pelna sciezka jest funkcja katalogu uruchomienia
     procesu, wiec dwa przebiegi z roznych katalogow roboczych dawalyby
@@ -46,7 +50,9 @@ def _build_capture_section(pcap_path: Path, packets) -> dict:
     (REPORT-06). `sha256` niesie mozliwosc powiazania raportu z konkretnym
     plikiem wejsciowym (zagrozenie T-2-07) - jest funkcja TRESCI pliku, nie
     jego polozenia, wiec nie lamie determinizmu ani miedzy katalogami, ani
-    miedzy maszynami."""
+    miedzy maszynami. `snaplen`/`snaplen_note` pochodza z `capture_structure`,
+    juz wyliczonego przez brame D-01 - `analyze` nie wywoluje audytu drugi
+    raz (INGEST-02)."""
     sha256 = hashlib.sha256(pcap_path.read_bytes()).hexdigest()
     if len(packets) == 0:
         first_seen = None
@@ -61,6 +67,8 @@ def _build_capture_section(pcap_path: Path, packets) -> dict:
         "packet_count": len(packets),
         "first_seen": first_seen,
         "last_seen": last_seen,
+        "snaplen": capture_structure.snaplen,
+        "snaplen_note": capture_structure.snaplen_note,
     }
 
 
@@ -86,7 +94,8 @@ def _build_conversations(segments: list[decode.Segment]) -> list[dict]:
 
 def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> AnalyzeResult:
     """Wykonuje kroki potoku w kolejnosci: audyt strukturalny (brama D-01),
-    odczyt zrzutu, dekodowanie, dysekcja Modbus, model strefy, model analizy
+    odczyt zrzutu, dekodowanie, dysekcja Modbus, budowa inwentarza hostow,
+    bramka prowieniencji nad inwentarzem (Z-02), model strefy, model analizy
     bez findingow, silnik checkow, rozwiazanie powolan na norme, przypisanie
     ryzyka, zapis `analysis.json`, renderowanie i zapis `report.md`."""
     pcap_path = Path(pcap_path)
@@ -131,6 +140,13 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     conversations = _build_conversations(segments)
     protocol_events = [dataclasses.asdict(event) for event in events]
 
+    assets = inventory.build_assets(segments=segments)
+    # Bramka prowieniencji stoi na producencie danych, PRZED serializacja
+    # (T-3-04): pole inwentarza bez znacznika pochodzenia nie dochodzi do
+    # `analysis.json`. Zakres bramki jest sekcja `assets`, nie cale drzewo
+    # `analysis` (zalozenie Z-02) - pola z Faz 1-2 nie sa regresja.
+    assert_provenance_complete(assets, path="assets")
+
     methodology = {
         "rubric_version": risk.RUBRIC_VERSION,
         "note": (
@@ -140,12 +156,13 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     }
 
     analysis = build_analysis(
-        capture=_build_capture_section(pcap_path, packets),
+        capture=_build_capture_section(pcap_path, packets, capture_structure),
         conversations=conversations,
         protocol_events=protocol_events,
         zone_model=zone_model,
         findings=[],
         methodology=methodology,
+        assets=assets,
     )
 
     checks = checks_engine.discover_checks()

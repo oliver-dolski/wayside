@@ -219,3 +219,109 @@ def test_nonexistent_path_exits_with_unreadable_code(tmp_path):
 
     result = _run_analyze_path(str(tmp_path / "does_not_exist.pcap"), out_dir)
     assert result.returncode == 2, result.stdout + result.stderr
+
+
+# --- ASSET-01/ASSET-03: inwentarz w analysis.json (plan 03-01, Task 1) --------
+
+
+def test_assets_has_two_hosts_in_first_seen_order_with_observed_mac(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    assets = analysis["assets"]
+    assert len(assets) == 2
+    assert assets[0]["ip"] == {"value": "192.0.2.10", "provenance": "observed"}
+    assert assets[0]["mac"] == {"value": "02:00:00:00:00:01", "provenance": "observed"}
+    assert assets[1]["ip"] == {"value": "192.0.2.20", "provenance": "observed"}
+    assert assets[1]["mac"] == {"value": "02:00:00:00:00:02", "provenance": "observed"}
+
+
+def test_empty_valid_header_has_empty_assets_list(tmp_path):
+    result = _run_analyze_path(FIXTURE_EMPTY_HEADER, tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    assert analysis["assets"] == []
+
+
+# --- INGEST-02: snaplen w capture, obydwa formaty (plan 03-01, Task 1) -------
+
+
+def test_capture_section_has_snaplen_for_classic_fixture(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    capture = analysis["capture"]
+    assert isinstance(capture["snaplen"], int)
+    assert capture["snaplen"] > 0
+    assert capture["snaplen_note"] is None
+
+
+def test_capture_section_has_snaplen_for_pcapng_fixture(tmp_path):
+    result = _run_analyze_path(FIXTURE_WRITE_PCAPNG, tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    capture = analysis["capture"]
+    assert isinstance(capture["snaplen"], int)
+    assert capture["snaplen"] > 0
+    assert capture["snaplen_note"] is None
+
+
+# --- REPORT-01/ASSET-01: sekcja Inwentarz w report.md (plan 03-01, Task 1) ---
+
+
+def test_report_markdown_has_seven_sections_with_inwentarz_after_metodyka(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    from wayside.report import SECTIONS
+
+    headers = re.findall(r"^## (.+)$", report_text, flags=re.MULTILINE)
+    assert headers == list(SECTIONS)
+    assert len(SECTIONS) == 7
+    assert SECTIONS.index("Inwentarz") == SECTIONS.index("Metodyka") + 1
+
+
+def test_report_markdown_inwentarz_section_carries_both_hosts_and_provenance(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    inwentarz_start = report_text.index("## Inwentarz")
+    ograniczenia_start = report_text.index("## Ograniczenia")
+    inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
+
+    assert "192.0.2.10" in inwentarz_section
+    assert "192.0.2.20" in inwentarz_section
+    assert "02:00:00:00:00:01" in inwentarz_section
+    assert "02:00:00:00:00:02" in inwentarz_section
+    assert "observed" in inwentarz_section
+
+
+def test_report_markdown_zakres_section_carries_window_and_snaplen(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    zakres_start = report_text.index("## Zakres")
+    metodyka_start = report_text.index("## Metodyka")
+    zakres_section = report_text[zakres_start:metodyka_start]
+
+    assert "Snaplen" in zakres_section
+    assert "Okno czasowe" in zakres_section
+
+
+def test_empty_valid_header_report_inwentarz_section_states_no_host(tmp_path):
+    result = _run_analyze_path(FIXTURE_EMPTY_HEADER, tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    inwentarz_start = report_text.index("## Inwentarz")
+    ograniczenia_start = report_text.index("## Ograniczenia")
+    inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
+
+    assert inwentarz_section.strip() != ""

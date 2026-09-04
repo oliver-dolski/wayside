@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,7 +24,121 @@ __all__ = [
     "build_analysis",
     "dump_deterministic",
     "write_atomic",
+    "PROVENANCE_OBSERVED",
+    "PROVENANCE_NOT_DERIVABLE",
+    "PROVENANCE_PATTERN",
+    "ObservedField",
+    "ProvenanceError",
+    "observed",
+    "inferred",
+    "not_derivable",
+    "iter_observed_fields",
+    "assert_provenance_complete",
 ]
+
+# Nosnik prowieniencji pola (zalozenie Z-01): kazde pole inwentarza niesie
+# nie tylko wartosc, ale i sposob, w jaki ta wartosc powstala. Trzy rodziny
+# znacznikow: `observed` (odczytane wprost z ramki), `inferred:<metoda>`
+# (wyliczone, z nazwana metoda wnioskowania) i `not-derivable-passively`
+# (nie da sie ustalic z pasywnego zrzutu - MUST NOT pomijac takiego pola).
+PROVENANCE_OBSERVED = "observed"
+PROVENANCE_NOT_DERIVABLE = "not-derivable-passively"
+PROVENANCE_PATTERN = re.compile(r"^(observed|inferred:[a-z0-9_-]+|not-derivable-passively)$")
+
+
+@dataclass(frozen=True)
+class ObservedField:
+    """Wartosc razem ze znacznikiem jej pochodzenia. `__post_init__` odrzuca
+    znacznik spoza `PROVENANCE_PATTERN` od razu przy konstrukcji - ten sam
+    styl co `severity_to_risk` w `risk.py`, ktory na wartosci spoza listy
+    podnosi wyjatek zamiast zwracac wartosc domyslna."""
+
+    value: object
+    provenance: str
+
+    def __post_init__(self) -> None:
+        if not PROVENANCE_PATTERN.match(self.provenance):
+            raise ValueError(
+                f"Znacznik pochodzenia poza dozwolonym wzorcem: {self.provenance!r}"
+            )
+
+
+class ProvenanceError(Exception):
+    """Pole inwentarza bez znacznika pochodzenia albo ze znacznikiem spoza
+    `PROVENANCE_PATTERN`, wykryte przez `assert_provenance_complete`."""
+
+
+def observed(value: object) -> ObservedField:
+    """Pole odczytane wprost z ramki."""
+    return ObservedField(value=value, provenance=PROVENANCE_OBSERVED)
+
+
+def inferred(value: object, method: str) -> ObservedField:
+    """Pole wyliczone metoda `method` (bez prefiksu `inferred:` - dopisywany
+    tutaj)."""
+    return ObservedField(value=value, provenance=f"inferred:{method}")
+
+
+def not_derivable() -> ObservedField:
+    """Pole, ktorego nie da sie ustalic z pasywnego zrzutu. `value` jest
+    zawsze `None` - brak pola nigdy nie zastepuje tego znacznika."""
+    return ObservedField(value=None, provenance=PROVENANCE_NOT_DERIVABLE)
+
+
+def iter_observed_fields(node: object, path: str = "") -> Iterator[tuple[str, dict]]:
+    """Generator przechodzacy rekurencyjnie po strukturze juz zserializowanej
+    do slownikow i list (wynik `dataclasses.asdict`).
+
+    Slownik o zbiorze kluczy dokladnie rownym `{"value", "provenance"}` JEST
+    polem prowieniencji: generator oddaje pare `(path, node)` i NIE schodzi
+    glebiej w `value` - wartosc bedaca przypadkiem takim samym slownikiem nie
+    jest liczona dwa razy. Kazdy inny slownik jest kontenerem i generator
+    schodzi w jego wartosci. Lista jest kontenerem i generator schodzi w jej
+    elementy."""
+    if isinstance(node, dict):
+        if set(node.keys()) == {"value", "provenance"}:
+            yield path, node
+            return
+        for key, value in node.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            yield from iter_observed_fields(value, child_path)
+        return
+    if isinstance(node, list):
+        for index, item in enumerate(node):
+            yield from iter_observed_fields(item, f"{path}[{index}]")
+
+
+def assert_provenance_complete(node: object, path: str = "") -> None:
+    """Podnosi `ProvenanceError` rekurencyjnie na kazdym polu inwentarza bez
+    znacznika pochodzenia albo ze znacznikiem spoza `PROVENANCE_PATTERN`.
+
+    Dwa przypadki naruszenia: wartosc skalarna (`str`, `int`, `float`,
+    `bool`, `None`) NIE bedaca w polu `value` rozpoznanego pola prowieniencji,
+    oraz pole prowieniencji, ktorego `provenance` nie pasuje do wzorca.
+    Komunikat wyjatku niesie sciezke pola i nazwe naruszonego warunku, nigdy
+    samej wartosci - ta sama dyscyplina co `Violation` bez pola tekstowego w
+    `scripts/confidentiality_guard.py`."""
+    if isinstance(node, dict):
+        if set(node.keys()) == {"value", "provenance"}:
+            provenance = node["provenance"]
+            if not isinstance(provenance, str) or not PROVENANCE_PATTERN.match(provenance):
+                raise ProvenanceError(
+                    f"Pole '{path}' ma znacznik pochodzenia poza dozwolonym "
+                    f"wzorcem: {provenance!r}"
+                )
+            return
+        for key, value in node.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            assert_provenance_complete(value, child_path)
+        return
+    if isinstance(node, list):
+        for index, item in enumerate(node):
+            assert_provenance_complete(item, f"{path}[{index}]")
+        return
+    if node is None or isinstance(node, (str, int, float, bool)):
+        raise ProvenanceError(
+            f"Pole '{path}' niesie wartosc skalarna bez znacznika pochodzenia"
+        )
 
 
 @dataclass(frozen=True)
@@ -66,6 +182,7 @@ def build_analysis(
     zone_model: dict,
     findings: list[dict],
     methodology: dict,
+    assets: list[dict],
 ) -> dict:
     """Skleja slownik `analysis.json`.
 
@@ -81,6 +198,7 @@ def build_analysis(
         "conduits": zone_model["conduits"],
         "findings": findings,
         "methodology": methodology,
+        "assets": assets,
     }
 
 

@@ -1,4 +1,4 @@
-"""Renderowanie raportu markdown szesciosekcyjnego, bez silnika szablonow
+"""Renderowanie raportu markdown siedmiosekcyjnego, bez silnika szablonow
 (D-05, REPORT-01).
 
 `SECTIONS` jest literalna krotka, kolejnosc jest kontraktem. Sekcja
@@ -19,6 +19,7 @@ SECTIONS: tuple[str, ...] = (
     "Streszczenie",
     "Zakres",
     "Metodyka",
+    "Inwentarz",
     "Ograniczenia",
     "Findingi",
     "Zalecenia",
@@ -64,6 +65,27 @@ def render_markdown(
         "obejmuje wylacznie protokol Modbus/TCP, rozpoznawany po ksztalcie "
         "naglowka MBAP, niezaleznie od numeru portu."
     )
+    first_seen = capture.get("first_seen")
+    last_seen = capture.get("last_seen")
+    if first_seen is not None and last_seen is not None:
+        window_sentence = (
+            f"Okno czasowe zrzutu: od {first_seen} do {last_seen} "
+            "(znaczniki czasu epoki Unix)."
+        )
+    else:
+        window_sentence = (
+            "Okno czasowe zrzutu nie zostalo ustalone - zrzut nie zawiera "
+            "ani jednego pakietu."
+        )
+    snaplen = capture.get("snaplen")
+    if snaplen is not None:
+        snaplen_sentence = f"Snaplen odczytany z naglowka zrzutu: {snaplen} bajtow."
+    else:
+        snaplen_note = capture.get("snaplen_note") or (
+            "snaplen nie zostal jednoznacznie ustalony"
+        )
+        snaplen_sentence = f"Snaplen nie zostal jednoznacznie ustalony ({snaplen_note})."
+    lines.append(f"{window_sentence} {snaplen_sentence}")
     lines.append("")
 
     lines.append(f"## {SECTIONS[2]}")
@@ -82,6 +104,26 @@ def render_markdown(
 
     lines.append(f"## {SECTIONS[3]}")
     lines.append("")
+    assets = analysis.get("assets", [])
+    if not assets:
+        lines.append(
+            "Zaden host z warstwa IP nie zostal zaobserwowany w tym zrzucie."
+        )
+        lines.append("")
+    else:
+        for host in assets:
+            ip_field = host["ip"]
+            lines.append(f"### {ip_field['value']}")
+            lines.append("")
+            for field_name, field_value in host.items():
+                value = field_value["value"]
+                provenance = field_value["provenance"]
+                rendered_value = "nieustalone" if value is None else value
+                lines.append(f"- {field_name}: {rendered_value} ({provenance})")
+            lines.append("")
+
+    lines.append(f"## {SECTIONS[4]}")
+    lines.append("")
     for warning in warnings:
         lines.append(f"- {warning}")
     if warnings:
@@ -95,7 +137,7 @@ def render_markdown(
     )
     lines.append("")
 
-    lines.append(f"## {SECTIONS[4]}")
+    lines.append(f"## {SECTIONS[5]}")
     lines.append("")
     if not findings:
         lines.append("Brak findingow w tym przebiegu.")
@@ -127,7 +169,7 @@ def render_markdown(
         lines.append(f"- Zalecenie: {finding['remediation']}")
         lines.append("")
 
-    lines.append(f"## {SECTIONS[5]}")
+    lines.append(f"## {SECTIONS[6]}")
     lines.append("")
     if not findings:
         lines.append("Brak zalecen w tym przebiegu.")

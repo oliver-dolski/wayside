@@ -73,3 +73,29 @@ fixtures:
       w srodku ostatniego Enhanced Packet Block. Odpowiednik
       truncated_mid_record.pcap dla formatu pcapng.
     protocol: modbus-tcp
+  - path: snaplen_truncated_frames.pcap
+    sha256: "271437a3e1e48e1cf6dc86541f9a5087f5a2a11a789aa1097cda80fd3d8f125d"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_snaplen_truncated_frames
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Modbus/TCP write function code 0x06, naglowek globalny o snaplenie
+      54 bajtow, dwa rekordy uciete przez snaplen - dlugosc przechwycona
+      rowna dokladnie pelnym naglowkom warstw drugiej do czwartej, dlugosc
+      oryginalna wieksza. Przypadek legalny: audyt strukturalny go
+      akceptuje, nie zglasza obciecia. Adresacja z zakresu dokumentacyjnego
+      RFC 5737, adresy MAC lokalnie administrowane.
+    protocol: modbus-tcp
+  - path: corrupted_record_length.pcap
+    sha256: "86a03bec25773cb507470e02ac19bc0a0f7720b2da3413f3311c6ca772cfe821"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_corrupted_record_length
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Plik zbudowany z tych samych bajtow co fixture bazowy, z podmienionym
+      w miejscu polem dlugosci przechwyconej pierwszego rekordu na wartosc
+      wieksza od snaplenu. Dlugosc pliku pozostaje identyczna z dlugoscia
+      zrodlowa - struktura jest niespojna, plik nie jest obciety. Rozny od
+      fixture'u uciecia przez snaplen: to jest korupcja pola dlugosci,
+      nie legalne uciecie.
+    protocol: modbus-tcp

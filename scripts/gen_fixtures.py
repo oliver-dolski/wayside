@@ -9,7 +9,8 @@ Uzycie:
 Adresacja pochodzi wylacznie z zakresu dokumentacyjnego RFC 5737 (192.0.2.0/24).
 Adresy MAC sa lokalnie administrowane i wymyslone, nie naleza do zadnego realnego
 urzadzenia. Znaczniki czasu sa stale (`BASE_TIMESTAMP + i * 0.01`), nigdy
-`time.time()` - patrz Pitfall 5 w 01-RESEARCH.md. `wrpcap()` domyslnie zapisuje
+zegar systemowy (funkcja `time` z modulu `time`) - patrz Pitfall 5
+w 01-RESEARCH.md. `wrpcap()` domyslnie zapisuje
 klasyczny format pcap (nie pcapng), wiec plik nie ma miejsca na metadane maszyny.
 
 Kazdy generator jest funkcja `gen_*(output_dir: Path) -> Path` odwzorowana w
@@ -62,6 +63,14 @@ _PCAPNG_IDB_TYPE = 0x00000001
 _PCAPNG_EPB_TYPE = 0x00000006
 _PCAPNG_BYTE_ORDER_MAGIC_LE = 0x1A2B3C4D
 
+# Snaplen dla fixture'u uciecia ramek: czternascie bajtow warstwy Ethernet
+# plus dwadziescia bajtow naglowka IP plus dwadziescia bajtow naglowka TCP
+# daje pelne naglowki i pusty ladunek - to jest rozstrzygniecie (zalozenie
+# Z-07 w 03-02-PLAN.md), nie liczba przypadkowa. Snaplen mniejszy zostawilby
+# scapy niekompletny naglowek TCP i zamienil test uciecia w test odpornosci
+# dysektora na smiec.
+SNAPLEN_TRUNCATION_LEN = 54
+
 __all__ = [
     "GENERATORS",
     "gen_modbus_write_single_register",
@@ -71,6 +80,8 @@ __all__ = [
     "gen_empty_valid_header",
     "gen_modbus_write_pcapng",
     "gen_truncated_mid_block",
+    "gen_snaplen_truncated_frames",
+    "gen_corrupted_record_length",
     "main",
 ]
 
@@ -350,6 +361,108 @@ def gen_truncated_mid_block(output_dir: Path) -> Path:
     return output_path
 
 
+# --- Faza 3: fixture'y budowane struktura bajtowa (Task 1, 03-02-PLAN.md) ---
+
+
+def gen_snaplen_truncated_frames(output_dir: Path) -> Path:
+    """Dwa rekordy uciete przez snaplen rowny `SNAPLEN_TRUNCATION_LEN`.
+
+    Ta sama wymiana zapisu 0x06 co fixture bazowy, zbudowana bajtowo zamiast
+    przez `wrpcap`: pisarz scapy zapisuje pelna ramke i nie potrafi
+    wyprodukowac rekordu, w ktorym dlugosc przechwycona jest mniejsza od
+    dlugosci oryginalnej. Naglowek globalny niesie snaplen rowny
+    `SNAPLEN_TRUNCATION_LEN` zamiast domyslnego; kazdy rekord niesie dlugosc
+    przechwycona rowna dlugosci ucietej ramki i dlugosc oryginalna rowna
+    pelnej dlugosci ramki przed obcieciem.
+
+    Uciecie przez snaplen jest przypadkiem LEGALNYM - rozpoznawanym w
+    `wayside.pcap._audit_pcap_classic` po warunku dlugosc przechwycona
+    mniejsza od oryginalnej - a nie tym samym co korupcja pola dlugosci,
+    rozpoznawana po warunku dlugosc przechwycona wieksza od snaplenu
+    (patrz `gen_corrupted_record_length` nizej). `audit_capture_structure`
+    na tym pliku nie podnosi wyjatku (INGEST-03).
+    """
+    request = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=50000, dport=MODBUS_PORT, seq=1, ack=0, flags="PA")
+        / ModbusADURequest(transId=1, protoId=0, unitId=1)
+        / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
+    )
+    response = (
+        Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+        / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+        / TCP(sport=MODBUS_PORT, dport=50000, seq=1, ack=1, flags="PA")
+        / ModbusADUResponse(transId=1, protoId=0, unitId=1)
+        / ModbusPDU06WriteSingleRegisterResponse(registerAddr=0x0001, registerValue=0x002A)
+    )
+
+    global_header = struct.pack(
+        "<IHHiIII",
+        PCAP_CLASSIC_MAGIC_LE,
+        2,  # wersja glowna
+        4,  # wersja podrzedna
+        0,  # strefa czasowa
+        0,  # dokladnosc znacznikow czasu
+        SNAPLEN_TRUNCATION_LEN,  # snaplen
+        1,  # typ warstwy lacza: Ethernet
+    )
+
+    records = bytearray()
+    for i, pkt in enumerate([request, response]):
+        # Znacznik czasu wyprowadzony z BASE_TIMESTAMP, nigdy z zegara
+        # systemowego - dokladnie jak reszta generatorow tego pliku.
+        timestamp = BASE_TIMESTAMP + i * 0.01
+        ts_sec = int(timestamp)
+        ts_usec = round((timestamp - ts_sec) * 1_000_000)
+
+        full_frame = bytes(pkt)
+        truncated_frame = full_frame[:SNAPLEN_TRUNCATION_LEN]
+        records += struct.pack(
+            "<IIII", ts_sec, ts_usec, len(truncated_frame), len(full_frame)
+        )
+        records += truncated_frame
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "snaplen_truncated_frames.pcap"
+    output_path.write_bytes(bytes(global_header) + bytes(records))
+    return output_path
+
+
+def gen_corrupted_record_length(output_dir: Path) -> Path:
+    """Plik uszkodzony strukturalnie przy pelnej, spojnej dlugosci pliku -
+    rozny od pliku obcietego.
+
+    Zbudowany z tych samych bajtow co fixture bazowy
+    (`gen_modbus_write_single_register`, zapisany do katalogu tymczasowego
+    tak jak robi to `gen_truncated_mid_record`), z jedna zmiana W MIEJSCU:
+    pole dlugosci przechwyconej w naglowku PIERWSZEGO rekordu jest
+    podmienione na wartosc 300000, wieksza od snaplenu z naglowka globalnego.
+    Naglowek globalny ma dwadziescia cztery bajty, naglowek rekordu
+    szesnascie, wiec pole dlugosci przechwyconej pierwszego rekordu lezy na
+    przesunieciu od 32 do 36 bajtow od poczatku pliku (uklad potwierdzony
+    odczytem `wayside.pcap._audit_pcap_classic`). Dlugosc zapisanego pliku
+    pozostaje identyczna z dlugoscia pliku zrodlowego - to jest cala tresc
+    tego fixture'a: struktura jest niespojna, ale plik NIE jest obciety.
+
+    Ten plik wymusza wejscie w blok kontroli zakresu `incl_len > snaplen`
+    w `wayside.pcap`, ktory istnieje od Fazy 2, ale do tej pory nie byl
+    wywolywany przez zaden fixture ani test (INGEST-05).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        full_path = gen_modbus_write_single_register(Path(tmp))
+        full_bytes = bytearray(full_path.read_bytes())
+
+    global_header_len = 24  # magic+wersje+strefa+dokladnosc+snaplen+network
+    incl_len_offset = global_header_len + 8  # ts_sec(4) + ts_usec(4)
+    full_bytes[incl_len_offset : incl_len_offset + 4] = struct.pack("<I", 300000)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "corrupted_record_length.pcap"
+    output_path.write_bytes(bytes(full_bytes))
+    return output_path
+
+
 GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_write_single_register.pcap", gen_modbus_write_single_register),
     ("modbus_write_non_standard_port.pcap", gen_modbus_non_standard_port),
@@ -358,6 +471,8 @@ GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("empty_valid_header.pcap", gen_empty_valid_header),
     ("modbus_write_single_register.pcapng", gen_modbus_write_pcapng),
     ("truncated_mid_block.pcapng", gen_truncated_mid_block),
+    ("snaplen_truncated_frames.pcap", gen_snaplen_truncated_frames),
+    ("corrupted_record_length.pcap", gen_corrupted_record_length),
 )
 
 

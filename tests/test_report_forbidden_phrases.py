@@ -274,3 +274,68 @@ def test_analysis_json_carries_no_forbidden_phrase(fixture, tmp_path):
     hits = scan_forbidden(serialized, ALL_PATTERNS)
 
     assert hits == [], f"{fixture.name}: {hits}"
+
+
+# --- RISK-01: metoda oceny wagi w sekcji metodyki prawdziwego raportu -------
+#
+# Wartosc tego testu wobec `tests/test_report_render.py`: tamten dowodzi, ze
+# renderer UMIE wypisac kryteria, ten dowodzi, ze w PRAWDZIWYM raporcie
+# z prawdziwej analizy faktycznie sa. Lamie sie, gdy ktos dopisze piaty poziom
+# wagi do rubryki i zapomni o raporcie - kryteria sa czytane z modulu
+# produkcyjnego, nigdy z kopii w tym pliku.
+
+HEADER_PATTERN = re.compile(r"^## (.+)$", flags=re.MULTILINE)
+
+
+def _section_body(text: str, name: str) -> str:
+    """Tresc jednej sekcji, od jej naglowka do nastepnego.
+
+    Wycinanie po naglowku nie jest ostroznoscia na wyrost: zdanie kryterium
+    obecne gdziekolwiek w raporcie zaliczyloby test szukajacy podciagu w calym
+    tekscie, a RISK-01 mowi wprost o sekcji metodyki. Test nad calym plikiem
+    przeszedlby takze wtedy, gdyby sekcja metodyki zniknela, a kryteria
+    wyladowaly w zaleceniach.
+    """
+    matches = list(HEADER_PATTERN.finditer(text))
+    for index, match in enumerate(matches):
+        if match.group(1).strip() != name:
+            continue
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        return text[start:end]
+    raise AssertionError(f"Raport nie ma sekcji '{name}'")
+
+
+@pytest.mark.parametrize(
+    "fixture", _analyzable_fixtures(), ids=lambda path: path.name
+)
+def test_methodology_section_carries_every_rubric_criterion(fixture, tmp_path):
+    result = _analyze_or_skip(fixture, tmp_path)
+
+    body = _section_body(result.report_markdown, "Metodyka")
+
+    for severity, criterion in risk.RUBRIC_CRITERIA.items():
+        assert criterion in body, f"{fixture.name}: brak kryterium dla wagi {severity}"
+
+
+@pytest.mark.parametrize(
+    "fixture", _analyzable_fixtures(), ids=lambda path: path.name
+)
+def test_methodology_section_carries_rubric_version(fixture, tmp_path):
+    result = _analyze_or_skip(fixture, tmp_path)
+
+    body = _section_body(result.report_markdown, "Metodyka")
+
+    assert risk.RUBRIC_VERSION in body, fixture.name
+
+
+@pytest.mark.parametrize(
+    "fixture", _analyzable_fixtures(), ids=lambda path: path.name
+)
+def test_methodology_section_names_every_allowed_severity(fixture, tmp_path):
+    result = _analyze_or_skip(fixture, tmp_path)
+
+    body = _section_body(result.report_markdown, "Metodyka")
+
+    for severity in risk.ALLOWED_SEVERITIES:
+        assert severity in body, f"{fixture.name}: brak nazwy wagi {severity}"

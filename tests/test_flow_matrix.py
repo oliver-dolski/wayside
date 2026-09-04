@@ -24,6 +24,13 @@ from wayside.decode import (  # noqa: E402
     decode_segments,
     find_session_initiators,
 )
+from wayside.flow import (  # noqa: E402
+    PROTOCOL_MODBUS_RTU_TUNNEL,
+    PROTOCOL_MODBUS_TCP,
+    PROTOCOL_UNRECOGNIZED,
+    build_comm_matrix,
+)
+from wayside.model import assert_provenance_complete  # noqa: E402
 from wayside.pcap import read_capture  # noqa: E402
 
 FIXTURE_HANDSHAKE = "tests/fixtures/pcap/modbus_tcp_handshake.pcap"
@@ -182,3 +189,228 @@ def test_fixture_without_handshake_gives_empty_mapping():
     segments = decode_segments(packets)
 
     assert find_session_initiators(packets, segments) == {}
+
+
+# --- build_comm_matrix (Task 2) ---------------------------------------------
+
+
+def _event(*, session_id: int, unit_id: int = 1) -> dict:
+    return {
+        "packet_number": 1,
+        "session_id": session_id,
+        "unit_id": unit_id,
+        "transaction_id": 1,
+        "function_code": 0x06,
+        "function_name": "Write Single Register",
+        "kind": "write",
+        "direction": "request",
+        "src_ip": CLIENT_IP,
+        "dst_ip": SERVER_IP,
+        "timestamp": 0.0,
+    }
+
+
+def _low_confidence_event(*, session_id: int) -> dict:
+    return {
+        "packet_number": 1,
+        "session_id": session_id,
+        "protocol": "modbus-rtu-over-tcp",
+        "confidence": "low",
+        "basis": "crc16-modbus-match",
+    }
+
+
+def test_build_comm_matrix_on_empty_input_returns_empty_list():
+    assert build_comm_matrix(
+        packets=[], segments=[], events=[], low_confidence_events=[], initiators={}
+    ) == []
+
+
+def test_session_without_protocol_event_gets_row_with_protocol_tcp():
+    packets = [_data()]
+    segments = decode_segments(packets)
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[], initiators={},
+    )
+
+    assert len(matrix) == 1
+    assert matrix[0]["protocol"] == {
+        "value": PROTOCOL_UNRECOGNIZED,
+        "provenance": "observed",
+    }
+
+
+def test_session_with_modbus_event_gets_protocol_modbus_tcp():
+    packets = [_data()]
+    segments = decode_segments(packets)
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments,
+        events=[_event(session_id=segments[0].session_id)],
+        low_confidence_events=[], initiators={},
+    )
+
+    assert matrix[0]["protocol"] == {
+        "value": PROTOCOL_MODBUS_TCP,
+        "provenance": "inferred:payload-shape",
+    }
+
+
+def test_session_with_only_low_confidence_event_gets_protocol_rtu_tunnel():
+    packets = [_data()]
+    segments = decode_segments(packets)
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[_low_confidence_event(session_id=segments[0].session_id)],
+        initiators={},
+    )
+
+    assert matrix[0]["protocol"] == {
+        "value": PROTOCOL_MODBUS_RTU_TUNNEL,
+        "provenance": "inferred:payload-shape",
+    }
+
+
+def test_modbus_event_wins_over_low_confidence_event_for_the_same_session():
+    """Kolejnosc rozstrzygania jest nieprzemienna: sesja rozpoznana po naglowku
+    MBAP jest Modbusem po TCP, nawet gdy niesie w tle segment przypadkiem
+    dopasowany suma kontrolna."""
+    packets = [_data()]
+    segments = decode_segments(packets)
+    session_id = segments[0].session_id
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments,
+        events=[_event(session_id=session_id)],
+        low_confidence_events=[_low_confidence_event(session_id=session_id)],
+        initiators={},
+    )
+
+    assert matrix[0]["protocol"]["value"] == PROTOCOL_MODBUS_TCP
+
+
+def test_row_order_is_first_seen_session_order_and_repeats_across_calls():
+    other = _packet(
+        flags="PA",
+        src_ip="192.0.2.30", src_port=40000,
+        dst_ip=SERVER_IP, dst_port=SERVER_PORT,
+        src_mac="02:00:00:00:00:03", dst_mac=SERVER_MAC,
+        payload=b"x",
+    )
+    packets = [other, _data()]
+    segments = decode_segments(packets)
+
+    first = [
+        row["session_id"]["value"]
+        for row in build_comm_matrix(
+            packets=packets, segments=segments, events=[],
+            low_confidence_events=[], initiators={},
+        )
+    ]
+    second = [
+        row["session_id"]["value"]
+        for row in build_comm_matrix(
+            packets=packets, segments=segments, events=[],
+            low_confidence_events=[], initiators={},
+        )
+    ]
+
+    assert first == second == [0, 1]
+
+
+def test_row_with_observed_initiator_carries_observed_direction_and_endpoints():
+    packets = [_syn(), _syn_ack(), _ack(), _data()]
+    segments = decode_segments(packets)
+    initiators = find_session_initiators(packets, segments)
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[], initiators=initiators,
+    )
+    row = matrix[0]
+
+    assert row["initiator"] == {
+        "value": CLIENT_IP + ":" + str(CLIENT_PORT),
+        "provenance": "observed",
+    }
+    assert row["direction"]["provenance"] == "observed"
+    assert row["source"]["provenance"] == "observed"
+    assert row["target"]["provenance"] == "observed"
+
+
+def test_row_without_initiator_has_null_initiator_and_inferred_direction():
+    packets = [_data()]
+    segments = decode_segments(packets)
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[], initiators={},
+    )
+    row = matrix[0]
+
+    assert row["initiator"] == {"value": None, "provenance": "not-derivable-passively"}
+    assert row["direction"]["provenance"] == "inferred:first-observed-sender"
+    assert row["source"]["provenance"] == "inferred:first-observed-sender"
+    assert row["target"]["provenance"] == "inferred:first-observed-sender"
+
+
+def test_direction_value_joins_source_and_target():
+    packets = [_data()]
+    segments = decode_segments(packets)
+
+    row = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[], initiators={},
+    )[0]
+
+    assert row["direction"]["value"] == (
+        row["source"]["value"] + " -> " + row["target"]["value"]
+    )
+
+
+def test_volume_counts_all_packets_of_the_session_not_only_payload_bytes():
+    """Zalozenie Z-33: wolumen obejmuje pakiety uzgodnienia polaczenia
+    i potwierdzenia, wiec jest wiekszy od sumy dlugosci samych ladunkow."""
+    packets = read_capture(FIXTURE_HANDSHAKE)
+    segments = decode_segments(packets)
+
+    row = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[],
+        initiators=find_session_initiators(packets, segments),
+    )[0]
+    payload_bytes = sum(len(segment.payload) for segment in segments)
+
+    assert row["volume_bytes"]["value"] > payload_bytes
+    assert row["volume_bytes"]["provenance"] == "observed"
+
+
+def test_matrix_packet_count_differs_from_conversations_packet_count():
+    """Jedyna obserwowalna konsekwencja zalozenia Z-33: macierz liczy WSZYSTKIE
+    pakiety sesji, a `conversations` same segmenty z ladunkiem."""
+    packets = read_capture(FIXTURE_HANDSHAKE)
+    segments = decode_segments(packets)
+
+    row = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[],
+        initiators=find_session_initiators(packets, segments),
+    )[0]
+
+    assert row["packet_count"]["value"] == 5
+    assert len(segments) == 2
+
+
+def test_every_matrix_field_carries_provenance():
+    packets = [_data()]
+    segments = decode_segments(packets)
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments, events=[],
+        low_confidence_events=[], initiators={},
+    )
+
+    assert_provenance_complete(matrix, path="comm_matrix")

@@ -1,4 +1,4 @@
-"""Renderowanie raportu markdown siedmiosekcyjnego, bez silnika szablonow
+"""Renderowanie raportu markdown osmiosekcyjnego, bez silnika szablonow
 (D-05, REPORT-01).
 
 `SECTIONS` jest literalna krotka, kolejnosc jest kontraktem. Sekcja
@@ -20,6 +20,7 @@ SECTIONS: tuple[str, ...] = (
     "Zakres",
     "Metodyka",
     "Inwentarz",
+    "Macierz komunikacji",
     "Ograniczenia",
     "Findingi",
     "Zalecenia",
@@ -215,6 +216,46 @@ def render_markdown(
 
     lines.append(f"## {SECTIONS[4]}")
     lines.append("")
+    comm_matrix = analysis.get("comm_matrix", [])
+    if not comm_matrix:
+        lines.append(
+            "Zadna sesja TCP z ladunkiem nie zostala zaobserwowana w tym zrzucie."
+        )
+        lines.append("")
+    else:
+        # Tabela jest tu wlasciwym ksztaltem, w odroznieniu od inwentarza:
+        # osiem kolumn krotkich wartosci czyta sie w wierszu, a porownanie sesji
+        # miedzy soba jest cala trescia macierzy. Znacznik pochodzenia stoi przy
+        # kierunku i przy stronie inicjujacej, czyli tam, gdzie rozroznienie
+        # obserwacji od wniosku zmienia odczyt; kolumny czysto liczbowe ze
+        # znacznikiem `observed` znacznika nie niosa, zeby tabela pozostala
+        # czytelna.
+        lines.append(
+            "| Sesja | Zrodlo | Cel | Kierunek | Protokol | Wolumen (B) | "
+            "Pakietow | Strona inicjujaca |"
+        )
+        lines.append("|---|---|---|---|---|---|---|---|")
+        for row in comm_matrix:
+            direction = row.get("direction", {})
+            initiator = row.get("initiator", {})
+            initiator_value = initiator.get("value")
+            rendered_initiator = (
+                "nieustalona" if initiator_value is None else initiator_value
+            )
+            lines.append(
+                f"| {row.get('session_id', {}).get('value', '?')} "
+                f"| {row.get('source', {}).get('value', '?')} "
+                f"| {row.get('target', {}).get('value', '?')} "
+                f"| {direction.get('value', '?')} ({direction.get('provenance', '?')}) "
+                f"| {row.get('protocol', {}).get('value', '?')} "
+                f"| {row.get('volume_bytes', {}).get('value', '?')} "
+                f"| {row.get('packet_count', {}).get('value', '?')} "
+                f"| {rendered_initiator} ({initiator.get('provenance', '?')}) |"
+            )
+        lines.append("")
+
+    lines.append(f"## {SECTIONS[5]}")
+    lines.append("")
     for warning in warnings:
         lines.append(f"- {warning}")
     if warnings:
@@ -228,7 +269,7 @@ def render_markdown(
     )
     lines.append("")
 
-    lines.append(f"## {SECTIONS[5]}")
+    lines.append(f"## {SECTIONS[6]}")
     lines.append("")
     if not findings:
         lines.append("Brak findingow w tym przebiegu.")
@@ -260,7 +301,7 @@ def render_markdown(
         lines.append(f"- Zalecenie: {finding['remediation']}")
         lines.append("")
 
-    lines.append(f"## {SECTIONS[6]}")
+    lines.append(f"## {SECTIONS[7]}")
     lines.append("")
     if not findings:
         lines.append("Brak zalecen w tym przebiegu.")

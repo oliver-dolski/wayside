@@ -280,7 +280,7 @@ def test_capture_section_has_snaplen_for_pcapng_fixture(tmp_path):
 # --- REPORT-01/ASSET-01: sekcja Inwentarz w report.md (plan 03-01, Task 1) ---
 
 
-def test_report_markdown_has_seven_sections_with_inwentarz_after_metodyka(tmp_path):
+def test_report_markdown_has_eight_sections_with_macierz_after_inwentarz(tmp_path):
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
@@ -289,8 +289,9 @@ def test_report_markdown_has_seven_sections_with_inwentarz_after_metodyka(tmp_pa
 
     headers = re.findall(r"^## (.+)$", report_text, flags=re.MULTILINE)
     assert headers == list(SECTIONS)
-    assert len(SECTIONS) == 7
+    assert len(SECTIONS) == 8
     assert SECTIONS.index("Inwentarz") == SECTIONS.index("Metodyka") + 1
+    assert SECTIONS.index("Macierz komunikacji") == SECTIONS.index("Inwentarz") + 1
 
 
 def test_report_markdown_inwentarz_section_carries_both_hosts_and_provenance(tmp_path):
@@ -679,6 +680,74 @@ def test_two_runs_on_gateway_fixture_give_byte_identical_analysis_json(tmp_path)
     out_b = tmp_path / "b"
     result_a = _run_analyze_path(FIXTURE_GATEWAY, out_a)
     result_b = _run_analyze_path(FIXTURE_GATEWAY, out_b)
+    assert result_a.returncode == 0, result_a.stderr
+    assert result_b.returncode == 0, result_b.stderr
+
+    assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()
+
+
+# --- Macierz komunikacji w analysis.json i w raporcie (plan 03-07, Task 2) ---
+
+FIXTURE_HANDSHAKE = "tests/fixtures/pcap/modbus_tcp_handshake.pcap"
+
+
+def test_handshake_fixture_matrix_carries_observed_initiator(tmp_path):
+    result = _run_analyze_path(FIXTURE_HANDSHAKE, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    analysis = _load_analysis(tmp_path)
+    assert len(analysis["comm_matrix"]) == 1
+    row = analysis["comm_matrix"][0]
+
+    assert row["initiator"] == {"value": "192.0.2.10:50400", "provenance": "observed"}
+    assert row["direction"]["provenance"] == "observed"
+
+
+def test_handshake_fixture_matrix_packet_count_exceeds_conversations_packet_count(tmp_path):
+    result = _run_analyze_path(FIXTURE_HANDSHAKE, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    analysis = _load_analysis(tmp_path)
+
+    assert analysis["comm_matrix"][0]["packet_count"]["value"] == 5
+    assert analysis["conversations"][0]["packet_count"] == 2
+
+
+def test_fixture_without_handshake_matrix_has_null_initiator(tmp_path):
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    row = _load_analysis(tmp_path)["comm_matrix"][0]
+
+    assert row["initiator"] == {"value": None, "provenance": "not-derivable-passively"}
+    assert row["direction"]["provenance"] == "inferred:first-observed-sender"
+
+
+def test_rtu_over_tcp_fixture_matrix_row_carries_tunnel_protocol(tmp_path):
+    result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    row = _load_analysis(tmp_path)["comm_matrix"][0]
+
+    assert row["protocol"]["value"] == "modbus-rtu-over-tcp"
+
+
+def test_report_has_macierz_komunikacji_section_with_a_table(tmp_path):
+    result = _run_analyze_path(FIXTURE_HANDSHAKE, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    assert "## Macierz komunikacji" in report_text
+    assert "| Sesja | Zrodlo | Cel | Kierunek | Protokol |" in report_text
+    assert "192.0.2.10:50400" in report_text
+
+
+def test_two_runs_on_handshake_fixture_give_byte_identical_analysis_json(tmp_path):
+    out_a = tmp_path / "a"
+    out_b = tmp_path / "b"
+    result_a = _run_analyze_path(FIXTURE_HANDSHAKE, out_a)
+    result_b = _run_analyze_path(FIXTURE_HANDSHAKE, out_b)
     assert result_a.returncode == 0, result_a.stderr
     assert result_b.returncode == 0, result_b.stderr
 

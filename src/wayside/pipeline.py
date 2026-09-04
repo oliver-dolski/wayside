@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from wayside import coverage, decode, report, risk, zones
+from wayside import coverage, decode, flow, report, risk, zones
 from wayside.assets import inventory, oui
 from wayside.checks import engine as checks_engine
 from wayside.model import (
@@ -102,7 +102,9 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     odczyt zrzutu, dekodowanie, dysekcja Modbus, dyskryminator Modbus RTU
     tunelowanego po TCP nad ta sama lista segmentow (PROTO-03), budowa
     inwentarza hostow nad segmentami i nad zserializowanymi zdarzeniami
-    (ASSET-04, ASSET-05), bramka prowieniencji nad inwentarzem (Z-02), model
+    (ASSET-04, ASSET-05), macierz komunikacji nad pakietami, segmentami,
+    zdarzeniami i inicjatorami sesji (FLOW-01, FLOW-02), bramka prowieniencji
+    nad inwentarzem i nad macierza (Z-02), model
     strefy, pomiar cyklu odpytywania i ocena pokrycia okna zrzutu
     (INGEST-04), model analizy bez findingow, silnik checkow, rozwiazanie
     powolan na norme, przypisanie ryzyka, zapis `analysis.json`,
@@ -121,6 +123,9 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
 
     packets = read_capture(pcap_path)
     segments = decode.decode_segments(packets)
+    # FLOW-02: przebieg po WSZYSTKICH pakietach, nie po segmentach - pakiet
+    # otwierajacy polaczenie nie ma ladunku, wiec w segmentach go nie ma.
+    session_initiators = decode.find_session_initiators(packets, segments)
     events = modbus_tcp.dissect_all(segments)
     # PROTO-03: dyskryminator wolany na TEJ SAMEJ liscie segmentow co
     # dissect_all - wzajemne wykluczenie miedzy natywnym Modbus/TCP i
@@ -244,6 +249,15 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     # `analysis` (zalozenie Z-02) - pola z Faz 1-2 nie sa regresja.
     assert_provenance_complete(assets, path="assets")
 
+    comm_matrix = flow.build_comm_matrix(
+        packets=packets,
+        segments=segments,
+        events=protocol_events,
+        low_confidence_events=low_confidence_events_section,
+        initiators=session_initiators,
+    )
+    assert_provenance_complete(comm_matrix, path="comm_matrix")
+
     methodology = {
         "rubric_version": risk.RUBRIC_VERSION,
         "note": (
@@ -262,6 +276,7 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         assets=assets,
         coverage=coverage_section,
         low_confidence_events=low_confidence_events_section,
+        comm_matrix=comm_matrix,
     )
 
     checks = checks_engine.discover_checks()

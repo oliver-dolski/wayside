@@ -185,6 +185,7 @@ def build_analysis(
     assets: list[dict],
     coverage: dict,
     low_confidence_events: list[dict],
+    comm_matrix: list[dict],
 ) -> dict:
     """Skleja slownik `analysis.json`.
 
@@ -200,6 +201,9 @@ def build_analysis(
     `protocol_events`, wiec rozpoznanie o niskiej pewnosci nigdy nie moze
     stac sie podstawa findingu przez sam fakt obecnosci na wspolnej liscie
     (zalozenie Z-18, PROTO-03).
+    `comm_matrix` niesie macierz komunikacji zbudowana przez
+    `wayside.flow.build_comm_matrix` - jeden wiersz na sesje z ladunkiem,
+    razem z sesjami, ktorych protokolu nie rozpoznano (FLOW-01).
     """
     return {
         "capture": capture,
@@ -212,6 +216,7 @@ def build_analysis(
         "assets": assets,
         "coverage": coverage,
         "low_confidence_events": low_confidence_events,
+        "comm_matrix": comm_matrix,
     }
 
 

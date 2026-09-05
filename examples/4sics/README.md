@@ -6,16 +6,18 @@ uprzejmoscia - kopiujac ten katalog, kopiuje sie razem z nim ten warunek.
 ## Atrybucja
 
 Ruch pochodzi z laboratorium 4SICS Geek Lounge (2015), udostepniony
-publicznie przez [Netresec](https://www.netresec.com/?page=PCAP4SICS) za
-zgoda [CS3Sthlm](https://cs3sthlm.se/) (nastepcy konferencji 4SICS) na
-udostepnienie przechwyconego ruchu. Redystrybucja jest dozwolona, takze w
-materialach szkoleniowych, pod warunkiem tej atrybucji i odeslania do strony
-Netresec.
+publicznie przez Netresec (https://www.netresec.com/) za zgoda CS3Sthlm
+(nastepcy konferencji 4SICS) na udostepnienie przechwyconego ruchu.
+
+Strona zbioru: [https://www.netresec.com/?page=PCAP4SICS](https://www.netresec.com/?page=PCAP4SICS).
+Strona instytucji, ktorej atrybucja sie nalezy: [CS3Sthlm](https://cs3sthlm.se/).
+Redystrybucja jest dozwolona, takze w materialach szkoleniowych, pod
+warunkiem tej atrybucji i odeslania do strony Netresec.
 
 ## Granica dziedzinowa
 
-Ten ruch pochodzi z laboratorium konferencji przemyslowej, **NIE** z
-instalacji kolejowej. Przykladowy raport ponizej nie pokazuje dziedziny, w
+Ten ruch pochodzi z laboratorium konferencji przemyslowej, NIE z instalacji
+kolejowej. Przykladowy raport ponizej nie pokazuje dziedziny, w
 ktorej ten projekt ma swoj wyroznik - to jest ryzyko rezydualne przyjete
 swiadomie i zapisane w
 [`docs/decisions/0005-zbior-publiczny-dla-przykladu-raportu.md`](../../docs/decisions/0005-zbior-publiczny-dla-przykladu-raportu.md):

@@ -106,8 +106,13 @@ katalogu norm niesie jawnie prowizoryczny token, nigdy liczbe wygladajaca
 jak numer punktu.
 
 Droga podniesienia znacznika: zakup egzemplarza, przeczytanie punktow wobec
-niego, edycja pola punktu i pola weryfikacji w pliku katalogu norm. Zaden
-plik kodu przy tym nie zmienia sie.
+niego, edycja DWOCH pol - pola weryfikacji i pola prowieniencji tytulu
+punktu (`clause_title_source`) - w pliku katalogu norm. Warstwa wczytujaca
+odrzuca wpis, ktory podnosi jedno z tych dwoch pol bez drugiego. Zaden plik
+kodu przy tym nie zmienia sie.
+
+Tytul punktu, ktory nie zostal przepisany z egzemplarza, renderuje sie w
+raporcie jako opis wlasny, w innym ksztalcie niz tytul potwierdzony.
 
 ## Testy
 

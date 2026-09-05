@@ -5,44 +5,52 @@ entries:
     clause_title: "Identyfikacja i uwierzytelnienie użytkowników ludzkich"
     clause_title_source: "wlasny"
     paraphrase: >-
-      Własna, robocza parafraza: punkt dotyczy zapewnienia, że każdy
-      użytkownik ludzki łączący się z systemem sterowania jest jednoznacznie
-      zidentyfikowany i uwierzytelniony, zanim uzyska dostęp do funkcji
-      mających wpływ na bezpieczeństwo procesu. Nigdy cytat normy.
+      Punkt dotyczy zapewnienia, że każdy użytkownik ludzki łączący się z
+      systemem sterowania jest jednoznacznie zidentyfikowany i
+      uwierzytelniony.
+    paraphrase_note: >-
+      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
+      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
+      renderowane w żadnym formacie raportu.
     verified: false
     verification_note: >-
-      Numeracja punktu i tresc parafrazy czekaja na zestawienie z legalnym
+      Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym
       egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
-      prowizoryczny i nie stanowi potwierdzonego powolania.
+      prowizoryczny i nie stanowi potwierdzonego powołania.
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 1.2"
     clause_title: "Identyfikacja i uwierzytelnienie procesów programowych i urządzeń"
     clause_title_source: "wlasny"
     paraphrase: >-
-      Własna, robocza parafraza: punkt dotyczy zapewnienia, że każdy proces
-      programowy i każde urządzenie łączące się z systemem sterowania jest
-      jednoznacznie zidentyfikowane i uwierzytelnione, zanim uzyska dostęp
-      do funkcji mających wpływ na bezpieczeństwo procesu - w odróżnieniu
-      od użytkowników ludzkich, których dotyczy odrębny punkt tego
-      katalogu. Nigdy cytat normy.
+      Punkt dotyczy zapewnienia, że każdy proces programowy i każde
+      urządzenie łączące się z systemem sterowania jest jednoznacznie
+      zidentyfikowane i uwierzytelnione - w odróżnieniu od użytkowników
+      ludzkich, których dotyczy odrębny punkt tego katalogu.
+    paraphrase_note: >-
+      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
+      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
+      renderowane w żadnym formacie raportu.
     verified: false
     verification_note: >-
-      Numeracja punktu i tresc parafrazy czekaja na zestawienie z legalnym
+      Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym
       egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
-      prowizoryczny i nie stanowi potwierdzonego powolania.
+      prowizoryczny i nie stanowi potwierdzonego powołania.
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 4.1"
     clause_title: "Poufność informacji w komunikacji"
     clause_title_source: "wlasny"
     paraphrase: >-
-      Własna, robocza parafraza: punkt dotyczy ochrony poufności informacji
-      przesyłanej w komunikacji systemu sterowania, w tym danych
-      uwierzytelniających, przed ujawnieniem stronom nieuprawnionym. Nigdy
-      cytat normy.
+      Punkt dotyczy ochrony poufności informacji przesyłanej w komunikacji
+      systemu sterowania, w tym danych uwierzytelniających, przed
+      ujawnieniem stronom nieuprawnionym.
+    paraphrase_note: >-
+      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
+      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
+      renderowane w żadnym formacie raportu.
     verified: false
     verification_note: >-
-      Numeracja punktu i tresc parafrazy czekaja na zestawienie z legalnym
+      Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym
       egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
-      prowizoryczny i nie stanowi potwierdzonego powolania.
+      prowizoryczny i nie stanowi potwierdzonego powołania.

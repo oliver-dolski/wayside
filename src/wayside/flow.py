@@ -83,15 +83,15 @@ COMPLETENESS_CLAIM_TERMS: tuple[str, ...] = (
 # brzmiec identycznie w kazdym raporcie i ktorej nie wolno zgubic przy edycji
 # szablonu.
 VANTAGE_POINT_LIMITATIONS: tuple[str, ...] = (
-    "Ten raport opisuje wylacznie ruch, ktory dotarl do punktu przechwytywania. "
-    "Urzadzenie nieobecne w wyniku nie jest urzadzeniem nieobecnym w sieci - jest "
-    "urzadzeniem, ktorego ruch tego punktu nie minal.",
-    "Urzadzenie stojace za brama protokolu jest widoczne wylacznie pod adresem tej "
-    "bramy. Adres sieciowy w tym raporcie moze wiec odpowiadac wiecej niz jednemu "
-    "urzadzeniu fizycznemu.",
-    "Wiele hostow ukrytych za jednym adresem po translacji adresow jest z tego "
-    "punktu nieodroznialnych. Jeden wiersz inwentarza moze odpowiadac wiecej niz "
-    "jednemu urzadzeniu.",
+    "Ten raport opisuje wyłącznie ruch, który dotarł do punktu przechwytywania. "
+    "Urządzenie nieobecne w wyniku nie jest urządzeniem nieobecnym w sieci - jest "
+    "urządzeniem, którego ruch tego punktu nie minął.",
+    "Urządzenie stojące za bramą protokołu jest widoczne wyłącznie pod adresem tej "
+    "bramy. Adres sieciowy w tym raporcie może więc odpowiadać więcej niż jednemu "
+    "urządzeniu fizycznemu.",
+    "Wiele hostów ukrytych za jednym adresem po translacji adresów jest z tego "
+    "punktu nieodróżnialnych. Jeden wiersz inwentarza może odpowiadać więcej niż "
+    "jednemu urządzeniu.",
 )
 
 
@@ -265,26 +265,26 @@ def vantage_point_limitations(
     konkretnym zrzutem (FLOW-03).
     """
     if window_duration_s is None:
-        window_sentence = "okno czasowe zrzutu nie zostalo ustalone"
+        window_sentence = "okno czasowe zrzutu nie zostało ustalone"
     else:
-        window_sentence = f"okno czasowe zrzutu ma dlugosc {window_duration_s} s"
+        window_sentence = f"okno czasowe zrzutu ma długość {window_duration_s} s"
 
     # Zdanie z liczbami stoi PIERWSZE, przed zdaniami stalymi: formula ogolna
     # czytana jako pierwsza jest odbierana jako zastrzezenie prawne i pomijana,
     # a liczby z tego przebiegu wiaza ograniczenie z tym konkretnym zrzutem.
     lines = [
-        f"Zakres tego przebiegu: adresow zaobserwowanych {host_count}, sesji "
-        f"z ladunkiem {session_count}, sesji bez ani jednego segmentu z ladunkiem "
+        f"Zakres tego przebiegu: adresów zaobserwowanych {host_count}, sesji "
+        f"z ładunkiem {session_count}, sesji bez ani jednego segmentu z ładunkiem "
         f"{payloadless_session_count}, {window_sentence}."
     ]
     lines.extend(VANTAGE_POINT_LIMITATIONS)
 
     if payloadless_session_count:
         lines.append(
-            f"Sesji TCP zlozonych wylacznie z pakietow bez ladunku: "
-            f"{payloadless_session_count}. Nie maja wiersza w macierzy komunikacji, "
-            "bo nie niosa ani jednego segmentu do rozpoznania - sa policzone tutaj, "
-            "zeby nie zniknely bez sladu."
+            f"Sesji TCP złożonych wyłącznie z pakietów bez ładunku: "
+            f"{payloadless_session_count}. Nie mają wiersza w macierzy komunikacji, "
+            "bo nie niosą ani jednego segmentu do rozpoznania - są policzone tutaj, "
+            "żeby nie zniknęły bez śladu."
         )
 
     return lines

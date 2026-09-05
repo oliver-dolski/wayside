@@ -87,7 +87,7 @@ FORBIDDEN_ROLE_LABELS: tuple[str, ...] = (
 # inzyniera, ktory przez kwadrans tylko odczytywal, wyglada tak samo przy
 # dziesieciu zdarzeniach co przy tysiacu. Trzeci poziom w zbiorze bylby
 # zaproszeniem do jego uzycia.
-CONFIDENCE_LEVELS: tuple[str, ...] = ("niska", "srednia")
+CONFIDENCE_LEVELS: tuple[str, ...] = ("niska", "średnia")
 
 # Prog pewnosci sredniej (zalozenie Z-28). Trzy zdarzenia to najmniejsza
 # liczba, przy ktorej kierunek przestaje byc pojedyncza wymiana. Liczba jest
@@ -209,11 +209,11 @@ def build_assets(
             # Zero zaobserwowanych zdarzen jest OBSERWACJA, nie brakiem
             # obserwacji - stad znacznik `observed` takze tutaj.
             return observed(
-                "Zero zdarzen Modbus powiazanych z tym adresem w tym zrzucie "
-                "(zadania wyslane: 0, zadania odebrane: 0)."
+                "Zero zdarzeń Modbus powiązanych z tym adresem w tym zrzucie "
+                "(zadania wysłane: 0, zadania odebrane: 0)."
             )
         return observed(
-            f"Zadania Modbus wyslane przez ten adres: {sent}; "
+            f"Zadania Modbus wysłane przez ten adres: {sent}; "
             f"zadania Modbus odebrane przez ten adres: {received}."
         )
 
@@ -221,7 +221,7 @@ def build_assets(
         total = sent + received
         directions_seen = (1 if sent > 0 else 0) + (1 if received > 0 else 0)
         if total >= MIN_EVENTS_FOR_MEDIUM_CONFIDENCE and directions_seen == 1:
-            return inferred("srednia", PROVENANCE_METHOD_ROLE_CONFIDENCE)
+            return inferred("średnia", PROVENANCE_METHOD_ROLE_CONFIDENCE)
         return inferred("niska", PROVENANCE_METHOD_ROLE_CONFIDENCE)
 
     def _visit(ip: str, mac: str | None) -> None:

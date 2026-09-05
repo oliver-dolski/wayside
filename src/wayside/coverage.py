@@ -120,10 +120,10 @@ def coverage_warnings(
             continue
         warnings.append(
             f"Okno zrzutu trwa {window_duration_s} sekundy, sesja "
-            f"{cycle.session_id} niesie najdluzszy zmierzony odstep miedzy "
-            f"kolejnymi zadaniami rowny {cycle.measured_cycle_s} sekundy "
-            f"wobec przyjetego progu (mnoznik {POLL_CYCLE_WINDOW_MULTIPLIER}). "
-            "Zaobserwowana wartosc jest pojedynczym odstepem miedzy "
+            f"{cycle.session_id} niesie najdłuższy zmierzony odstęp między "
+            f"kolejnymi zadaniami równy {cycle.measured_cycle_s} sekundy "
+            f"wobec przyjętego progu (mnożnik {POLL_CYCLE_WINDOW_MULTIPLIER}). "
+            "Zaobserwowana wartość jest pojedynczym odstępem między "
             "zadaniami w tej sesji, nie potwierdzonym cyklem odpytywania."
         )
     return warnings

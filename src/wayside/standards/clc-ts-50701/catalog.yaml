@@ -5,10 +5,14 @@ entries:
     clause_title: "Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej"
     clause_title_source: "wlasny"
     paraphrase: >-
-      Własna, robocza parafraza: dokument dotyczy wymagań cyberbezpieczeństwa
-      stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym
-      ochrony ich prawidłowego działania przed celowym i przypadkowym
-      naruszeniem bezpieczeństwa. Nigdy cytat normy.
+      Dokument dotyczy wymagań cyberbezpieczeństwa stawianych systemom
+      sterowania ruchem kolejowym i sygnalizacji, w tym ochrony ich
+      prawidłowego działania przed celowym i przypadkowym naruszeniem
+      bezpieczeństwa.
+    paraphrase_note: >-
+      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
+      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
+      renderowane w żadnym formacie raportu.
     verified: false
     verification_note: >-
       Dokument ma status specyfikacji technicznej CENELEC, nie normy
@@ -22,9 +26,13 @@ entries:
     clause_title: "Ochrona poufności informacji w komunikacji systemu kolejowego"
     clause_title_source: "wlasny"
     paraphrase: >-
-      Własna, robocza parafraza: dokument dotyczy ochrony poufności
-      informacji przesyłanej w komunikacji systemów kolejowych objętych jego
-      zakresem, przed ujawnieniem stronom nieuprawnionym. Nigdy cytat normy.
+      Dokument dotyczy ochrony poufności informacji przesyłanej w
+      komunikacji systemów kolejowych objętych jego zakresem, przed
+      ujawnieniem stronom nieuprawnionym.
+    paraphrase_note: >-
+      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
+      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
+      renderowane w żadnym formacie raportu.
     verified: false
     verification_note: >-
       Dokument ma status specyfikacji technicznej CENELEC, nie normy

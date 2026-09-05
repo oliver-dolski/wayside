@@ -40,7 +40,12 @@ from fpdf import FPDF
 from wayside import risk
 from wayside.flow import PROTOCOL_UNRECOGNIZED
 from wayside.model import collect_not_derivable_fields
-from wayside.report import SECTIONS, citation_line, citation_scope_line
+from wayside.report import (
+    SECTIONS,
+    citation_line,
+    citation_scope_line,
+    finding_count_phrase,
+)
 
 __all__ = [
     "FONT_DIR",
@@ -163,14 +168,14 @@ def render_pdf(
     if findings:
         _body(
             pdf,
-            f"Analiza zrzutu `{capture.get('filename', '?')}` wykazala "
-            f"{len(findings)} finding(i) wymagajacy(ych) uwagi.",
+            f"Analiza zrzutu `{capture.get('filename', '?')}` wykazała "
+            f"{finding_count_phrase(len(findings))}.",
         )
     else:
         _body(
             pdf,
-            f"Analiza zrzutu `{capture.get('filename', '?')}` nie wykazala "
-            "zadnego findingu w tym przebiegu.",
+            f"Analiza zrzutu `{capture.get('filename', '?')}` nie wykazała "
+            "żadnego findingu w tym przebiegu.",
         )
 
     # --- Zakres ---------------------------------------------------------
@@ -182,22 +187,22 @@ def render_pdf(
     )
     if recognized_protocols:
         protocols_sentence = (
-            f"Zrzut niesie {capture.get('packet_count', 0)} pakietow. W tym "
-            f"zrzucie rozpoznano protokol(y): {', '.join(recognized_protocols)}, "
-            "rozpoznawane po ksztalcie zawartosci segmentu, nigdy po numerze "
+            f"Zrzut niesie {capture.get('packet_count', 0)} pakietów. W tym "
+            f"zrzucie rozpoznano protokół(y): {', '.join(recognized_protocols)}, "
+            "rozpoznawane po kształcie zawartości segmentu, nigdy po numerze "
             "portu."
         )
     else:
         protocols_sentence = (
-            f"Zrzut niesie {capture.get('packet_count', 0)} pakietow. W tym "
-            "zrzucie zaden protokol aplikacyjny nie zostal rozpoznany; "
-            "rozpoznanie idzie po ksztalcie zawartosci segmentu, nigdy po "
+            f"Zrzut niesie {capture.get('packet_count', 0)} pakietów. W tym "
+            "zrzucie żaden protokół aplikacyjny nie został rozpoznany; "
+            "rozpoznanie idzie po kształcie zawartości segmentu, nigdy po "
             "numerze portu."
         )
     scope_boundary_sentence = (
-        "Ruch, ktorego protokolu nie rozpoznano, ma wiersz w macierzy "
-        f"komunikacji z etykieta `{PROTOCOL_UNRECOGNIZED}` i nie jest "
-        "podstawa zadnego findingu."
+        "Ruch, którego protokołu nie rozpoznano, ma wiersz w macierzy "
+        f"komunikacji z etykietą `{PROTOCOL_UNRECOGNIZED}` i nie jest "
+        "podstawą żadnego findingu."
     )
     _body(pdf, f"{protocols_sentence} {scope_boundary_sentence}")
 
@@ -210,23 +215,23 @@ def render_pdf(
         )
     else:
         window_sentence = (
-            "Okno czasowe zrzutu nie zostalo ustalone - zrzut nie zawiera "
+            "Okno czasowe zrzutu nie zostało ustalone - zrzut nie zawiera "
             "ani jednego pakietu."
         )
     snaplen = capture.get("snaplen")
     if snaplen is not None:
-        snaplen_sentence = f"Snaplen odczytany z naglowka zrzutu: {snaplen} bajtow."
+        snaplen_sentence = f"Snaplen odczytany z nagłówka zrzutu: {snaplen} bajtów."
     else:
         snaplen_note = capture.get("snaplen_note") or (
-            "snaplen nie zostal jednoznacznie ustalony"
+            "snaplen nie został jednoznacznie ustalony"
         )
-        snaplen_sentence = f"Snaplen nie zostal jednoznacznie ustalony ({snaplen_note})."
+        snaplen_sentence = f"Snaplen nie został jednoznacznie ustalony ({snaplen_note})."
     snaplen_truncated_count = capture.get("snaplen_truncated_packet_count", 0)
     snaplen_truncated_sentence = (
-        f"Ramek ucietych przez snaplen: {snaplen_truncated_count}."
+        f"Ramek uciętych przez snaplen: {snaplen_truncated_count}."
     )
     low_confidence_count = len(analysis.get("low_confidence_events", []))
-    low_confidence_sentence = f"Zdarzen rozpoznanych z niska pewnoscia: {low_confidence_count}."
+    low_confidence_sentence = f"Zdarzeń rozpoznanych z niską pewnością: {low_confidence_count}."
     _body(
         pdf,
         f"{window_sentence} {snaplen_sentence} {snaplen_truncated_sentence} "
@@ -237,10 +242,10 @@ def render_pdf(
     _heading(pdf, SECTIONS[2])
     _body(
         pdf,
-        "Kazdy finding niesie wskaznik zaobserwowanego zachowania w ruchu "
-        "sieciowym, nigdy ocene, czy instalacja spelnia albo nie spelnia "
-        "wymagan normy. Waga findingu wynika z ponizszych, udokumentowanych "
-        f"kryteriow rubryki (wersja {risk.RUBRIC_VERSION}), nie z wymyslonej skali:",
+        "Każdy finding niesie wskaźnik zaobserwowanego zachowania w ruchu "
+        "sieciowym, nigdy ocenę, czy instalacja spełnia albo nie spełnia "
+        "wymagań normy. Waga findingu wynika z poniższych, udokumentowanych "
+        f"kryteriów rubryki (wersja {risk.RUBRIC_VERSION}), nie z wymyślonej skali:",
     )
     for severity in risk.ALLOWED_SEVERITIES:
         criterion = risk.RUBRIC_CRITERIA.get(severity, "")
@@ -250,7 +255,7 @@ def render_pdf(
     _heading(pdf, SECTIONS[3])
     assets = analysis.get("assets", [])
     if not assets:
-        _body(pdf, "Zaden host z warstwa IP nie zostal zaobserwowany w tym zrzucie.")
+        _body(pdf, "Żaden host z warstwą IP nie został zaobserwowany w tym zrzucie.")
     else:
         for host in assets:
             ip_field = host["ip"]
@@ -289,7 +294,7 @@ def render_pdf(
                     logical_devices = len((unit_ids or {}).get("value") or [])
                     rendered_gateway = (
                         f"prawdopodobna brama z {logical_devices} "
-                        "urzadzeniami logicznymi za nia"
+                        "urządzeniami logicznymi za nią"
                     )
                 else:
                     rendered_gateway = "nieustalone"
@@ -303,14 +308,14 @@ def render_pdf(
             if role_evidence is not None:
                 _body(
                     pdf,
-                    f"- Dowod roli: {role_evidence['value']} ({role_evidence['provenance']})",
+                    f"- Dowód roli: {role_evidence['value']} ({role_evidence['provenance']})",
                 )
 
             role_confidence = host.get("role_confidence")
             if role_confidence is not None:
                 _body(
                     pdf,
-                    f"- Pewnosc roli: {role_confidence['value']} "
+                    f"- Pewność roli: {role_confidence['value']} "
                     f"({role_confidence['provenance']})",
                 )
             pdf.ln(1)
@@ -322,7 +327,7 @@ def render_pdf(
     _heading(pdf, SECTIONS[4])
     comm_matrix = analysis.get("comm_matrix", [])
     if not comm_matrix:
-        _body(pdf, "Zadna sesja TCP z ladunkiem nie zostala zaobserwowana w tym zrzucie.")
+        _body(pdf, "Żadna sesja TCP z ładunkiem nie została zaobserwowana w tym zrzucie.")
     else:
         for row in comm_matrix:
             direction = row.get("direction", {})
@@ -332,19 +337,19 @@ def render_pdf(
                 "nieustalona" if initiator_value is None else initiator_value
             )
             _body(pdf, f"Sesja: {row.get('session_id', {}).get('value', '?')}")
-            _body(pdf, f"Zrodlo: {row.get('source', {}).get('value', '?')}")
+            _body(pdf, f"Źródło: {row.get('source', {}).get('value', '?')}")
             _body(pdf, f"Cel: {row.get('target', {}).get('value', '?')}")
             _body(
                 pdf,
                 f"Kierunek: {direction.get('value', '?')} "
                 f"({direction.get('provenance', '?')})",
             )
-            _body(pdf, f"Protokol: {row.get('protocol', {}).get('value', '?')}")
+            _body(pdf, f"Protokół: {row.get('protocol', {}).get('value', '?')}")
             _body(pdf, f"Wolumen (B): {row.get('volume_bytes', {}).get('value', '?')}")
-            _body(pdf, f"Pakietow: {row.get('packet_count', {}).get('value', '?')}")
+            _body(pdf, f"Pakietów: {row.get('packet_count', {}).get('value', '?')}")
             _body(
                 pdf,
-                f"Strona inicjujaca: {rendered_initiator} "
+                f"Strona inicjująca: {rendered_initiator} "
                 f"({initiator.get('provenance', '?')})",
             )
             pdf.ln(1)
@@ -356,9 +361,9 @@ def render_pdf(
     _body(
         pdf,
         "Ten raport pochodzi z pionowego przekroju: jeden zrzut, jeden "
-        "check, jeden punkt normy. Model strefy i kanalu jest placeholderem "
+        "check, jeden punkt normy. Model strefy i kanału jest placeholderem "
         "jednostrefowym wyprowadzonym automatycznie z tego zrzutu, nie "
-        "zaprojektowana topologia sieci. Numeracja punktu normy jest "
+        "zaprojektowaną topologią sieci. Numeracja punktu normy jest "
         "prowizoryczna i czeka na zestawienie z legalnym egzemplarzem normy.",
     )
 
@@ -366,25 +371,25 @@ def render_pdf(
     if not_derivable_rows:
         _body(
             pdf,
-            "Pola, ktorych nie da sie ustalic z tego zrzutu, zebrane po nazwie pola:",
+            "Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:",
         )
         for row in not_derivable_rows:
             _body(
                 pdf,
                 f"- sekcja `{row['section']}`, pole `{row['field']}`: "
-                f"{row['count']} z {row['total']} wpisow",
+                f"{row['count']} z {row['total']} wpisów",
             )
     else:
         _body(
             pdf,
-            "W tym przebiegu kazde pole sekcji inwentarza i macierzy komunikacji "
-            "zostalo ustalone z zaobserwowanego ruchu.",
+            "W tym przebiegu każde pole sekcji inwentarza i macierzy komunikacji "
+            "zostało ustalone z zaobserwowanego ruchu.",
         )
 
     # --- Findingi ----------------------------------------------------------
     _heading(pdf, SECTIONS[6])
     if not findings:
-        _body(pdf, "Brak findingow w tym przebiegu.")
+        _body(pdf, "Brak findingów w tym przebiegu.")
     for finding in findings:
         evidence = finding["evidence"]
         _bold_line(pdf, finding["title"])
@@ -392,7 +397,7 @@ def render_pdf(
         _body(pdf, f"- Waga: {finding['severity']} (ryzyko: {finding['risk']})")
         _body(
             pdf,
-            f"- Dowod: pakiet nr {evidence['packet_number']}, "
+            f"- Dowód: pakiet nr {evidence['packet_number']}, "
             f"sesja nr {evidence['session_id']}",
         )
         _body(pdf, f"- Uzasadnienie: {finding['rationale']}")
@@ -416,7 +421,7 @@ def render_pdf(
     # --- Zalecenia -----------------------------------------------------
     _heading(pdf, SECTIONS[7])
     if not findings:
-        _body(pdf, "Brak zalecen w tym przebiegu.")
+        _body(pdf, "Brak zaleceń w tym przebiegu.")
     else:
         for finding in findings:
             _body(pdf, f"- {finding['remediation']}")

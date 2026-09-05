@@ -143,13 +143,13 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         # blad - ale cisza na jego temat bylaby cicha, pewna odpowiedzia.
         warnings.append(
             "Zrzut jest strukturalnie poprawny i nie zawiera ani jednego "
-            "pakietu - brak findingow w tym przebiegu nie jest wynikiem "
-            "analizy, tylko brakiem materialu."
+            "pakietu - brak findingów w tym przebiegu nie jest wynikiem "
+            "analizy, tylko brakiem materiału."
         )
     elif not protocol_events:
         warnings.append(
-            "Zaden segment w tym zrzucie nie zostal rozpoznany przez zaden "
-            "dissector z rejestru - w tym przebiegu nie ma ruchu protokolu "
+            "Żaden segment w tym zrzucie nie został rozpoznany przez żaden "
+            "dissector z rejestru - w tym przebiegu nie ma ruchu protokołu "
             "aplikacyjnego do analizy."
         )
     if capture_structure.snaplen_truncated_packet_numbers:
@@ -160,12 +160,12 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         # liczba (scripts/confidentiality_guard.py, warstwa strukturalna).
         truncated_numbers = capture_structure.snaplen_truncated_packet_numbers
         warnings.append(
-            f"Snaplen ustawiony na {capture_structure.snaplen} bajtow uciol "
+            f"Snaplen ustawiony na {capture_structure.snaplen} bajtów uciął "
             f"{len(truncated_numbers)} z {len(packets)} ramek w tym zrzucie, "
-            f"pierwsza obcieta ramka to numer {truncated_numbers[0]}. Obcieta "
-            "ramka nie niesie pelnego ladunku, analiza funkcjonalna protokolu "
-            "na tym zrzucie jest falszowana, a brak zdarzenia protokolu nie "
-            "jest dowodem jego nieobecnosci."
+            f"pierwsza obcięta ramka to numer {truncated_numbers[0]}. Obcięta "
+            "ramka nie niesie pełnego ładunku, analiza funkcjonalna protokołu "
+            "na tym zrzucie jest fałszowana, a brak zdarzenia protokołu nie "
+            "jest dowodem jego nieobecności."
         )
     if low_confidence_events:
         # PROTO-03: zdarzenie rozpoznane z niska pewnoscia stoi poza lista
@@ -181,11 +181,11 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         )
         warnings.append(
             f"{len(low_confidence_events)} zdarzenie(a) w tym zrzucie "
-            f"rozpoznane sa z niska pewnoscia jako {low_confidence_protocols}, "
-            f"na podstawie {low_confidence_bases}, poza lista zdarzen "
-            "protokolu i poza kazdym findingiem. Rozpoznanie niesie "
-            "mozliwosc falszywego dopasowania sumy kontrolnej na ruchu nie "
-            "bedacym Modbusem."
+            f"rozpoznane są z niską pewnością jako {low_confidence_protocols}, "
+            f"na podstawie {low_confidence_bases}, poza listą zdarzeń "
+            "protokołu i poza każdym findingiem. Rozpoznanie niesie "
+            "możliwość fałszywego dopasowania sumy kontrolnej na ruchu nie "
+            "będącym Modbusem."
         )
 
     observed_ips = sorted(
@@ -232,10 +232,10 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     except oui.OuiTableError:
         vendor_lookup = None
         warnings.append(
-            "Tabela producentow OUI nie jest dolaczona do tego wydania "
-            "narzedzia - pole producenta jest nieustalone dla kazdego "
-            "hosta w tym przebiegu, niezaleznie od tego, czy jego adres "
-            "MAC byl widoczny."
+            "Tabela producentów OUI nie jest dołączona do tego wydania "
+            "narzędzia - pole producenta jest nieustalone dla każdego "
+            "hosta w tym przebiegu, niezależnie od tego, czy jego adres "
+            "MAC był widoczny."
         )
     else:
 
@@ -303,8 +303,8 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     methodology = {
         "rubric_version": risk.RUBRIC_VERSION,
         "note": (
-            "Waga findingu wynika z zapisanych kryteriow rubryki, nie z "
-            "wymyslonej skali (RISK-03)."
+            "Waga findingu wynika z zapisanych kryteriów rubryki, nie z "
+            "wymyślonej skali (RISK-03)."
         ),
     }
 

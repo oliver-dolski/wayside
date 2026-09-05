@@ -19,7 +19,7 @@ ALLOWED_SEVERITIES: tuple[str, ...] = ("low", "medium", "high", "critical")
 
 SEVERITY_TO_RISK: dict[str, str] = {
     "low": "niskie",
-    "medium": "srednie",
+    "medium": "średnie",
     "high": "wysokie",
     "critical": "krytyczne",
 }
@@ -28,20 +28,20 @@ RUBRIC_VERSION = "1.0"
 
 RUBRIC_CRITERIA: dict[str, str] = {
     "low": (
-        "Obserwacja o niewielkim wplywie na bezpieczenstwo, bez bezposredniej "
-        "sciezki do zaklocenia dzialania procesu."
+        "Obserwacja o niewielkim wpływie na bezpieczeństwo, bez bezpośredniej "
+        "ścieżki do zakłócenia działania procesu."
     ),
     "medium": (
-        "Odstepstwo od dobrej praktyki, ktore w polaczeniu z innym warunkiem "
-        "moze prowadzic do zaklocenia dzialania procesu."
+        "Odstępstwo od dobrej praktyki, które w połączeniu z innym warunkiem "
+        "może prowadzić do zakłócenia działania procesu."
     ),
     "high": (
-        "Operacja, ktora sama w sobie pozwala wplynac na stan procesu bez "
+        "Operacja, która sama w sobie pozwala wpłynąć na stan procesu bez "
         "uwierzytelnienia ani autoryzacji nadawcy."
     ),
     "critical": (
-        "Warunek umozliwiajacy natychmiastowa i bezposrednia ingerencje w "
-        "bezpieczenstwo procesu, bez zadnych dodatkowych warunkow."
+        "Warunek umożliwiający natychmiastową i bezpośrednią ingerencję w "
+        "bezpieczeństwo procesu, bez żadnych dodatkowych warunków."
     ),
 }
 

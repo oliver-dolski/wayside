@@ -15,7 +15,13 @@ from wayside import risk
 from wayside.flow import PROTOCOL_UNRECOGNIZED
 from wayside.model import collect_not_derivable_fields
 
-__all__ = ["SECTIONS", "render_markdown", "citation_line", "citation_scope_line"]
+__all__ = [
+    "SECTIONS",
+    "render_markdown",
+    "citation_line",
+    "citation_scope_line",
+    "finding_count_phrase",
+]
 
 SECTIONS: tuple[str, ...] = (
     "Streszczenie",
@@ -58,6 +64,25 @@ def citation_line(ref: dict) -> str:
     return base
 
 
+def finding_count_phrase(count: int) -> str:
+    """Buduje zdanie o liczbie findingow z poprawna polska odmiana (G-04-4).
+
+    Liczba rowna jeden daje forme pojedyncza. Liczba, ktorej ostatnia cyfra
+    nalezy do przedzialu od dwoch do czterech, daje forme mnoga - CHYBA ZE
+    dwie ostatnie cyfry naleza do przedzialu od dwunastu do czternastu, bo
+    ten przedzial jest wyjatkiem od reguly koncowki w calej polskiej
+    odmianie rzeczownikow policzalnych (12, 13, 14, ale takze 112, 213 -
+    dowolna setka/tysiac z tymi samymi dwiema ostatnimi cyframi). Kazda inna
+    liczba daje forme mnoga dopelniaczowa."""
+    if count == 1:
+        return f"{count} finding wymagający uwagi"
+    last_two_digits = count % 100
+    last_digit = count % 10
+    if last_digit in (2, 3, 4) and last_two_digits not in (12, 13, 14):
+        return f"{count} findingi wymagające uwagi"
+    return f"{count} findingów wymagających uwagi"
+
+
 def citation_scope_line(ref: dict) -> str | None:
     """Buduje linie opisu wlasnego zakresu punktu (G-04-3c).
 
@@ -91,13 +116,13 @@ def render_markdown(
     lines.append("")
     if findings:
         lines.append(
-            f"Analiza zrzutu `{capture.get('filename', '?')}` wykazala "
-            f"{len(findings)} finding(i) wymagajacy(ych) uwagi."
+            f"Analiza zrzutu `{capture.get('filename', '?')}` wykazała "
+            f"{finding_count_phrase(len(findings))}."
         )
     else:
         lines.append(
-            f"Analiza zrzutu `{capture.get('filename', '?')}` nie wykazala "
-            "zadnego findingu w tym przebiegu."
+            f"Analiza zrzutu `{capture.get('filename', '?')}` nie wykazała "
+            "żadnego findingu w tym przebiegu."
         )
     lines.append("")
 
@@ -111,22 +136,22 @@ def render_markdown(
     )
     if recognized_protocols:
         protocols_sentence = (
-            f"Zrzut niesie {capture.get('packet_count', 0)} pakietow. W tym "
-            f"zrzucie rozpoznano protokol(y): {', '.join(recognized_protocols)}, "
-            "rozpoznawane po ksztalcie zawartosci segmentu, nigdy po numerze "
+            f"Zrzut niesie {capture.get('packet_count', 0)} pakietów. W tym "
+            f"zrzucie rozpoznano protokół(y): {', '.join(recognized_protocols)}, "
+            "rozpoznawane po kształcie zawartości segmentu, nigdy po numerze "
             "portu."
         )
     else:
         protocols_sentence = (
-            f"Zrzut niesie {capture.get('packet_count', 0)} pakietow. W tym "
-            "zrzucie zaden protokol aplikacyjny nie zostal rozpoznany; "
-            "rozpoznanie idzie po ksztalcie zawartosci segmentu, nigdy po "
+            f"Zrzut niesie {capture.get('packet_count', 0)} pakietów. W tym "
+            "zrzucie żaden protokół aplikacyjny nie został rozpoznany; "
+            "rozpoznanie idzie po kształcie zawartości segmentu, nigdy po "
             "numerze portu."
         )
     scope_boundary_sentence = (
-        "Ruch, ktorego protokolu nie rozpoznano, ma wiersz w macierzy "
-        f"komunikacji z etykieta `{PROTOCOL_UNRECOGNIZED}` i nie jest "
-        "podstawa zadnego findingu."
+        "Ruch, którego protokołu nie rozpoznano, ma wiersz w macierzy "
+        f"komunikacji z etykietą `{PROTOCOL_UNRECOGNIZED}` i nie jest "
+        "podstawą żadnego findingu."
     )
     lines.append(f"{protocols_sentence} {scope_boundary_sentence}")
     first_seen = capture.get("first_seen")
@@ -138,29 +163,29 @@ def render_markdown(
         )
     else:
         window_sentence = (
-            "Okno czasowe zrzutu nie zostalo ustalone - zrzut nie zawiera "
+            "Okno czasowe zrzutu nie zostało ustalone - zrzut nie zawiera "
             "ani jednego pakietu."
         )
     snaplen = capture.get("snaplen")
     if snaplen is not None:
-        snaplen_sentence = f"Snaplen odczytany z naglowka zrzutu: {snaplen} bajtow."
+        snaplen_sentence = f"Snaplen odczytany z nagłówka zrzutu: {snaplen} bajtów."
     else:
         snaplen_note = capture.get("snaplen_note") or (
-            "snaplen nie zostal jednoznacznie ustalony"
+            "snaplen nie został jednoznacznie ustalony"
         )
-        snaplen_sentence = f"Snaplen nie zostal jednoznacznie ustalony ({snaplen_note})."
+        snaplen_sentence = f"Snaplen nie został jednoznacznie ustalony ({snaplen_note})."
     # Wartosc zero renderowana jawnie - brak ucietych ramek jest wynikiem
     # analizy zrzutu, nie brakiem zdania o nim (INGEST-03).
     snaplen_truncated_count = capture.get("snaplen_truncated_packet_count", 0)
     snaplen_truncated_sentence = (
-        f"Ramek ucietych przez snaplen: {snaplen_truncated_count}."
+        f"Ramek uciętych przez snaplen: {snaplen_truncated_count}."
     )
     # PROTO-03: wartosc zero renderowana jawnie, tak samo jak liczba ramek
     # ucietych przez snaplen wyzej - odczyt przez .get z wartoscia zapasowa,
     # zeby model budowany recznie w tests/test_report_render.py nadal sie
     # renderowal.
     low_confidence_count = len(analysis.get("low_confidence_events", []))
-    low_confidence_sentence = f"Zdarzen rozpoznanych z niska pewnoscia: {low_confidence_count}."
+    low_confidence_sentence = f"Zdarzeń rozpoznanych z niską pewnością: {low_confidence_count}."
     lines.append(
         f"{window_sentence} {snaplen_sentence} {snaplen_truncated_sentence} "
         f"{low_confidence_sentence}"
@@ -170,10 +195,10 @@ def render_markdown(
     lines.append(f"## {SECTIONS[2]}")
     lines.append("")
     lines.append(
-        "Kazdy finding niesie wskaznik zaobserwowanego zachowania w ruchu "
-        "sieciowym, nigdy ocene, czy instalacja spelnia albo nie spelnia "
-        "wymagan normy. Waga findingu wynika z ponizszych, udokumentowanych "
-        f"kryteriow rubryki (wersja {risk.RUBRIC_VERSION}), nie z wymyslonej skali:"
+        "Każdy finding niesie wskaźnik zaobserwowanego zachowania w ruchu "
+        "sieciowym, nigdy ocenę, czy instalacja spełnia albo nie spełnia "
+        "wymagań normy. Waga findingu wynika z poniższych, udokumentowanych "
+        f"kryteriów rubryki (wersja {risk.RUBRIC_VERSION}), nie z wymyślonej skali:"
     )
     lines.append("")
     for severity in risk.ALLOWED_SEVERITIES:
@@ -186,7 +211,7 @@ def render_markdown(
     assets = analysis.get("assets", [])
     if not assets:
         lines.append(
-            "Zaden host z warstwa IP nie zostal zaobserwowany w tym zrzucie."
+            "Żaden host z warstwą IP nie został zaobserwowany w tym zrzucie."
         )
         lines.append("")
     else:
@@ -235,7 +260,7 @@ def render_markdown(
                     logical_devices = len((unit_ids or {}).get("value") or [])
                     rendered_gateway = (
                         f"prawdopodobna brama z {logical_devices} "
-                        "urzadzeniami logicznymi za nia"
+                        "urządzeniami logicznymi za nią"
                     )
                 else:
                     # Przy wartosci `null` NIE renderujemy zdania o tym, ze host
@@ -256,13 +281,13 @@ def render_markdown(
             role_evidence = host.get("role_evidence")
             if role_evidence is not None:
                 lines.append(
-                    f"- Dowod roli: {role_evidence['value']} ({role_evidence['provenance']})"
+                    f"- Dowód roli: {role_evidence['value']} ({role_evidence['provenance']})"
                 )
 
             role_confidence = host.get("role_confidence")
             if role_confidence is not None:
                 lines.append(
-                    f"- Pewnosc roli: {role_confidence['value']} "
+                    f"- Pewność roli: {role_confidence['value']} "
                     f"({role_confidence['provenance']})"
                 )
             lines.append("")
@@ -272,7 +297,7 @@ def render_markdown(
     comm_matrix = analysis.get("comm_matrix", [])
     if not comm_matrix:
         lines.append(
-            "Zadna sesja TCP z ladunkiem nie zostala zaobserwowana w tym zrzucie."
+            "Żadna sesja TCP z ładunkiem nie została zaobserwowana w tym zrzucie."
         )
         lines.append("")
     else:
@@ -284,8 +309,8 @@ def render_markdown(
         # znacznikiem `observed` znacznika nie niosa, zeby tabela pozostala
         # czytelna.
         lines.append(
-            "| Sesja | Zrodlo | Cel | Kierunek | Protokol | Wolumen (B) | "
-            "Pakietow | Strona inicjujaca |"
+            "| Sesja | Źródło | Cel | Kierunek | Protokół | Wolumen (B) | "
+            "Pakietów | Strona inicjująca |"
         )
         lines.append("|---|---|---|---|---|---|---|---|")
         for row in comm_matrix:
@@ -315,9 +340,9 @@ def render_markdown(
         lines.append("")
     lines.append(
         "Ten raport pochodzi z pionowego przekroju: jeden zrzut, jeden "
-        "check, jeden punkt normy. Model strefy i kanalu jest placeholderem "
+        "check, jeden punkt normy. Model strefy i kanału jest placeholderem "
         "jednostrefowym wyprowadzonym automatycznie z tego zrzutu, nie "
-        "zaprojektowana topologia sieci. Numeracja punktu normy jest "
+        "zaprojektowaną topologią sieci. Numeracja punktu normy jest "
         "prowizoryczna i czeka na zestawienie z legalnym egzemplarzem normy."
     )
     lines.append("")
@@ -328,25 +353,25 @@ def render_markdown(
     not_derivable_rows = collect_not_derivable_fields(analysis)
     if not_derivable_rows:
         lines.append(
-            "Pola, ktorych nie da sie ustalic z tego zrzutu, zebrane po nazwie pola:"
+            "Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:"
         )
         lines.append("")
         for row in not_derivable_rows:
             lines.append(
                 f"- sekcja `{row['section']}`, pole `{row['field']}`: "
-                f"{row['count']} z {row['total']} wpisow"
+                f"{row['count']} z {row['total']} wpisów"
             )
     else:
         lines.append(
-            "W tym przebiegu kazde pole sekcji inwentarza i macierzy komunikacji "
-            "zostalo ustalone z zaobserwowanego ruchu."
+            "W tym przebiegu każde pole sekcji inwentarza i macierzy komunikacji "
+            "zostało ustalone z zaobserwowanego ruchu."
         )
     lines.append("")
 
     lines.append(f"## {SECTIONS[6]}")
     lines.append("")
     if not findings:
-        lines.append("Brak findingow w tym przebiegu.")
+        lines.append("Brak findingów w tym przebiegu.")
         lines.append("")
     for finding in findings:
         evidence = finding["evidence"]
@@ -355,7 +380,7 @@ def render_markdown(
         lines.append(f"- Identyfikator checka: `{finding['check_id']}`")
         lines.append(f"- Waga: {finding['severity']} (ryzyko: {finding['risk']})")
         lines.append(
-            f"- Dowod: pakiet nr {evidence['packet_number']}, "
+            f"- Dowód: pakiet nr {evidence['packet_number']}, "
             f"sesja nr {evidence['session_id']}"
         )
         lines.append(f"- Uzasadnienie: {finding['rationale']}")
@@ -378,7 +403,7 @@ def render_markdown(
     lines.append(f"## {SECTIONS[7]}")
     lines.append("")
     if not findings:
-        lines.append("Brak zalecen w tym przebiegu.")
+        lines.append("Brak zaleceń w tym przebiegu.")
     else:
         for finding in findings:
             lines.append(f"- {finding['remediation']}")

@@ -21,7 +21,9 @@ __all__ = [
     "citation_line",
     "citation_scope_line",
     "finding_count_phrase",
+    "finding_genitive_phrase",
     "session_parties_line",
+    "aggregated_remediations",
 ]
 
 SECTIONS: tuple[str, ...] = (
@@ -93,6 +95,42 @@ def citation_scope_line(ref: dict) -> str | None:
     if ref["clause_title_source"] == "egzemplarz":
         return None
     return f"{CITATION_SCOPE_LABEL}: {ref['clause_title']}"
+
+
+def finding_genitive_phrase(count: int) -> str:
+    """Buduje forme dopelniaczowa liczby findingow, obok `finding_count_phrase`
+    (G-04-5a). Liczba rowna jeden daje forme pojedyncza ("1 findingu"), kazda
+    inna liczba forme dopelniaczowa liczby mnogiej ("N findingów") - BEZ
+    wyjatku dla przedzialu dwanascie-czternascie: w tej konstrukcji (rzeczownik
+    w dopelniaczu po liczebniku glownym) forma jest ta sama dla kazdej liczby
+    wiekszej niz jeden, w odroznieniu od `finding_count_phrase` powyzej, ktora
+    ma inny ksztalt gramatyczny (rzeczownik w mianowniku/bierniku zgadzajacy
+    sie z liczebnikiem)."""
+    if count == 1:
+        return f"{count} findingu"
+    return f"{count} findingów"
+
+
+def aggregated_remediations(findings: list[dict]) -> list[tuple[str, int]]:
+    """Zbiera zalecenia findingow bez powtorzen (G-04-5a).
+
+    Zwraca liste par (tresc zalecenia, liczba findingow, ktore je niosa), w
+    kolejnosci PIERWSZEGO wystapienia zalecenia na liscie wejsciowej. Wzorzec
+    identyczny z `checks.engine._dedupe_standards`: slownik zliczajacy plus
+    osobna lista kolejnosci, nigdy zbior na sciezce do serializacji -
+    kolejnosc wierszy raportu wchodzi do artefaktu porownywanego bajtowo,
+    a zbior jej nie ma.
+
+    Porownanie idzie po PELNYM lancuchu zalecenia (zalozenie Z-94): dwa
+    zalecenia rozniace sie samym koncem sa dwoma roznymi zaleceniami."""
+    counts: dict[str, int] = {}
+    order: list[str] = []
+    for finding in findings:
+        remediation = finding["remediation"]
+        if remediation not in counts:
+            order.append(remediation)
+        counts[remediation] = counts.get(remediation, 0) + 1
+    return [(remediation, counts[remediation]) for remediation in order]
 
 
 def session_parties_line(evidence: dict) -> str:
@@ -416,8 +454,8 @@ def render_markdown(
     if not findings:
         lines.append("Brak zaleceń w tym przebiegu.")
     else:
-        for finding in findings:
-            lines.append(f"- {finding['remediation']}")
+        for remediation, count in aggregated_remediations(findings):
+            lines.append(f"- {remediation} (dotyczy {finding_genitive_phrase(count)})")
     lines.append("")
 
     return "\n".join(lines) + "\n"

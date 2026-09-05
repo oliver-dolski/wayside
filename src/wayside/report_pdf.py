@@ -42,9 +42,11 @@ from wayside.flow import PROTOCOL_UNRECOGNIZED
 from wayside.model import collect_not_derivable_fields
 from wayside.report import (
     SECTIONS,
+    aggregated_remediations,
     citation_line,
     citation_scope_line,
     finding_count_phrase,
+    finding_genitive_phrase,
     session_parties_line,
 )
 
@@ -425,7 +427,7 @@ def render_pdf(
     if not findings:
         _body(pdf, "Brak zaleceń w tym przebiegu.")
     else:
-        for finding in findings:
-            _body(pdf, f"- {finding['remediation']}")
+        for remediation, count in aggregated_remediations(findings):
+            _body(pdf, f"- {remediation} (dotyczy {finding_genitive_phrase(count)})")
 
     return bytes(pdf.output())

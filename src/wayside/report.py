@@ -58,7 +58,7 @@ def citation_line(ref: dict) -> str:
     prowieniencji wlasnej zwraca sam poczatek, bez tytulu i bez separatora:
     tytul wymyslony dla punktu bez numeru nie ma stac w tym samym ksztalcie,
     co tytul potwierdzony."""
-    base = f"Powolanie na norme: {ref['standard']} {ref['clause']}"
+    base = f"Powołanie na normę: {ref['standard']} {ref['clause']}"
     if ref["clause_title_source"] == "egzemplarz":
         return f"{base} - {ref['clause_title']}"
     return base

@@ -57,6 +57,30 @@ zadnej konfiguracji CI, bo to zniweczyloby cel tej bramki.
 uv run wayside inspect <plik.pcap>
 ```
 
+## Stan weryfikacji powolan na normy
+
+Kazdy finding niesie powolanie na punkt normy razem z sygnatura i edycja, a
+kazde powolanie niesie takze informacje o tym, czy numeracja tego punktu
+zostala zestawiona z legalnym egzemplarzem dokumentu.
+
+IEC 62443-3-3: na moment pisania egzemplarz jest NIEZAKUPIONY, wiec numeracja
+wszystkich punktow tego dokumentu w katalogu norm jest prowizoryczna, a
+kazde powolanie na nia niesie znacznik `verified: no` - dokument jest
+platny. Droga rozstrzygniecia i podzial miedzy oba dokumenty opisuje
+`docs/decisions/0006-weryfikacja-powolan-wobec-egzemplarza-normy.md`.
+
+CLC/TS 50701:2023: sygnatura i edycja sa potwierdzone u zrodla
+(`docs/decisions/0004-sygnatura-clc-ts-50701.md`); numeracja punktow nie
+jest potwierdzona i z zasady nie bedzie, bo tego egzemplarza projekt nie
+kupuje. Dokument ma status specyfikacji technicznej, nie normy europejskiej,
+wiec stosuje sie go dobrowolnie. Pole punktu obu wpisow tego dokumentu w
+katalogu norm niesie jawnie prowizoryczny token, nigdy liczbe wygladajaca
+jak numer punktu.
+
+Droga podniesienia znacznika: zakup egzemplarza, przeczytanie punktow wobec
+niego, edycja pola punktu i pola weryfikacji w pliku katalogu norm. Zaden
+plik kodu przy tym nie zmienia sie.
+
 ## Testy
 
 ```powershell

@@ -53,7 +53,12 @@ ponizej z tego podzbioru, ze stalym znacznikiem czasu.
 - **Findingi** - piec wystapien checka `unauthenticated-industrial-protocol`
   (jeden host odpytujacy piec roznych serwerow Modbus/TCP bez mechanizmu
   uwierzytelnienia), kazde z powolaniem na IEC 62443-3-3 i na CLC/TS 50701.
-- **Zalecenia**.
+  Ten sam wzorzec jest teraz czytelny wprost z blokow findingu w
+  `report.md`/`report.pdf` - kazdy blok niesie linie uczestnikow sesji
+  (`Uczestnicy sesji: <zrodlo> -> <cel>`) z tym samym adresem zrodlowym i
+  piecioma roznymi adresami docelowymi.
+- **Zalecenia** - jedno zalecenie, wspolne dla wszystkich pieciu findingow,
+  z liczba findingow, ktorych dotyczy.
 
 Numeracja punktow normy w powolaniach jest prowizoryczna - `report.md` i
 `report.pdf` niosa przy kazdym powolaniu znacznik

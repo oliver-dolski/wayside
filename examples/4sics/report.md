@@ -145,6 +145,7 @@ Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:
 
 - Identyfikator checka: `unauthenticated-industrial-protocol`
 - Waga: high (ryzyko: wysokie)
+- Uczestnicy sesji: 192.168.2.44:58597 -> 192.168.88.50:502
 - Dowód: pakiet nr 29, sesja nr 1
 - Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
 - Powołanie na normę: IEC-62443-3-3 SR 1.2
@@ -161,6 +162,7 @@ Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:
 
 - Identyfikator checka: `unauthenticated-industrial-protocol`
 - Waga: high (ryzyko: wysokie)
+- Uczestnicy sesji: 192.168.2.44:58601 -> 192.168.88.100:502
 - Dowód: pakiet nr 34, sesja nr 2
 - Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
 - Powołanie na normę: IEC-62443-3-3 SR 1.2
@@ -177,6 +179,7 @@ Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:
 
 - Identyfikator checka: `unauthenticated-industrial-protocol`
 - Waga: high (ryzyko: wysokie)
+- Uczestnicy sesji: 192.168.2.44:58599 -> 192.168.88.20:502
 - Dowód: pakiet nr 32, sesja nr 3
 - Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
 - Powołanie na normę: IEC-62443-3-3 SR 1.2
@@ -193,6 +196,7 @@ Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:
 
 - Identyfikator checka: `unauthenticated-industrial-protocol`
 - Waga: high (ryzyko: wysokie)
+- Uczestnicy sesji: 192.168.2.44:58600 -> 192.168.88.60:502
 - Dowód: pakiet nr 33, sesja nr 5
 - Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
 - Powołanie na normę: IEC-62443-3-3 SR 1.2
@@ -209,6 +213,7 @@ Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:
 
 - Identyfikator checka: `unauthenticated-industrial-protocol`
 - Waga: high (ryzyko: wysokie)
+- Uczestnicy sesji: 192.168.2.44:58602 -> 192.168.88.61:502
 - Dowód: pakiet nr 35, sesja nr 6
 - Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
 - Powołanie na normę: IEC-62443-3-3 SR 1.2
@@ -223,9 +228,5 @@ Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:
 
 ## Zalecenia
 
-- Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
-- Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
-- Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
-- Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
-- Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
+- Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej. (dotyczy 5 findingów)
 

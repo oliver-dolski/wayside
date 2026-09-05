@@ -156,6 +156,57 @@ def test_every_reference_has_nonempty_edition():
             assert ref["edition"], f"Powolanie findingu {finding['check_id']} bez edycji."
 
 
+# --- G-04-5: fakt analityczny widoczny w samym raporcie, nie tylko w README -
+
+
+def _endpoint_host(endpoint: str) -> str:
+    """Adres bez portu z punktu koncowego w postaci `adres:port`."""
+    return endpoint.rsplit(":", 1)[0]
+
+
+def test_unauthenticated_industrial_protocol_findings_share_one_source_host_and_have_distinct_targets():
+    """Maszynowy zapis jedynego faktu analitycznego tego przebiegu (Task 3,
+    04-09-PLAN.md): jeden host odpytujacy piec roznych serwerow Modbus/TCP.
+    Test czyta plik z repozytorium, wiec nie potrzebuje pliku podzbioru i nie
+    ma warunku pominiecia - nie dopisuj mu pominiecia przez analogie do testu
+    odtwarzalnosci (grupa osma nizej).
+
+    Porownanie idzie po ADRESIE hosta zrodlowego, nie po pelnym punkcie
+    koncowym `adres:port` (deviation, znaleziona empirycznie w tym zadaniu):
+    klient otwiera osobne polaczenie TCP do kazdego serwera, wiec port
+    efemeryczny rozni sie miedzy sesjami mimo tego samego adresu IP - to jest
+    normalne zachowanie TCP, nie defekt. Fakt analityczny ("jeden host")
+    dotyczy adresu hosta, a nie krotki (adres, port); pary docelowe
+    porownywane sa jako pelne punkty koncowe, bo to WLASNIE port docelowy
+    (502) odroznia je od portu bramy `44818` widocznego gdzie indziej
+    w macierzy komunikacji tego samego przebiegu."""
+    findings = [
+        f for f in _example_findings() if f["check_id"] == "unauthenticated-industrial-protocol"
+    ]
+    assert len(findings) == 5
+
+    source_hosts = {_endpoint_host(f["evidence"]["source"]) for f in findings}
+    targets = {f["evidence"]["target"] for f in findings}
+    assert len(source_hosts) == 1
+    assert len(targets) == 5
+
+
+def test_remediations_section_row_count_equals_distinct_remediation_count():
+    """Liczba wierszy sekcji zbiorczej zalecen jest rowna liczbie roznych
+    zalecen wsrod findingow tego przykladu - liczba bierze sie z pliku
+    analizy, nie ze stalej wpisanej tutaj (rozjechalaby sie przy pierwszej
+    zmianie zbioru checkow)."""
+    findings = _example_findings()
+    expected_row_count = len({f["remediation"] for f in findings})
+
+    report_text = REPORT_MD_PATH.read_text(encoding="utf-8")
+    section = report_text.split("## Zalecenia", 1)[1]
+    rows = [line for line in section.splitlines() if line.startswith("- ")]
+
+    assert len(rows) == expected_row_count
+    assert len(rows) == len(set(rows)), rows
+
+
 # --- Grupa czwarta: ksztalt wpisu zbioru zewnetrznego ------------------------
 
 

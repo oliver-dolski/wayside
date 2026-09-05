@@ -451,6 +451,31 @@ def test_build_assets_with_only_response_events_gives_not_derivable_unit_ids():
         assert entry["gateway"] == {"value": None, "provenance": "not-derivable-passively"}
 
 
+def test_build_assets_with_request_event_missing_unit_id_field_does_not_raise():
+    """Zdarzenie protokolu jawnotekstowego (Faza 4, PROTO-05) niesie pole
+    `direction` ale nie niesie pola `unit_id` - `unit_id` jest specyficzny
+    dla Modbusa. `build_assets` nie moze podnosic `KeyError` na takim
+    zdarzeniu, bo `analysis["protocol_events"]` po Fazie 4 miesza zdarzenia
+    wielu protokolow (regresja odkryta przy `wayside analyze` na fixture
+    jawnotekstowym, plan 04-02)."""
+    cleartext_event = {
+        "packet_number": 1,
+        "session_id": 0,
+        "direction": "request",
+        "basis": "telnet-iac-negotiation",
+        "src_ip": CLIENT_IP,
+        "dst_ip": SERVER_IP,
+        "timestamp": 0.0,
+        "protocol": "telnet",
+        "confidence": "high",
+    }
+
+    assets = build_assets(segments=_client_server_segments(), events=[cleartext_event])
+
+    server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
+    assert server["unit_ids"] == {"value": None, "provenance": "not-derivable-passively"}
+
+
 def test_unit_ids_are_sorted_ascending_regardless_of_file_order():
     events = [
         _event(unit_id=3, packet_number=1),

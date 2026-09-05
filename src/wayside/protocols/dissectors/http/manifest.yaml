@@ -1,0 +1,6 @@
+# Identyfikator z pola `id` jest tym samym lancuchem, ktory trafia do pola
+# `protocol` kazdego zdarzenia i do etykiety wiersza macierzy komunikacji
+# (PROTO-05, CHECK-03).
+id: http
+confidence: high
+dissector: "http_dissector:dissect"

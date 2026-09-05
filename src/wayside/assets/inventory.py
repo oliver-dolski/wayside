@@ -157,7 +157,12 @@ def build_assets(
     for event in events or []:
         if event.get("direction") != "request":
             continue
-        unit_ids_by_server.setdefault(event["dst_ip"], set()).add(event["unit_id"])
+        # `unit_id` jest polem specyficznym dla Modbusa: od Fazy 4 (PROTO-05)
+        # `events` niesie takze zdarzenia protokolow jawnotekstowych, ktore
+        # tego pola nie maja - `"unit_id" in event`, nigdy `event["unit_id"]`
+        # bez warunku, zeby zdarzenie bez tego pola nie podnosilo KeyError.
+        if "unit_id" in event:
+            unit_ids_by_server.setdefault(event["dst_ip"], set()).add(event["unit_id"])
         requests_sent[event["src_ip"]] = requests_sent.get(event["src_ip"], 0) + 1
         requests_received[event["dst_ip"]] = requests_received.get(event["dst_ip"], 0) + 1
 

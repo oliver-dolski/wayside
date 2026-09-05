@@ -22,6 +22,7 @@ __all__ = [
     "REQUIRED_CATALOG_FIELDS",
     "CATALOG_FIELD_TYPES",
     "OPTIONAL_CATALOG_FIELD_TYPES",
+    "CLAUSE_TITLE_SOURCES",
     "StandardsError",
     "load_catalog",
     "resolve",
@@ -29,11 +30,21 @@ __all__ = [
 
 CATALOG_ROOT = Path(__file__).resolve().parent
 
+# Prowieniencja tytulu punktu: `egzemplarz` gdy tytul zostal przepisany z
+# legalnego egzemplarza normy, `wlasny` gdy jest opisem zakresu napisanym
+# przez autora projektu. Pole `verified` opisuje CALY wpis (numeracje punktu
+# i tresc parafrazy), a tytul punktu jest osobna rzecza, ktora do dzis nie
+# miala wlasnego znacznika - tytul wymyslony dla punktu bez numeru renderowal
+# sie w tym samym ksztalcie, co tytul potwierdzony wobec egzemplarza
+# (G-04-3c).
+CLAUSE_TITLE_SOURCES: frozenset[str] = frozenset({"egzemplarz", "wlasny"})
+
 REQUIRED_CATALOG_FIELDS: tuple[str, ...] = (
     "standard",
     "edition",
     "clause",
     "clause_title",
+    "clause_title_source",
     "paraphrase",
     "verified",
 )
@@ -47,6 +58,7 @@ CATALOG_FIELD_TYPES: dict[str, type] = {
     "edition": str,
     "clause": str,
     "clause_title": str,
+    "clause_title_source": str,
     "paraphrase": str,
     "verified": bool,
 }
@@ -54,8 +66,11 @@ CATALOG_FIELD_TYPES: dict[str, type] = {
 # Pola OPCJONALNE, kontrolowane co do typu tylko wtedy, gdy sa obecne we
 # wpisie (Z-77) - wymuszenie obecnosci zamknelo by droge wpisu w pelni
 # potwierdzonego, ktory zadnej notatki o prowizorycznosci nie potrzebuje.
+# `paraphrase_note` niesie formuly ramowe adresowane do audytora (Z-82) -
+# pole celowo NIE jest przekazywane do modelu powolania w `resolve` nizej.
 OPTIONAL_CATALOG_FIELD_TYPES: dict[str, type] = {
     "verification_note": str,
+    "paraphrase_note": str,
 }
 
 
@@ -120,6 +135,28 @@ def _validate_entry_fields(entry: dict, yaml_path: Path) -> None:
             f"{', '.join(type_errors)}."
         )
 
+    # Przebieg czwarty: prowieniencja tytulu punktu musi nalezec do
+    # zamknietego zbioru, a wpis z podniesionym polem weryfikacji i
+    # prowieniencja inna niz pochodzaca z egzemplarza konczy sie bledem
+    # katalogu (G-04-3c). Decyzja 0006 prowadzi czlowieka przez reczna
+    # edycje tego pliku po zakupie egzemplarza; bez tej reguly czlowiek
+    # moglby podniesc `verified`, zostawiajac tytul opisem wlasnym, i raport
+    # przedstawilby opis wlasny jako tytul potwierdzony wobec egzemplarza.
+    clause_title_source = entry["clause_title_source"]
+    if clause_title_source not in CLAUSE_TITLE_SOURCES:
+        raise StandardsError(
+            f"Wpis katalogu {yaml_path} niesie clause_title_source o "
+            f"niedozwolonej wartosci {clause_title_source!r}. Dozwolone "
+            f"wartosci: {sorted(CLAUSE_TITLE_SOURCES)}."
+        )
+    if entry["verified"] is True and clause_title_source != "egzemplarz":
+        raise StandardsError(
+            f"Wpis katalogu {yaml_path} ma podniesione pole verified, ale "
+            f"clause_title_source={clause_title_source!r} zamiast "
+            "'egzemplarz' - tytul potwierdzony wymaga prowieniencji z "
+            "egzemplarza."
+        )
+
 
 def load_catalog(catalog_root: Path = CATALOG_ROOT) -> dict[tuple[str, str], dict]:
     """Wczytuje wszystkie pliki `catalog.yaml` pod `catalog_root`, w
@@ -173,6 +210,7 @@ def resolve(standard: str, clause: str, *, zone_model: dict) -> StandardRef:
         edition=entry["edition"],
         clause=entry["clause"],
         clause_title=entry["clause_title"],
+        clause_title_source=entry["clause_title_source"],
         paraphrase=entry["paraphrase"],
         # Bez konwersji: warstwa wczytujaca gwarantuje juz typ `bool`, wiec
         # konwersja w tym miejscu moglaby juz tylko ukryc defekt danych, a
@@ -180,4 +218,9 @@ def resolve(standard: str, clause: str, *, zone_model: dict) -> StandardRef:
         # gwarancji, ze przed zaufaniem edycji uruchomi pakiet testow.
         verified=entry["verified"],
         verification_note=entry.get("verification_note", ""),
+        # Pole `paraphrase_note` NIE jest przekazywane - to jest wybor
+        # projektowy, nie przeoczenie (zalozenie Z-82). Pole nieobecne w
+        # modelu, ktory renderery czytaja, jest silniejsza gwarancja
+        # nierenderowania formul ramowych dla audytora niz jakikolwiek test
+        # nad wynikiem.
     )

@@ -199,9 +199,18 @@ class StandardRef:
     edition: str
     clause: str
     clause_title: str
+    # Prowieniencja tytulu punktu: `egzemplarz` (przepisany z legalnego
+    # egzemplarza normy) albo `wlasny` (opis zakresu napisany przez autora
+    # projektu). Zamkniety zbior dozwolonych wartosci jest
+    # `wayside.standards.mapper.CLAUSE_TITLE_SOURCES` - to jest zrodlo
+    # prawdy, nie ta deklaracja (G-04-3c).
+    clause_title_source: str
     paraphrase: str
     verified: bool
     verification_note: str
+    # Pola notatki o parafrazie (`paraphrase_note` w pliku katalogu) NIE MA
+    # tutaj i miec nie bedzie (zalozenie Z-82): pole nieobecne w tym modelu
+    # jest silniejsza gwarancja nierenderowania niz jakikolwiek test.
 
 
 @dataclass(frozen=True)

@@ -3,6 +3,7 @@ entries:
     edition: "2023"
     clause: "nieustalony-1"
     clause_title: "Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej"
+    clause_title_source: "wlasny"
     paraphrase: >-
       Własna, robocza parafraza: dokument dotyczy wymagań cyberbezpieczeństwa
       stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym
@@ -19,6 +20,7 @@ entries:
     edition: "2023"
     clause: "nieustalony-2"
     clause_title: "Ochrona poufności informacji w komunikacji systemu kolejowego"
+    clause_title_source: "wlasny"
     paraphrase: >-
       Własna, robocza parafraza: dokument dotyczy ochrony poufności
       informacji przesyłanej w komunikacji systemów kolejowych objętych jego

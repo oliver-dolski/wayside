@@ -3,6 +3,7 @@ entries:
     edition: "2013"
     clause: "SR 1.1"
     clause_title: "Identyfikacja i uwierzytelnienie użytkowników ludzkich"
+    clause_title_source: "wlasny"
     paraphrase: >-
       Własna, robocza parafraza: punkt dotyczy zapewnienia, że każdy
       użytkownik ludzki łączący się z systemem sterowania jest jednoznacznie
@@ -17,6 +18,7 @@ entries:
     edition: "2013"
     clause: "SR 1.2"
     clause_title: "Identyfikacja i uwierzytelnienie procesów programowych i urządzeń"
+    clause_title_source: "wlasny"
     paraphrase: >-
       Własna, robocza parafraza: punkt dotyczy zapewnienia, że każdy proces
       programowy i każde urządzenie łączące się z systemem sterowania jest
@@ -33,6 +35,7 @@ entries:
     edition: "2013"
     clause: "SR 4.1"
     clause_title: "Poufność informacji w komunikacji"
+    clause_title_source: "wlasny"
     paraphrase: >-
       Własna, robocza parafraza: punkt dotyczy ochrony poufności informacji
       przesyłanej w komunikacji systemu sterowania, w tym danych

@@ -15,7 +15,7 @@ from wayside import risk
 from wayside.flow import PROTOCOL_UNRECOGNIZED
 from wayside.model import collect_not_derivable_fields
 
-__all__ = ["SECTIONS", "render_markdown"]
+__all__ = ["SECTIONS", "render_markdown", "citation_line", "citation_scope_line"]
 
 SECTIONS: tuple[str, ...] = (
     "Streszczenie",
@@ -34,6 +34,39 @@ SECTIONS: tuple[str, ...] = (
 _HOST_FIELDS_WITH_OWN_ROW: frozenset[str] = frozenset(
     {"oui_vendor", "unit_ids", "gateway", "role", "role_evidence", "role_confidence"}
 )
+
+# Etykieta opisu wlasnego (G-04-3c) - nazywa rzecz wprost, a nie lagodzi ja:
+# czytelnik ma wiedziec, ze to zdanie napisal autor narzedzia, a nie komitet
+# normalizacyjny. Stala wspoldzielona przez markdown i PDF (przez import w
+# `report_pdf.py`), zeby ksztalt etykiety nie mogl rozjechac sie miedzy
+# formatami.
+CITATION_SCOPE_LABEL = "Zakres punktu (opis własny, nie tytuł z egzemplarza)"
+
+
+def citation_line(ref: dict) -> str:
+    """Buduje linie powolania na norme (G-04-3c).
+
+    Dla prowieniencji z egzemplarza (`clause_title_source == "egzemplarz"`)
+    zwraca ksztalt dzisiejszy: sygnatura, numer punktu, separator i tytul
+    punktu - tytul jest wtedy PRZEPISANY z legalnego egzemplarza normy. Dla
+    prowieniencji wlasnej zwraca sam poczatek, bez tytulu i bez separatora:
+    tytul wymyslony dla punktu bez numeru nie ma stac w tym samym ksztalcie,
+    co tytul potwierdzony."""
+    base = f"Powolanie na norme: {ref['standard']} {ref['clause']}"
+    if ref["clause_title_source"] == "egzemplarz":
+        return f"{base} - {ref['clause_title']}"
+    return base
+
+
+def citation_scope_line(ref: dict) -> str | None:
+    """Buduje linie opisu wlasnego zakresu punktu (G-04-3c).
+
+    Zwraca `None` dla prowieniencji z egzemplarza - tytul juz stoi w linii
+    powolania i osobna linia opisu byłaby powtorzeniem. Dla prowieniencji
+    wlasnej zwraca linie z `CITATION_SCOPE_LABEL` i trescia pola tytulu."""
+    if ref["clause_title_source"] == "egzemplarz":
+        return None
+    return f"{CITATION_SCOPE_LABEL}: {ref['clause_title']}"
 
 
 def render_markdown(
@@ -327,10 +360,10 @@ def render_markdown(
         )
         lines.append(f"- Uzasadnienie: {finding['rationale']}")
         for ref in finding["standard_refs"]:
-            lines.append(
-                f"- Powolanie na norme: {ref['standard']} {ref['clause']} - "
-                f"{ref['clause_title']}"
-            )
+            lines.append(f"- {citation_line(ref)}")
+            scope_line = citation_scope_line(ref)
+            if scope_line is not None:
+                lines.append(f"  - {scope_line}")
             lines.append(f"  - Parafraza: {ref['paraphrase']}")
             if ref["verified"]:
                 lines.append("  - Status: zweryfikowane")

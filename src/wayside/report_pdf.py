@@ -8,8 +8,10 @@ kazdej edycji.
 1. Renderowanie idzie z TEGO SAMEGO slownika modelu, z ktorego powstaje
    markdown (`render_markdown`), NIGDY z parsowania tekstu markdown z
    powrotem - to jest jedno zrodlo prawdy dla listy findingow w obu
-   formatach (REPORT-03, `04-RESEARCH.md` Anti-Patterns). Ten modul nie
-   importuje `wayside.report` po nic poza krotka `SECTIONS`.
+   formatach (REPORT-03, `04-RESEARCH.md` Anti-Patterns). Ten modul
+   importuje z `wayside.report` wylacznie krotke `SECTIONS` i dwie funkcje
+   czyste budujace linie powolania (`citation_line`, `citation_scope_line`)
+   - nigdy logike petli ani stan.
 2. Brak silnika szablonow (D-05, zalozenie Z-56): tresc sklada sie
    wywolaniami biblioteki `fpdf2` wprost, bez Jinja2 ani innego templatera -
    ta sama dyscyplina co `report.py`.
@@ -38,7 +40,7 @@ from fpdf import FPDF
 from wayside import risk
 from wayside.flow import PROTOCOL_UNRECOGNIZED
 from wayside.model import collect_not_derivable_fields
-from wayside.report import SECTIONS
+from wayside.report import SECTIONS, citation_line, citation_scope_line
 
 __all__ = [
     "FONT_DIR",
@@ -395,11 +397,10 @@ def render_pdf(
         )
         _body(pdf, f"- Uzasadnienie: {finding['rationale']}")
         for ref in finding["standard_refs"]:
-            _body(
-                pdf,
-                f"- Powolanie na norme: {ref['standard']} {ref['clause']} - "
-                f"{ref['clause_title']}",
-            )
+            _body(pdf, f"- {citation_line(ref)}")
+            scope_line = citation_scope_line(ref)
+            if scope_line is not None:
+                _body(pdf, f"  - {scope_line}")
             _body(pdf, f"  - Parafraza: {ref['paraphrase']}")
             if ref["verified"]:
                 _body(pdf, "  - Status: zweryfikowane")

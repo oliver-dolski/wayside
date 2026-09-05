@@ -45,6 +45,9 @@ FIXTURE_SNAPLEN = (
 FIXTURE_CLEARTEXT = (
     REPO_ROOT / "tests" / "fixtures" / "pcap" / "cleartext_telnet_ftp_http.pcap"
 )
+FIXTURE_READ_ONLY_SESSION = (
+    REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_read_only_session.pcap"
+)
 
 FIXTURES: dict[str, Path] = {
     "write": FIXTURE_WRITE,
@@ -64,6 +67,10 @@ FIXTURES: dict[str, Path] = {
     # Modbus - bez tego wpisu bramka determinizmu pilnuje kodu z faz
     # poprzednich, nie kodu Fazy 4 (luka W-2 z weryfikacji Fazy 3).
     "cleartext": FIXTURE_CLEARTEXT,
+    # Fixture sesji zlozonej wylacznie z odczytow (plan 04-04): przypadek
+    # rozdzielajacy CHECK-05 od CHECK-04, przechodzi przez ta sama sciezke
+    # serializacji zdarzen protokolu Modbus co fixture bazowy.
+    "read_only_session": FIXTURE_READ_ONLY_SESSION,
 }
 
 # Linia znacznika czasu wygenerowania raportu (D-02) - jedyna dopuszczalna

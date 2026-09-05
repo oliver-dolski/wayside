@@ -171,3 +171,17 @@ fixtures:
       uzytkownika `testuser` i haslo `testpass123` w kanale kontrolnym FTP
       sa jawnie wymyslone na potrzeby testu i nie naleza do zadnego konta.
     protocol: "telnet,ftp,http"
+  - path: modbus_read_only_session.pcap
+    sha256: "b71c5fba355bf0b29e4c14c7a833c5c4d46353c721af4fed1fabd11afed836f6"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_modbus_read_only_session
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Jedna sesja Modbus/TCP, trzy wymiany zadanie-odpowiedz, wszystkie
+      zadania kodu funkcji odczytu rejestrow trzymajacych (0x03) - zero
+      operacji zapisu w calym pliku. Fixture istnieje jako przypadek
+      rozdzielajacy dwa checki: daje finding za uzycie protokolu
+      przemyslowego bez mechanizmu uwierzytelnienia i nie daje findingu za
+      operacje zapisu do sterownika, wiec check zaimplementowany jako filtr
+      na tym drugim zaczerwienilby sie tutaj.
+    protocol: modbus-tcp

@@ -35,6 +35,8 @@ logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.contrib.modbus import (  # noqa: E402
     ModbusADURequest,
     ModbusADUResponse,
+    ModbusPDU03ReadHoldingRegistersRequest,
+    ModbusPDU03ReadHoldingRegistersResponse,
     ModbusPDU06WriteSingleRegisterRequest,
     ModbusPDU06WriteSingleRegisterResponse,
 )
@@ -82,6 +84,13 @@ FTP_TEST_USERNAME = "testuser"
 FTP_TEST_PASSWORD = "testpass123"
 HTTP_TEST_PATH = "/status.json"
 
+# Adres poczatkowy i wartosc rejestru trzymajacego zwracana przez kazda z
+# trzech odpowiedzi odczytu fixture'u sesji zlozonej wylacznie z odczytow
+# (plan 04-04, Task 1). Wartosc stala, nigdy losowa ani wyliczana - inaczej
+# determinizm bajtowy generatora bylby zlamany.
+MODBUS_READ_ONLY_START_ADDR = 0x0000
+MODBUS_READ_ONLY_REGISTER_VALUE = 0x00AA
+
 # Nagłówek globalny klasycznego pcapa, mikrosekundowy, little-endian
 # (zgodne z `PCAP_MAGICS` w `wayside.pcap` po Task 2 tego planu).
 PCAP_CLASSIC_MAGIC_LE = 0xA1B2C3D4
@@ -124,6 +133,7 @@ __all__ = [
     "gen_modbus_tcp_handshake",
     "gen_modbus_rtu_over_tcp",
     "gen_cleartext_telnet_ftp_http",
+    "gen_modbus_read_only_session",
     "main",
 ]
 
@@ -849,6 +859,59 @@ def gen_cleartext_telnet_ftp_http(output_dir: Path) -> Path:
     return output_path
 
 
+# --- Faza 4: fixture sesji Modbusa zlozonej wylacznie z odczytow (plan 04-04, Task 1) ---
+
+
+def gen_modbus_read_only_session(output_dir: Path) -> Path:
+    """Jedna sesja Modbus/TCP, trzy wymiany zadanie-odpowiedz, wszystkie
+    zadania kodu funkcji odczytu rejestrow trzymajacych (0x03).
+
+    Przypadek rozdzielajacy CHECK-05 od CHECK-04 (zalozenie Z-62,
+    04-RESEARCH.md Pitfall 9): fixture daje finding za uzycie protokolu
+    przemyslowego bez mechanizmu uwierzytelnienia i NIE daje findingu za
+    zapis do sterownika, bo nie zawiera ani jednej operacji zapisu - check
+    zaimplementowany jako filtr na findingu za zapis rozjechalby sie
+    dokladnie tutaj.
+
+    Identyfikator transakcji rosnie z kazda wymiana (1, 2, 3), identyfikator
+    jednostki jest staly. Odstep miedzy kolejnymi zadaniami jest krotki
+    (0.02 s), tak zeby okno zrzutu (0.05 s) bylo dluzsze niz podwojony
+    zmierzony odstep miedzy zadaniami (0.04 s) - inaczej fixture zapaliby
+    ostrzezenie o oknie zrzutu za krotkim wobec zmierzonego cyklu
+    odpytywania, co byloby zaklaceniem niezwiazanym z CHECK-05.
+    """
+    packets = []
+    for i in range(3):
+        trans_id = i + 1
+        offset = i * 0.02
+        request = (
+            Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+            / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+            / TCP(sport=50300, dport=MODBUS_PORT, seq=2 * i + 1, ack=2 * i, flags="PA")
+            / ModbusADURequest(transId=trans_id, protoId=0, unitId=1)
+            / ModbusPDU03ReadHoldingRegistersRequest(
+                startAddr=MODBUS_READ_ONLY_START_ADDR, quantity=1
+            )
+        )
+        response = (
+            Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+            / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+            / TCP(sport=MODBUS_PORT, dport=50300, seq=2 * i + 1, ack=2 * i + 2, flags="PA")
+            / ModbusADUResponse(transId=trans_id, protoId=0, unitId=1)
+            / ModbusPDU03ReadHoldingRegistersResponse(
+                registerVal=[MODBUS_READ_ONLY_REGISTER_VALUE]
+            )
+        )
+        request.time = BASE_TIMESTAMP + offset
+        response.time = BASE_TIMESTAMP + offset + 0.01
+        packets.extend([request, response])
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "modbus_read_only_session.pcap"
+    wrpcap(str(output_path), packets)
+    return output_path
+
+
 GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_write_single_register.pcap", gen_modbus_write_single_register),
     ("modbus_write_non_standard_port.pcap", gen_modbus_non_standard_port),
@@ -865,6 +928,7 @@ GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_tcp_handshake.pcap", gen_modbus_tcp_handshake),
     ("modbus_rtu_over_tcp.pcap", gen_modbus_rtu_over_tcp),
     ("cleartext_telnet_ftp_http.pcap", gen_cleartext_telnet_ftp_http),
+    ("modbus_read_only_session.pcap", gen_modbus_read_only_session),
 )
 
 

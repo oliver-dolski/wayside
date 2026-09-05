@@ -25,7 +25,7 @@ from wayside.model import (
     write_atomic,
 )
 from wayside.pcap import CaptureStructure, audit_capture_structure, read_capture
-from wayside.protocols import modbus_rtu_tunnel, modbus_tcp
+from wayside.protocols import registry as protocol_registry
 from wayside.standards import mapper as standards_mapper
 
 __all__ = ["AnalyzeResult", "analyze"]
@@ -126,12 +126,16 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     # FLOW-02: przebieg po WSZYSTKICH pakietach, nie po segmentach - pakiet
     # otwierajacy polaczenie nie ma ladunku, wiec w segmentach go nie ma.
     session_initiators = decode.find_session_initiators(packets, segments)
-    events = modbus_tcp.dissect_all(segments)
-    # PROTO-03: dyskryminator wolany na TEJ SAMEJ liscie segmentow co
-    # dissect_all - wzajemne wykluczenie miedzy natywnym Modbus/TCP i
-    # rozpoznaniem RTU-po-TCP jest wlasnoscia modbus_rtu_tunnel.detect_all
-    # (zalozenie Z-17), nie kolejnosci wywolan tutaj.
-    low_confidence_events = modbus_rtu_tunnel.detect_all(segments)
+    # PROTO-05: rozpoznanie protokolu wchodzi wylacznie przez rejestr - ten
+    # modul nie odwoluje sie do zadnego konkretnego protokolu. `run_dissectors`
+    # woala kazdy dissector odkryty w rejestrze nad TA SAMA lista segmentow;
+    # wzajemne wykluczenie miedzy natywnym Modbus/TCP i rozpoznaniem
+    # RTU-po-TCP jest wlasnoscia dissectorow (zalozenie Z-17), nie kolejnosci
+    # wywolan tutaj.
+    dissectors = protocol_registry.discover_dissectors()
+    protocol_events, low_confidence_events = protocol_registry.run_dissectors(
+        segments, dissectors
+    )
 
     warnings: list[str] = []
     if capture_structure.is_structurally_empty:
@@ -142,10 +146,11 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
             "pakietu - brak findingow w tym przebiegu nie jest wynikiem "
             "analizy, tylko brakiem materialu."
         )
-    elif not events:
+    elif not protocol_events:
         warnings.append(
-            "Zaden segment w zrzucie nie przeszedl walidacji MBAP - brak "
-            "ruchu Modbus/TCP do analizy."
+            "Zaden segment w tym zrzucie nie zostal rozpoznany przez zaden "
+            "dissector z rejestru - w tym przebiegu nie ma ruchu protokolu "
+            "aplikacyjnego do analizy."
         )
     if capture_structure.snaplen_truncated_packet_numbers:
         # INGEST-03: ramka uciety przez snaplen nie niesie pelnego ladunku,
@@ -163,16 +168,21 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
             "jest dowodem jego nieobecnosci."
         )
     if low_confidence_events:
-        # PROTO-03: zdarzenie rozpoznane dyskryminatorem sumy kontrolnej stoi
-        # poza lista zdarzen protokolu i poza kazdym findingiem - narzedzie
-        # nazywa liczbe takich zdarzen, protokol i podstawe rozpoznania, oraz
-        # mozliwosc falszywego dopasowania sumy kontrolnej na ruchu nie
-        # bedacym Modbusem (zalozenie Z-18, zagrozenie T-3-13).
+        # PROTO-03: zdarzenie rozpoznane z niska pewnoscia stoi poza lista
+        # zdarzen protokolu i poza kazdym findingiem - narzedzie nazywa
+        # liczbe takich zdarzen, protokol(y) i podstawe(y) rozpoznania, bez
+        # odwolania do stalej jednego konkretnego dissectora (zalozenie
+        # Z-18, zagrozenie T-3-13).
+        low_confidence_protocols = ", ".join(
+            sorted({event["protocol"] for event in low_confidence_events})
+        )
+        low_confidence_bases = ", ".join(
+            sorted({event["basis"] for event in low_confidence_events})
+        )
         warnings.append(
             f"{len(low_confidence_events)} zdarzenie(a) w tym zrzucie "
-            f"rozpoznane sa dyskryminatorem sumy kontrolnej "
-            f"{modbus_rtu_tunnel.RTU_DETECTION_BASIS} jako "
-            "modbus-rtu-over-tcp, z niska pewnoscia, poza lista zdarzen "
+            f"rozpoznane sa z niska pewnoscia jako {low_confidence_protocols}, "
+            f"na podstawie {low_confidence_bases}, poza lista zdarzen "
             "protokolu i poza kazdym findingiem. Rozpoznanie niesie "
             "mozliwosc falszywego dopasowania sumy kontrolnej na ruchu nie "
             "bedacym Modbusem."
@@ -181,16 +191,12 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     observed_ips = sorted(
         {segment.src_ip for segment in segments} | {segment.dst_ip for segment in segments}
     )
-    observed_protocols = sorted({"modbus-tcp"} if events else set())
+    observed_protocols = sorted({event["protocol"] for event in protocol_events})
     zone_model = zones.build_zone_model(
         observed_ips=observed_ips, observed_protocols=observed_protocols
     )
 
     conversations = _build_conversations(segments)
-    protocol_events = [dataclasses.asdict(event) for event in events]
-    low_confidence_events_section = [
-        dataclasses.asdict(event) for event in low_confidence_events
-    ]
 
     capture_section = _build_capture_section(pcap_path, packets, capture_structure)
     # Zaokraglenie do szesciu miejsc po przecinku zdejmuje szum reprezentacji
@@ -253,7 +259,7 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         packets=packets,
         segments=segments,
         events=protocol_events,
-        low_confidence_events=low_confidence_events_section,
+        low_confidence_events=low_confidence_events,
         initiators=session_initiators,
     )
     assert_provenance_complete(comm_matrix, path="comm_matrix")
@@ -311,7 +317,7 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         methodology=methodology,
         assets=assets,
         coverage=coverage_section,
-        low_confidence_events=low_confidence_events_section,
+        low_confidence_events=low_confidence_events,
         comm_matrix=comm_matrix,
     )
 

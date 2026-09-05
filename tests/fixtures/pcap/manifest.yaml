@@ -185,3 +185,39 @@ fixtures:
       operacje zapisu do sterownika, wiec check zaimplementowany jako filtr
       na tym drugim zaczerwienilby sie tutaj.
     protocol: modbus-tcp
+
+# Wpisy zbiorow zewnetrznych stoja w OSOBNYM bloku, nie na liscie fixture'ow
+# powyzej (zalozenie Z-70): kazdy wpis powyzej wskazuje na plik obecny w
+# tym katalogu, a test tego pilnuje (tests/test_fixture_manifest.py) - plik
+# zbioru zewnetrznego swiadomie NIGDY nie wchodzi do repozytorium (rekord
+# decyzji `0005`), wiec oslabienie tamtej bramki zrobiloby miejsce na wpis,
+# ktory jej zaprzecza. Ten blok niesie wlasny wymog zrodla, licencji i
+# atrybucji, sprawdzany przez tests/test_example_report.py.
+external_datasets:
+  - name: "4SICS 2015 Geek Lounge (CS3Sthlm, udostepnione przez Netresec)"
+    page_url: "https://www.netresec.com/?page=PCAP4SICS"
+    url: "https://share.netresec.com/s/gw6Y2QzJHqDD5pr/download/4SICS-GeekLounge-151022.pcap"
+    filename: "4SICS-GeekLounge-151022.pcap"
+    sha256: "82529c23906416dc73d7f1926a0d38b82527f1f2a7ff8c6f755ce3208feb9643"
+    slice_filename: "4sics-slice.pcap"
+    slice_sha256: "2665c898fb6eccad6bef669a3d0eb5cbf1ac1fe39f9168b98584f698b57aadb8"
+    slice_packet_count: 2000
+    source: external
+    license: >-
+      Redystrybucja dozwolona, takze w materialach szkoleniowych, pod
+      warunkiem atrybucji dla CS3Sthlm za udostepnienie ruchu z laboratorium
+      4SICS i odeslania do strony Netresec [CITED: WebFetch
+      https://www.netresec.com/?page=PCAP4SICS, 2026-09-05].
+    attribution: >-
+      Ruch pochodzi z laboratorium 4SICS Geek Lounge (2015), udostepniony
+      publicznie przez Netresec (https://www.netresec.com/) za zgoda
+      CS3Sthlm (nastepcy konferencji 4SICS) na udostepnienie przechwyconego
+      ruchu.
+    description: >-
+      Podzbior pierwszych 2000 pakietow trzeciego z trzech plikow zrzutu
+      udostepnionych na stronie zbioru. Ruch pochodzi z laboratorium
+      konferencji przemyslowej, NIE z instalacji kolejowej - przykladowy
+      raport zbudowany z tego podzbioru nie pokazuje dziedziny, w ktorej ten
+      projekt ma swoj wyroznik (ryzyko rezydualne rekordu decyzji `0005`).
+    in_repo: false
+    fetch_script: scripts/fetch_4sics_sample.py

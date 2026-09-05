@@ -13,3 +13,9 @@ standards/.local/
 
 # Katalog wyjsciowy domyslnego uruchomienia `wayside analyze`.
 wayside-out/
+
+# Zbior zewnetrzny (4SICS, REPORT-05) pobierany przez
+# scripts/fetch_4sics_sample.py - wazy rzad setek megabajtow, do
+# repozytorium wchodzi skrypt pobierajacy i wygenerowany raport, nigdy sam
+# plik zrzutu (rekord decyzji `0005`).
+datasets/

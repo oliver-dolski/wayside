@@ -77,15 +77,22 @@ def test_analyze_exits_zero_and_writes_both_artifacts(tmp_path):
     assert (tmp_path / "report.md").exists()
 
 
-def test_analysis_json_has_exactly_one_finding_with_expected_evidence(tmp_path):
+def test_analysis_json_has_exactly_two_findings_with_expected_evidence(tmp_path):
+    """Fixture bazowy niesie zapis do sterownika przez Modbus/TCP, wiec od
+    planu 04-04 daje DWA findingi: jeden z checka za zapis
+    (`modbus-unauthenticated-write`) i jeden z checka za uzycie protokolu
+    bez uwierzytelnienia (`unauthenticated-industrial-protocol`). Finding
+    checka za zapis jest odczytywany po identyfikatorze checka, nie po
+    pozycji na liscie - test odczytujacy po pozycji zaczerwienilby sie przy
+    kazdym kolejnym checku dopisanym do rejestru."""
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     analysis = _load_analysis(tmp_path)
 
     findings = analysis["findings"]
-    assert len(findings) == 1
-    finding = findings[0]
-    assert finding["check_id"] == "modbus-unauthenticated-write"
+    assert len(findings) == 2
+
+    finding = next(f for f in findings if f["check_id"] == "modbus-unauthenticated-write")
     assert finding["evidence"]["packet_number"] == 1
     assert finding["evidence"]["session_id"] == 0
 
@@ -202,8 +209,9 @@ def test_write_fixture_pcapng_produces_same_finding_as_classic_pcap(tmp_path):
 
     analysis = _load_analysis(tmp_path)
     findings = analysis["findings"]
-    assert len(findings) == 1
-    assert findings[0]["check_id"] == "modbus-unauthenticated-write"
+    assert len(findings) == 2
+    check_ids = {f["check_id"] for f in findings}
+    assert check_ids == {"modbus-unauthenticated-write", "unauthenticated-industrial-protocol"}
 
 
 # --- Format nierozpoznany i sciezka nieistniejaca ---

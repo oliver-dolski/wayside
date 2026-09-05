@@ -188,10 +188,9 @@ def test_write_operation_finding(tmp_path):
 
     analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
     findings = analysis["findings"]
-    assert len(findings) == 1
+    assert len(findings) == 2
 
-    finding = findings[0]
-    assert finding["check_id"] == "modbus-unauthenticated-write"
+    finding = next(f for f in findings if f["check_id"] == "modbus-unauthenticated-write")
     assert finding["evidence"]["packet_number"] == 1
     assert finding["evidence"]["session_id"] == 0
 

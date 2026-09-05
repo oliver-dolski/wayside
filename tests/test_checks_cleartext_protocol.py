@@ -263,4 +263,8 @@ def test_rendered_report_carries_check_id_and_unverified_marker(tmp_path):
 
 def test_discover_checks_includes_cleartext_protocol():
     ids = sorted(c.spec["id"] for c in engine.discover_checks())
-    assert ids == ["cleartext-protocol", "modbus-unauthenticated-write"]
+    assert ids == [
+        "cleartext-protocol",
+        "modbus-unauthenticated-write",
+        "unauthenticated-industrial-protocol",
+    ]

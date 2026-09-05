@@ -218,7 +218,9 @@ def test_recognizes_non_standard_port_end_to_end_via_cli(tmp_path):
     assert result.returncode == 0, result.stderr
 
     analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
-    assert len(analysis["findings"]) == 1
+    # Od planu 04-04: zapis do sterownika daje finding za zapis oraz finding
+    # za uzycie protokolu bez uwierzytelnienia, wiec dwa findingi, nie jeden.
+    assert len(analysis["findings"]) == 2
     assert len(analysis["protocol_events"]) == 2
 
 

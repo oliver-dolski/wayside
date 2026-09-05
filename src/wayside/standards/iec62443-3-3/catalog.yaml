@@ -15,6 +15,22 @@ entries:
       prowizoryczny i nie stanowi potwierdzonego powolania.
   - standard: "IEC-62443-3-3"
     edition: "2013"
+    clause: "SR 1.2"
+    clause_title: "Identyfikacja i uwierzytelnienie procesów programowych i urządzeń"
+    paraphrase: >-
+      Własna, robocza parafraza: punkt dotyczy zapewnienia, że każdy proces
+      programowy i każde urządzenie łączące się z systemem sterowania jest
+      jednoznacznie zidentyfikowane i uwierzytelnione, zanim uzyska dostęp
+      do funkcji mających wpływ na bezpieczeństwo procesu - w odróżnieniu
+      od użytkowników ludzkich, których dotyczy odrębny punkt tego
+      katalogu. Nigdy cytat normy.
+    verified: false
+    verification_note: >-
+      Numeracja punktu i tresc parafrazy czekaja na zestawienie z legalnym
+      egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
+      prowizoryczny i nie stanowi potwierdzonego powolania.
+  - standard: "IEC-62443-3-3"
+    edition: "2013"
     clause: "SR 4.1"
     clause_title: "Poufność informacji w komunikacji"
     paraphrase: >-

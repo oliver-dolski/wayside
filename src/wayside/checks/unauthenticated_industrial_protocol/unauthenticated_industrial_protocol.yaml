@@ -1,0 +1,23 @@
+id: unauthenticated-industrial-protocol
+title: "Uzycie protokolu przemyslowego bez mechanizmu uwierzytelnienia w zaobserwowanej komunikacji"
+applies_to:
+  protocol: modbus-tcp
+severity: high
+rationale: >-
+  Finding dotyczy samego uzycia protokolu, ktory nie ma mechanizmu
+  uwierzytelnienia nadawcy, niezaleznie od tego, czy w tym zrzucie doszlo do
+  operacji zapisu. Kazdy host widzacy ten segment sieci moze wyslac
+  polecenie, ktore urzadzenie wykona, a odczyt zaobserwowany w zrzucie
+  dowodzi wylacznie tego, ze sciezka komunikacji istnieje i jest otwarta.
+  Jest to wlasnosc protokolu, nie decyzja ani zaniedbanie operatora
+  instalacji - w starszej instalacji przemyslowej alternatywy czesto nie ma.
+standards:
+  - standard: "IEC-62443-3-3"
+    edition: "2013"
+    clause: "SR 1.2"
+evaluator: "unauthenticated_industrial_protocol:evaluate"
+remediation: >-
+  Ograniczyc na poziomie sieci grono hostow, ktore moga w ogole otworzyc
+  sesje do sterownika, przez segmentacje i listy kontroli dostepu. Samego
+  protokolu nie da sie uwierzytelnic bez wymiany urzadzen albo bez warstwy
+  posredniczacej.

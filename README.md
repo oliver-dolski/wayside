@@ -55,6 +55,19 @@ zadnej konfiguracji CI, bo to zniweczyloby cel tej bramki.
 
 ```powershell
 uv run wayside inspect <plik.pcap>
+uv run wayside analyze <plik.pcap> --out-dir wayside-out
+```
+
+Komenda `analyze` zapisuje w katalogu wyjsciowym `analysis.json` (model
+maszynowy) i `report.md` (raport w markdown). Flaga `--pdf` dokladajac
+trzeci artefakt, `report.pdf`, z osadzonym fontem Unicode (DejaVu Sans) -
+polskie znaki diakrytyczne wygladaja przez to tak samo na kazdej maszynie,
+niezaleznie od zainstalowanych fontow systemowych. Flaga jest domyslnie
+wylaczona: domyslna sciezka narzedzia nie zyskuje przez to nowej zaleznosci
+uruchomieniowej.
+
+```powershell
+uv run wayside analyze <plik.pcap> --pdf --out-dir wayside-out
 ```
 
 ## Stan weryfikacji powolan na normy

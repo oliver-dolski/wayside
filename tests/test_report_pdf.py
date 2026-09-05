@@ -22,9 +22,11 @@ dalszej czesci tego pliku.
 from __future__ import annotations
 
 import ast
+import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import unicodedata
@@ -35,7 +37,9 @@ import pytest
 from pypdf import PdfReader
 
 from wayside import report_pdf
-from wayside.model import write_atomic_bytes
+from wayside.model import dump_deterministic, write_atomic_bytes
+from wayside.pcap import CaptureFormatError, CaptureTruncatedError
+from wayside.pipeline import analyze as pipeline_analyze
 from wayside.report import SECTIONS, render_markdown
 from wayside.report_pdf import PdfRenderError, render_pdf
 
@@ -412,3 +416,190 @@ def test_pdf_library_not_imported_by_default_analyze_run(tmp_path):
     probe = json.loads(result.stdout.strip().splitlines()[-1])
 
     assert probe["fpdf_imported"] is False
+
+
+# =============================================================================
+# Task 4: parytet findingow miedzy PDF, markdown i analysis.json, oraz
+# pomiar determinizmu bajtowego PDF w dwoch osobnych podprocesach.
+# =============================================================================
+
+
+def _analyzable_fixtures() -> list[Path]:
+    """Kazdy fixture, ktory konczy analize bez wyjatku. Wzorzec
+    `tests/test_report_forbidden_phrases.py::_analyzable_fixtures` -
+    lista budowana GLOBEM, nie recznym wyliczeniem nazw, zeby fixture
+    dodany w przyszlosci trafil do bramki bez zmiany tego pliku."""
+    return sorted(FIXTURE_DIR.glob("*.pcap")) + sorted(FIXTURE_DIR.glob("*.pcapng"))
+
+
+def _analyze_or_skip(fixture: Path, out_dir: Path):
+    try:
+        return pipeline_analyze(fixture, out_dir=out_dir, generated_at=GENERATED_AT)
+    except (CaptureTruncatedError, CaptureFormatError):
+        pytest.skip(f"fixture {fixture.name} nie produkuje artefaktow (brama D-01)")
+
+
+# Etykieta identyfikatora checka jest ZAKOTWICZONA na tej samej fladze w obu
+# formatach ("Identyfikator checka: "), z opcjonalnymi cudzyslowami wstecznymi
+# (markdown niesie je, PDF nie) - jeden wzorzec dla obu wyciagniety wprost z
+# TEKSTU artefaktu, nigdy z kodu renderujacego.
+_CHECK_ID_PATTERN = re.compile(r"Identyfikator checka: `?([a-z0-9-]+)`?")
+
+
+def _check_ids_in_text(text: str) -> list[str]:
+    return _CHECK_ID_PATTERN.findall(text)
+
+
+@pytest.mark.parametrize(
+    "fixture", _analyzable_fixtures(), ids=lambda path: path.name
+)
+def test_check_id_set_is_identical_across_pdf_markdown_and_analysis_json(
+    fixture, tmp_path
+):
+    result = _analyze_or_skip(fixture, tmp_path)
+    pdf_text = _extract_text(
+        render_pdf(result.analysis, generated_at=GENERATED_AT, warnings=result.warnings)
+    )
+
+    ids_from_pdf = set(_check_ids_in_text(pdf_text))
+    ids_from_markdown = set(_check_ids_in_text(result.report_markdown))
+    ids_from_model = {f["check_id"] for f in result.analysis["findings"]}
+
+    # Roznica symetryczna w komunikacie asercji nazywa brakujacy finding,
+    # nie tylko fakt niezgodnosci (04-03-PLAN.md, Task 4).
+    assert ids_from_pdf == ids_from_markdown, (
+        f"{fixture.name}: roznica PDF/markdown = "
+        f"{ids_from_pdf ^ ids_from_markdown}"
+    )
+    assert ids_from_pdf == ids_from_model, (
+        f"{fixture.name}: roznica PDF/model = {ids_from_pdf ^ ids_from_model}"
+    )
+
+
+@pytest.mark.parametrize(
+    "fixture", _analyzable_fixtures(), ids=lambda path: path.name
+)
+def test_check_id_label_count_equals_finding_count(fixture, tmp_path):
+    """Rownosc zbiorow NIE wystarcza (krawedz adjacency): dwa findingi o
+    identycznym identyfikatorze daja ten sam zbior przy jednym i przy dwoch
+    blokach w tekscie. Liczba wystapien etykiety musi byc rowna liczbie
+    findingow w modelu."""
+    result = _analyze_or_skip(fixture, tmp_path)
+    pdf_text = _extract_text(
+        render_pdf(result.analysis, generated_at=GENERATED_AT, warnings=result.warnings)
+    )
+
+    assert len(_check_ids_in_text(pdf_text)) == len(result.analysis["findings"])
+
+
+def test_two_findings_with_identical_title_yield_two_separate_blocks_in_pdf():
+    """Krawedz adjacency, nad modelem recznym: zaden fixture projektu nie
+    daje dwoch findingow o identycznym tytule (04-03-PLAN.md, Task 4)."""
+    duplicate_finding = _finding()
+    analysis = _analysis(findings=[duplicate_finding, duplicate_finding])
+
+    pdf_text = _extract_text(render_pdf(analysis, generated_at=GENERATED_AT))
+
+    check_ids = _check_ids_in_text(pdf_text)
+    assert len(check_ids) == 2
+    assert check_ids == ["modbus-unauthenticated-write", "modbus-unauthenticated-write"]
+    # Tytul findingu (naglowek pogrubiony) wystepuje tez dwa razy, nie raz -
+    # scalenie dwoch findingow w jeden blok jest realnym trybem porazki
+    # renderowania (fpdf2 nie odrzuca dwoch identycznych multi_cell).
+    assert pdf_text.count(duplicate_finding["title"]) == 2
+
+
+def test_check_id_first_occurrence_order_matches_model_order(tmp_path):
+    """Krawedz ordering: kolejnosc pierwszych wystapien identyfikatorow w
+    tekscie PDF ma byc identyczna z kolejnoscia w modelu (kolejnosc ustalona
+    przez `checks.engine.run_checks` po trojce kluczy)."""
+    result = _analyze_or_skip(FIXTURE_WRITE, tmp_path)
+    pdf_text = _extract_text(
+        render_pdf(result.analysis, generated_at=GENERATED_AT, warnings=result.warnings)
+    )
+
+    order_in_model = [f["check_id"] for f in result.analysis["findings"]]
+    first_occurrences: list[str] = []
+    for check_id in _check_ids_in_text(pdf_text):
+        if check_id not in first_occurrences:
+            first_occurrences.append(check_id)
+
+    assert first_occurrences == order_in_model
+
+
+# --- Pomiar determinizmu bajtowego PDF w dwoch osobnych podprocesach -------
+#
+# Zbudowana raz per test, ta sama sonda uzyta w dwoch wywolaniach subprocess -
+# dwa OSOBNE procesy sa tu wymagane, nie dwa wywolania w jednym: identyfikator
+# plikowy dokumentu i subsetting fontu moga byc stabilne w jednym procesie i
+# rozne miedzy procesami (04-RESEARCH.md, Pitfall 8).
+
+_DETERMINISM_PROBE = (
+    "import json, sys\n"
+    "from datetime import datetime, timezone\n"
+    "from wayside.report_pdf import render_pdf\n"
+    "analysis_path, output_path = sys.argv[1], sys.argv[2]\n"
+    "with open(analysis_path, 'r', encoding='utf-8') as f:\n"
+    "    analysis = json.load(f)\n"
+    "generated_at = datetime(2026, 1, 1, tzinfo=timezone.utc)\n"
+    "pdf_bytes = render_pdf(analysis, generated_at=generated_at)\n"
+    "with open(output_path, 'wb') as f:\n"
+    "    f.write(pdf_bytes)\n"
+)
+
+
+def _render_pdf_via_subprocess(
+    analysis_path: Path, output_path: Path, *, pythonhashseed: str
+) -> str:
+    env = dict(os.environ)
+    env["PYTHONHASHSEED"] = pythonhashseed
+    result = subprocess.run(
+        [sys.executable, "-c", _DETERMINISM_PROBE, str(analysis_path), str(output_path)],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, (
+        f"sonda determinizmu PDF nie zwrocila kodu 0: stdout={result.stdout!r} "
+        f"stderr={result.stderr!r}"
+    )
+    return hashlib.sha256(output_path.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("pythonhashseed", ["0", "1337"])
+def test_pdf_bytes_are_identical_across_two_subprocesses(tmp_path, pythonhashseed):
+    """Dwa wywolania renderowania PDF w dwoch OSOBNYCH podprocesach, z
+    identycznym modelem i identycznym znacznikiem czasu, daja bajty o tej
+    samej sumie sha256 - miara empiryczna, nie zalozenie (04-RESEARCH.md,
+    Pitfall 8; 04-03-PLAN.md, Task 4)."""
+    result = _analyze_or_skip(FIXTURE_WRITE, tmp_path / "prep")
+    analysis_path = tmp_path / "analysis_for_probe.json"
+    analysis_path.write_text(dump_deterministic(result.analysis), encoding="utf-8")
+
+    hash_a = _render_pdf_via_subprocess(
+        analysis_path, tmp_path / "a.pdf", pythonhashseed=pythonhashseed
+    )
+    hash_b = _render_pdf_via_subprocess(
+        analysis_path, tmp_path / "b.pdf", pythonhashseed=pythonhashseed
+    )
+
+    assert hash_a == hash_b
+
+
+def test_pdf_bytes_are_identical_across_pythonhashseed_values(tmp_path):
+    """Ten sam pomiar co wyzej, powtorzony z dwoma ROZNYMI wartosciami
+    ziarna hashowania procesu - dowod, ze wynik nie jest artefaktem
+    jednego, przypadkowo stabilnego ziarna."""
+    result = _analyze_or_skip(FIXTURE_WRITE, tmp_path / "prep")
+    analysis_path = tmp_path / "analysis_for_probe.json"
+    analysis_path.write_text(dump_deterministic(result.analysis), encoding="utf-8")
+
+    hash_seed_0 = _render_pdf_via_subprocess(
+        analysis_path, tmp_path / "seed_0.pdf", pythonhashseed="0"
+    )
+    hash_seed_1337 = _render_pdf_via_subprocess(
+        analysis_path, tmp_path / "seed_1337.pdf", pythonhashseed="1337"
+    )
+
+    assert hash_seed_0 == hash_seed_1337

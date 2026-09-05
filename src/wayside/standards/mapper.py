@@ -67,15 +67,29 @@ def _validate_entry_fields(entry: dict, yaml_path: Path) -> None:
 
 def load_catalog(catalog_root: Path = CATALOG_ROOT) -> dict[tuple[str, str], dict]:
     """Wczytuje wszystkie pliki `catalog.yaml` pod `catalog_root`, w
-    kolejnosci posortowanej, i buduje mapowanie `(standard, clause) -> wpis`."""
+    kolejnosci posortowanej, i buduje mapowanie `(standard, clause) -> wpis`.
+
+    Dwa pliki katalogu niosace ta sama pare (standard, clause) koncza sie
+    `StandardsError` z OBIEMA sciezkami w komunikacie, nigdy cichym
+    nadpisaniem - wzorzec `discover_checks` silnika checkow. Bez tej bramki
+    cicha wygrana pliku wczytanego pozniej bylaby nieodrozialna od
+    poprawnego wczytania, a od tej fazy w drzewie stoja dwa pliki katalogu."""
     catalog: dict[tuple[str, str], dict] = {}
+    seen_paths: dict[tuple[str, str], Path] = {}
 
     for yaml_path in sorted(catalog_root.rglob("catalog.yaml")):
         data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
         entries = data.get("entries", [])
         for entry in entries:
             _validate_entry_fields(entry, yaml_path)
-            catalog[(entry["standard"], entry["clause"])] = entry
+            key = (entry["standard"], entry["clause"])
+            if key in seen_paths:
+                raise StandardsError(
+                    f"Zduplikowana para (standard, clause) {key} miedzy "
+                    f"plikami katalogu: {seen_paths[key]} oraz {yaml_path}."
+                )
+            seen_paths[key] = yaml_path
+            catalog[key] = entry
 
     return catalog
 

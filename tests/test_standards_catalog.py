@@ -16,6 +16,9 @@ z CALEGO pliku, takze z tresci dopisanej pozniej).
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -483,6 +486,263 @@ def test_two_distinct_clause_entries_stay_separate_in_finding(tmp_path):
 
     assert len(findings) == 1
     assert [entry["clause"] for entry in findings[0]["standards"]] == ["SR 4.1", "SR 1.1"]
+
+
+# --- Grupa szosta: kontrakt zduplikowanej pary i przypadkow brzegowych -----
+# --- wczytywania miedzy dwoma plikami katalogu ------------------------------
+
+
+def _write_catalog_pair(
+    root: Path, *, first: dict, second: dict
+) -> tuple[Path, Path]:
+    """Zapisuje DWA pliki `catalog.yaml`, kazdy w OSOBNYM podkatalogu jednego
+    katalogu tymczasowego, zeby rekurencyjny skan `load_catalog` znalazl oba.
+    Zwraca obie sciezki, w kolejnosci alfabetycznej podkatalogow (`a`, `b`),
+    czyli w tej samej kolejnosci, w ktorej `sorted(rglob(...))` je odczyta."""
+    path_a = _write_catalog(root / "a", overrides=first)
+    path_b = _write_catalog(root / "b", overrides=second)
+    return path_a, path_b
+
+
+def test_load_catalog_rejects_duplicate_pair_between_two_files(tmp_path):
+    path_a, path_b = _write_catalog_pair(
+        tmp_path,
+        first={"standard": "TEST-STANDARD", "clause": "T 1.1"},
+        second={"standard": "TEST-STANDARD", "clause": "T 1.1"},
+    )
+
+    with pytest.raises(mapper.StandardsError) as excinfo:
+        mapper.load_catalog(catalog_root=tmp_path)
+
+    message = str(excinfo.value)
+    assert str(path_a) in message
+    assert str(path_b) in message
+
+
+def test_load_catalog_accepts_distinct_pairs_in_two_files(tmp_path):
+    _write_catalog_pair(
+        tmp_path,
+        first={"standard": "TEST-STANDARD", "clause": "T 1.1"},
+        second={"standard": "TEST-STANDARD", "clause": "T 2.2"},
+    )
+
+    catalog = mapper.load_catalog(catalog_root=tmp_path)
+
+    assert len(catalog) == 2
+    assert ("TEST-STANDARD", "T 1.1") in catalog
+    assert ("TEST-STANDARD", "T 2.2") in catalog
+
+
+def test_load_catalog_on_file_with_empty_entries_list_returns_empty_mapping(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text(yaml.safe_dump({"entries": []}), encoding="utf-8")
+
+    assert mapper.load_catalog(catalog_root=tmp_path) == {}
+
+
+def test_load_catalog_on_completely_empty_file_returns_empty_mapping(tmp_path):
+    catalog_path = tmp_path / "catalog.yaml"
+    catalog_path.write_text("", encoding="utf-8")
+
+    assert mapper.load_catalog(catalog_root=tmp_path) == {}
+
+
+# Wpis z pustym polem edycji: przypadek juz pokryty przez
+# `test_load_catalog_rejects_empty_string_field_same_as_missing`, ktory
+# iteruje po WSZYSTKICH `REQUIRED_CATALOG_FIELDS` (edition wliczajac) - nie
+# dublowany tutaj.
+
+
+def test_load_catalog_scan_order_is_identical_across_two_scans(tmp_path):
+    _write_catalog_pair(
+        tmp_path,
+        first={"standard": "TEST-STANDARD", "clause": "T 1.1"},
+        second={"standard": "TEST-STANDARD", "clause": "T 2.2"},
+    )
+
+    first_scan = list(mapper.load_catalog(catalog_root=tmp_path).keys())
+    second_scan = list(mapper.load_catalog(catalog_root=tmp_path).keys())
+
+    assert first_scan == second_scan
+
+
+# --- Grupa siodma: bramka zerowej zmiany kodu (kryterium 4 fazy) -----------
+#
+# Wzorcem jest `tests/test_check_engine.py::test_new_check_discovered_without_engine_change`,
+# linia po linii: plik probny wpisany do PRAWDZIWEGO katalogu norm
+# (`src/wayside/standards/`), nie do `tmp_path` - dokladnie to dowodzi
+# kryterium 4 fazy (druga norma wchodzi jako plik danych, bez zmiany zadnego
+# pliku `.py` pod katalogiem pakietu). Nazwa podkatalogu probnego jest STALA,
+# nie losowa - nieudany wczesniejszy przebieg zostawilby slad zmieniajacy
+# wynik innych testow (ten sam powod co w `test_check_engine.py`).
+
+PACKAGE_ROOT = REPO_ROOT / "src" / "wayside"
+PROBE_CATALOG_DIR_NAME = "probe_extensibility_catalog"
+PROBE_CATALOG_DIR = STANDARDS_ROOT / PROBE_CATALOG_DIR_NAME
+PROBE_STANDARD = "TEST-STANDARD-PROBE"
+PROBE_CLAUSE = "T 9.9"
+PROBE_CATALOG_ENTRY: dict = {
+    "standard": PROBE_STANDARD,
+    "edition": "9999",
+    "clause": PROBE_CLAUSE,
+    "clause_title": "Tytul probny bramki rozszerzalnosci katalogu norm",
+    "paraphrase": "Testowa parafraza bramki rozszerzalnosci katalogu norm, nigdy cytat normy.",
+    "verified": False,
+    "verification_note": "Wpis probny, uzywany wylacznie przez test bramki rozszerzalnosci.",
+}
+
+# Check probny dopisujemy do listy powolan JEDNEGO prawdziwego checka -
+# bez tego probna para nie ma jak wejsc do findingu. `modbus-unauthenticated-write`
+# pasuje, bo fixture bazowy Modbusa daje dokladnie jeden finding tego checka.
+PROBE_TARGET_CHECK_YAML = (
+    REPO_ROOT / "src" / "wayside" / "checks" / "modbus" / "unauthenticated_write.yaml"
+)
+# Bajty, nie tekst: `Path.write_text` na Windows tlumaczy `\n` na `\r\n` przy
+# zapisie (domyslne `newline=None`), wiec przywrocenie przez tekst zmienia
+# koncowki linii pliku sledzonego przez git z LF na CRLF - pozorna, ale
+# realna modyfikacja widoczna w `git status`. Restore idzie WYLACZNIE przez
+# bajty, zeby byc bit-identyczny z oryginalem niezaleznie od platformy.
+_PROBE_TARGET_ORIGINAL_BYTES = PROBE_TARGET_CHECK_YAML.read_bytes()
+_PROBE_TARGET_ORIGINAL_TEXT = _PROBE_TARGET_ORIGINAL_BYTES.decode("utf-8")
+
+
+def _package_python_files() -> list[Path]:
+    """Kazdy plik o rozszerzeniu `.py` pod katalogiem pakietu, rekurencyjnie,
+    z pominieciem katalogow ze skompilowanymi plikami cache."""
+    return sorted(p for p in PACKAGE_ROOT.rglob("*.py") if "__pycache__" not in p.parts)
+
+
+def _sha256_map(paths: list[Path]) -> dict[str, str]:
+    return {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+
+
+def _write_probe_catalog_and_check() -> None:
+    PROBE_CATALOG_DIR.mkdir(parents=True)
+    (PROBE_CATALOG_DIR / "catalog.yaml").write_text(
+        yaml.safe_dump({"entries": [PROBE_CATALOG_ENTRY]}, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    check_spec = yaml.safe_load(_PROBE_TARGET_ORIGINAL_TEXT)
+    check_spec["standards"] = list(check_spec["standards"]) + [
+        {"standard": PROBE_STANDARD, "edition": "9999", "clause": PROBE_CLAUSE}
+    ]
+    PROBE_TARGET_CHECK_YAML.write_text(
+        yaml.safe_dump(check_spec, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+
+
+def _restore_probe_catalog_and_check() -> None:
+    if PROBE_CATALOG_DIR.exists():
+        shutil.rmtree(PROBE_CATALOG_DIR)
+    PROBE_TARGET_CHECK_YAML.write_bytes(_PROBE_TARGET_ORIGINAL_BYTES)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _cleanup_probe_catalog_and_check_after_module():
+    """Sprzata oba slady (katalog probny, tresc pliku checka) takze wtedy,
+    gdy blad wystapil przed przekazaniem sterowania do testu - wzorzec
+    `tests/test_check_engine.py::_cleanup_probe_check_dir_after_module`."""
+    yield
+    if PROBE_CATALOG_DIR.exists():
+        shutil.rmtree(PROBE_CATALOG_DIR)
+    if PROBE_TARGET_CHECK_YAML.read_bytes() != _PROBE_TARGET_ORIGINAL_BYTES:
+        PROBE_TARGET_CHECK_YAML.write_bytes(_PROBE_TARGET_ORIGINAL_BYTES)
+
+
+@pytest.fixture
+def probe_catalog_and_check():
+    assert not PROBE_CATALOG_DIR.exists(), (
+        f"{PROBE_CATALOG_DIR} juz istnieje - poprzedni przebieg testu nie "
+        "posprzatal po sobie."
+    )
+    _write_probe_catalog_and_check()
+    try:
+        yield
+    finally:
+        _restore_probe_catalog_and_check()
+
+
+def test_new_catalog_file_discovered_without_package_code_change(probe_catalog_and_check, tmp_path):
+    py_files_before = _package_python_files()
+    checksums_before = _sha256_map(py_files_before)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "wayside.cli",
+            "analyze",
+            FIXTURE_RELATIVE,
+            "--out-dir",
+            str(tmp_path),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+    py_files_after = _package_python_files()
+    checksums_after = _sha256_map(py_files_after)
+
+    changed = sorted(
+        p for p in checksums_before if checksums_before[p] != checksums_after.get(p)
+    )
+    added_or_removed = sorted(
+        set(checksums_before.keys()) ^ set(checksums_after.keys())
+    )
+    assert not changed and not added_or_removed, (
+        f"Zmienione pliki: {changed}; dodane/usuniete pliki: {added_or_removed}"
+    )
+
+    analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
+    probe_refs = [
+        ref
+        for finding in analysis["findings"]
+        for ref in finding["standard_refs"]
+        if ref["standard"] == PROBE_STANDARD and ref["clause"] == PROBE_CLAUSE
+    ]
+    assert probe_refs, "probna para powolania nie pojawila sie w analysis.json"
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert PROBE_STANDARD in report_text, "raport.md nie wymienia probnej sygnatury"
+
+
+def test_probe_catalog_and_check_leave_no_trace_after_cleanup(tmp_path):
+    """Bez tego testu bramka dowodzilaby, ze plik danych wchodzi, a nie ze
+    wychodzi bez sladu - a to drugie jest warunkiem, zeby pozostale testy
+    pakietu (w tym `test_reference_count_boundary_never_zero_across_all_fixtures`)
+    nadal liczyly to, co licza. Wola po tym, jak `probe_catalog_and_check`
+    (function-scoped) juz posprzatal w bloku `finally` po poprzednim tescie -
+    pytest uruchamia testy tego pliku w kolejnosci zapisu."""
+    fixture = FIXTURE_DIR / "modbus_write_single_register.pcap"
+
+    assert not PROBE_CATALOG_DIR.exists(), (
+        "katalog probny wciaz istnieje - kolejnosc testow w tym module jest "
+        "zlamana."
+    )
+    assert PROBE_TARGET_CHECK_YAML.read_bytes() == _PROBE_TARGET_ORIGINAL_BYTES
+
+    baseline = analyze(fixture, out_dir=tmp_path / "baseline", generated_at=GENERATED_AT)
+    baseline_counts = [
+        len(f["standard_refs"]) for f in baseline.analysis["findings"]
+    ]
+
+    _write_probe_catalog_and_check()
+    try:
+        with_probe = analyze(fixture, out_dir=tmp_path / "with_probe", generated_at=GENERATED_AT)
+        with_probe_counts = [
+            len(f["standard_refs"]) for f in with_probe.analysis["findings"]
+        ]
+        assert with_probe_counts != baseline_counts
+    finally:
+        _restore_probe_catalog_and_check()
+
+    restored = analyze(fixture, out_dir=tmp_path / "restored", generated_at=GENERATED_AT)
+    restored_counts = [
+        len(f["standard_refs"]) for f in restored.analysis["findings"]
+    ]
+    assert restored_counts == baseline_counts
 
 
 def test_no_int_or_float_conversion_anywhere_in_standards_layer():

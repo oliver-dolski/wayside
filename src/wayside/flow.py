@@ -17,6 +17,17 @@ po to, zeby czytelnik nie musial sam na to wpasc.
 Sesja, ktorej protokolu nie rozpoznano, MA wiersz z etykieta `tcp`. Znikniecie
 takiego wiersza bylo by klamstwem przez pominiecie, a to jest ta czesc raportu,
 w ktorej takie klamstwo kosztuje najwiecej: czytelnik buduje z niej obraz sieci.
+
+Identyfikatory protokolow zyja teraz w plikach `manifest.yaml` rejestru
+dissectorow (`wayside.protocols.registry`) i sa jedynym zrodlem prawdy - ten
+modul nie niesie zamknietej krotki stalych z etykietami, bo bylaby drugą,
+rozjezdzajaca sie kopia tej samej listy (PROTO-05). Etykieta wiersza pochodzi
+wprost z pola `protocol` zdarzenia. Kolejnosc rozstrzygania NIE jest
+przemienna: pewnosc wysoka wyprzedza pewnosc niska, a przy kilku protokolach
+o pewnosci wysokiej w tej samej sesji etykieta jest zlozona (posortowane
+identyfikatory rozdzielone znakiem plus, zalozenie Z-43) - wybor jednego z
+kilku bylby wyborem przypadkowym, a pominiecie ktoregokolwiek klamstwem przez
+pominiecie.
 """
 
 from __future__ import annotations
@@ -35,29 +46,14 @@ from wayside.decode import (  # noqa: E402
 from wayside.model import inferred, not_derivable, observed  # noqa: E402
 
 __all__ = [
-    "PROTOCOL_MODBUS_TCP",
-    "PROTOCOL_MODBUS_RTU_TUNNEL",
     "PROTOCOL_UNRECOGNIZED",
-    "PROTOCOL_LABELS",
     "COMPLETENESS_CLAIM_TERMS",
     "VANTAGE_POINT_LIMITATIONS",
     "build_comm_matrix",
     "vantage_point_limitations",
 ]
 
-PROTOCOL_MODBUS_TCP = "modbus-tcp"
-PROTOCOL_MODBUS_RTU_TUNNEL = "modbus-rtu-over-tcp"
 PROTOCOL_UNRECOGNIZED = "tcp"
-
-# Zamkniety zbior etykiet protokolu, na wzor `ROLE_LABELS` z planu 03-06.
-# Kolejnosc jest kolejnoscia rozstrzygania i NIE jest przemienna: sesja z ruchem
-# rozpoznanym po naglowku MBAP jest Modbusem po TCP, nawet gdy niesie w tle
-# segment przypadkiem dopasowany suma kontrolna.
-PROTOCOL_LABELS: tuple[str, ...] = (
-    PROTOCOL_MODBUS_TCP,
-    PROTOCOL_MODBUS_RTU_TUNNEL,
-    PROTOCOL_UNRECOGNIZED,
-)
 
 PROVENANCE_METHOD_PAYLOAD_SHAPE = "payload-shape"
 PROVENANCE_METHOD_FIRST_SENDER = "first-observed-sender"
@@ -186,8 +182,22 @@ def build_comm_matrix(
         packet_counts[session_id] += 1
         volume_bytes[session_id] += _wire_length(pkt)
 
-    modbus_sessions = {event["session_id"] for event in events}
-    rtu_sessions = {event["session_id"] for event in low_confidence_events}
+    # PROTO-05: odwzorowanie sesja -> krotka posortowanych identyfikatorow
+    # protokolu, zbudowane wprost z pola `protocol` zdarzenia - zero
+    # zamknietego zbioru stalych w tym pliku. Indeksowanie `event["protocol"]`
+    # bez wartosci domyslnej jest CELOWE: rejestr dissectorow wstrzykuje to
+    # pole do kazdego zdarzenia, wiec jego brak jest bledem ksztaltu modelu
+    # i `KeyError` ma go zglosic wprost.
+    high_confidence_protocols: dict[int, set[str]] = {}
+    for event in events:
+        high_confidence_protocols.setdefault(event["session_id"], set()).add(
+            event["protocol"]
+        )
+    low_confidence_protocols: dict[int, set[str]] = {}
+    for event in low_confidence_events:
+        low_confidence_protocols.setdefault(event["session_id"], set()).add(
+            event["protocol"]
+        )
 
     for session_id in order:
         source_value, target_value = first_sender[session_id]
@@ -207,12 +217,16 @@ def build_comm_matrix(
             initiator_field = not_derivable()
             endpoint_field = _inferred_endpoint
 
-        if session_id in modbus_sessions:
-            protocol_field = inferred(PROTOCOL_MODBUS_TCP, PROVENANCE_METHOD_PAYLOAD_SHAPE)
-        elif session_id in rtu_sessions:
-            protocol_field = inferred(
-                PROTOCOL_MODBUS_RTU_TUNNEL, PROVENANCE_METHOD_PAYLOAD_SHAPE
-            )
+        if session_id in high_confidence_protocols:
+            # Zalozenie Z-43: kilka protokolow o pewnosci wysokiej w tej samej
+            # sesji daje etykiete zlozona, posortowane identyfikatory
+            # rozdzielone znakiem plus - wybor jednego z nich bylby wyborem
+            # przypadkowym, a pominiecie klamstwem przez pominiecie.
+            label = "+".join(sorted(high_confidence_protocols[session_id]))
+            protocol_field = inferred(label, PROVENANCE_METHOD_PAYLOAD_SHAPE)
+        elif session_id in low_confidence_protocols:
+            label = "+".join(sorted(low_confidence_protocols[session_id]))
+            protocol_field = inferred(label, PROVENANCE_METHOD_PAYLOAD_SHAPE)
         else:
             # To, ze widziano TCP, jest obserwacja - nierozpoznanie protokolu
             # aplikacyjnego nie czyni z niej wniosku.

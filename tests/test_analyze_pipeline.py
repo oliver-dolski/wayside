@@ -323,6 +323,50 @@ def test_report_markdown_zakres_section_carries_window_and_snaplen(tmp_path):
     assert "Okno czasowe" in zakres_section
 
 
+def test_report_markdown_zakres_section_names_recognized_protocol_from_data(tmp_path):
+    """PROTO-05: sekcja Zakres wymienia protokol faktycznie rozpoznany w tym
+    zrzucie, budowany z `analysis["protocol_events"]`, nie z zamknietej listy
+    stalych (04-RESEARCH.md, Pitfall 4)."""
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    zakres_start = report_text.index("## Zakres")
+    metodyka_start = report_text.index("## Metodyka")
+    zakres_section = report_text[zakres_start:metodyka_start]
+
+    assert "modbus-tcp" in zakres_section
+
+
+def test_report_markdown_zakres_section_names_no_protocol_recognized_for_empty_dump(tmp_path):
+    """Zrzut bez ani jednego zdarzenia protokolu dostaje zdanie o braku
+    rozpoznania, nie zdanie o zerowej liczbie protokolow (Pitfall 4)."""
+    result = _run_analyze_path(FIXTURE_EMPTY_HEADER, tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    zakres_start = report_text.index("## Zakres")
+    metodyka_start = report_text.index("## Metodyka")
+    zakres_section = report_text[zakres_start:metodyka_start]
+
+    assert "zaden protokol aplikacyjny nie zostal rozpoznany" in zakres_section
+
+
+def test_report_markdown_zakres_section_no_longer_claims_single_protocol_exclusivity(tmp_path):
+    """Regresja Pitfall 4: sekcja Zakres nie twierdzi, ze analiza obejmuje
+    wylacznie jeden protokol - bez tego testu twierdzenie wraca przy
+    nastepnej edycji szablonu."""
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+
+    zakres_start = report_text.index("## Zakres")
+    metodyka_start = report_text.index("## Metodyka")
+    zakres_section = report_text[zakres_start:metodyka_start]
+
+    assert "obejmuje wylacznie protokol" not in zakres_section
+
+
 # --- INGEST-05: zrzut uszkodzony strukturalnie, rozny od zrzutu obcietego ---
 # (plan 03-03, Task 1)
 

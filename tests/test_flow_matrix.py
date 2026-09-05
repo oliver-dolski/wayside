@@ -24,12 +24,7 @@ from wayside.decode import (  # noqa: E402
     decode_segments,
     find_session_initiators,
 )
-from wayside.flow import (  # noqa: E402
-    PROTOCOL_MODBUS_RTU_TUNNEL,
-    PROTOCOL_MODBUS_TCP,
-    PROTOCOL_UNRECOGNIZED,
-    build_comm_matrix,
-)
+from wayside.flow import PROTOCOL_UNRECOGNIZED, build_comm_matrix  # noqa: E402
 from wayside.model import assert_provenance_complete  # noqa: E402
 from wayside.pcap import read_capture  # noqa: E402
 
@@ -194,10 +189,12 @@ def test_fixture_without_handshake_gives_empty_mapping():
 # --- build_comm_matrix (Task 2) ---------------------------------------------
 
 
-def _event(*, session_id: int, unit_id: int = 1) -> dict:
+def _event(*, session_id: int, unit_id: int = 1, protocol: str = "modbus-tcp") -> dict:
     return {
         "packet_number": 1,
         "session_id": session_id,
+        "protocol": protocol,
+        "confidence": "high",
         "unit_id": unit_id,
         "transaction_id": 1,
         "function_code": 0x06,
@@ -253,7 +250,7 @@ def test_session_with_modbus_event_gets_protocol_modbus_tcp():
     )
 
     assert matrix[0]["protocol"] == {
-        "value": PROTOCOL_MODBUS_TCP,
+        "value": "modbus-tcp",
         "provenance": "inferred:payload-shape",
     }
 
@@ -269,7 +266,69 @@ def test_session_with_only_low_confidence_event_gets_protocol_rtu_tunnel():
     )
 
     assert matrix[0]["protocol"] == {
-        "value": PROTOCOL_MODBUS_RTU_TUNNEL,
+        "value": "modbus-rtu-over-tcp",
+        "provenance": "inferred:payload-shape",
+    }
+
+
+def test_session_with_made_up_protocol_id_gets_label_from_data():
+    """Dowod, ze etykieta idzie z danych: identyfikator wymyslony, nieobecny
+    nigdzie w kodzie pod `src/wayside/`, wciaz staje sie etykieta wiersza
+    bez zadnej zmiany w `flow.py` (PROTO-05)."""
+    packets = [_data()]
+    segments = decode_segments(packets)
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments,
+        events=[_event(session_id=segments[0].session_id, protocol="fictional-protocol-x")],
+        low_confidence_events=[], initiators={},
+    )
+
+    assert matrix[0]["protocol"] == {
+        "value": "fictional-protocol-x",
+        "provenance": "inferred:payload-shape",
+    }
+
+
+def test_session_with_two_high_confidence_protocols_gets_composite_label():
+    """Zalozenie Z-43: dwa protokoly o pewnosci wysokiej w tej samej sesji
+    daja etykiete zlozona, posortowane identyfikatory rozdzielone znakiem
+    plus - nigdy wybor jednego z nich."""
+    packets = [_data()]
+    segments = decode_segments(packets)
+    session_id = segments[0].session_id
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments,
+        events=[
+            _event(session_id=session_id, protocol="zeta-protocol"),
+            _event(session_id=session_id, protocol="alfa-protocol"),
+        ],
+        low_confidence_events=[], initiators={},
+    )
+
+    assert matrix[0]["protocol"] == {
+        "value": "alfa-protocol+zeta-protocol",
+        "provenance": "inferred:payload-shape",
+    }
+
+
+def test_session_present_on_both_lists_gets_label_from_high_confidence_only():
+    """Sesja obecna na obu listach dostaje etykiete z pola `protocol`
+    zdarzenia o pewnosci wysokiej, bez czlonu z listy pewnosci niskiej."""
+    packets = [_data()]
+    segments = decode_segments(packets)
+    session_id = segments[0].session_id
+
+    matrix = build_comm_matrix(
+        packets=packets, segments=segments,
+        events=[_event(session_id=session_id, protocol="modbus-tcp")],
+        low_confidence_events=[_low_confidence_event(session_id=session_id)],
+        initiators={},
+    )
+
+    assert matrix[0]["protocol"] == {
+        "value": "modbus-tcp",
         "provenance": "inferred:payload-shape",
     }
 
@@ -289,7 +348,7 @@ def test_modbus_event_wins_over_low_confidence_event_for_the_same_session():
         initiators={},
     )
 
-    assert matrix[0]["protocol"]["value"] == PROTOCOL_MODBUS_TCP
+    assert matrix[0]["protocol"]["value"] == "modbus-tcp"
 
 
 def test_row_order_is_first_seen_session_order_and_repeats_across_calls():

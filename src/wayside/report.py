@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from wayside import risk
+from wayside.flow import PROTOCOL_UNRECOGNIZED
 from wayside.model import collect_not_derivable_fields
 
 __all__ = ["SECTIONS", "render_markdown"]
@@ -69,11 +70,32 @@ def render_markdown(
 
     lines.append(f"## {SECTIONS[1]}")
     lines.append("")
-    lines.append(
-        f"Zrzut niesie {capture.get('packet_count', 0)} pakietow. Analiza "
-        "obejmuje wylacznie protokol Modbus/TCP, rozpoznawany po ksztalcie "
-        "naglowka MBAP, niezaleznie od numeru portu."
+    # PROTO-05: lista protokolow idzie z danych (`analysis["protocol_events"]`),
+    # nie z zamknietej listy stalych - kolejny dissector w rejestrze nie
+    # wymaga zmiany tego zdania (04-RESEARCH.md, Pitfall 4).
+    recognized_protocols = sorted(
+        {event["protocol"] for event in analysis.get("protocol_events", [])}
     )
+    if recognized_protocols:
+        protocols_sentence = (
+            f"Zrzut niesie {capture.get('packet_count', 0)} pakietow. W tym "
+            f"zrzucie rozpoznano protokol(y): {', '.join(recognized_protocols)}, "
+            "rozpoznawane po ksztalcie zawartosci segmentu, nigdy po numerze "
+            "portu."
+        )
+    else:
+        protocols_sentence = (
+            f"Zrzut niesie {capture.get('packet_count', 0)} pakietow. W tym "
+            "zrzucie zaden protokol aplikacyjny nie zostal rozpoznany; "
+            "rozpoznanie idzie po ksztalcie zawartosci segmentu, nigdy po "
+            "numerze portu."
+        )
+    scope_boundary_sentence = (
+        "Ruch, ktorego protokolu nie rozpoznano, ma wiersz w macierzy "
+        f"komunikacji z etykieta `{PROTOCOL_UNRECOGNIZED}` i nie jest "
+        "podstawa zadnego findingu."
+    )
+    lines.append(f"{protocols_sentence} {scope_boundary_sentence}")
     first_seen = capture.get("first_seen")
     last_seen = capture.get("last_seen")
     if first_seen is not None and last_seen is not None:
@@ -105,10 +127,7 @@ def render_markdown(
     # zeby model budowany recznie w tests/test_report_render.py nadal sie
     # renderowal.
     low_confidence_count = len(analysis.get("low_confidence_events", []))
-    low_confidence_sentence = (
-        "Zdarzen rozpoznanych z niska pewnoscia (modbus-rtu-over-tcp): "
-        f"{low_confidence_count}."
-    )
+    low_confidence_sentence = f"Zdarzen rozpoznanych z niska pewnoscia: {low_confidence_count}."
     lines.append(
         f"{window_sentence} {snaplen_sentence} {snaplen_truncated_sentence} "
         f"{low_confidence_sentence}"

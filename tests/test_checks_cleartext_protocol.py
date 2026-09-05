@@ -240,11 +240,16 @@ def test_cleartext_fixture_findings_carry_standard_reference_with_nonempty_editi
         assert finding["severity"] == "medium"
         assert finding["risk"] == risk.severity_to_risk("medium")
         refs = finding["standard_refs"]
-        assert len(refs) == 1
+        # Od planu 04-05 kazdy finding niesie DWA powolania: IEC-62443-3-3
+        # (pierwsze) i CLC/TS 50701 (drugie), w kolejnosci z pliku checka.
+        assert len(refs) == 2
         assert refs[0]["standard"] == "IEC-62443-3-3"
         assert refs[0]["clause"] == "SR 4.1"
         assert refs[0]["edition"]
         assert refs[0]["verified"] is False
+        assert refs[1]["standard"] == "CLC/TS 50701"
+        assert refs[1]["edition"] == "2023"
+        assert refs[1]["verified"] is False
 
 
 def test_modbus_base_fixture_yields_zero_cleartext_findings(tmp_path):

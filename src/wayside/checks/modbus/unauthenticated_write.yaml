@@ -12,6 +12,9 @@ standards:
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 1.1"
+  - standard: "CLC/TS 50701"
+    edition: "2023"
+    clause: "nieustalony-1"
 evaluator: "unauthenticated_write:evaluate"
 remediation: >-
   Ograniczyc mozliwosc wysylania kodow zapisu Modbus/TCP do znanych hostow

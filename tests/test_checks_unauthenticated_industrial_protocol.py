@@ -317,9 +317,13 @@ def test_finding_carries_standard_reference_and_configured_severity(tmp_path):
 
     assert finding["severity"] == "high"
     refs = finding["standard_refs"]
-    assert len(refs) == 1
+    # Od planu 04-05 kazdy finding niesie DWA powolania: IEC-62443-3-3
+    # (pierwsze) i CLC/TS 50701 (drugie), w kolejnosci z pliku checka.
+    assert len(refs) == 2
     assert refs[0]["standard"] == "IEC-62443-3-3"
     assert refs[0]["edition"]
+    assert refs[1]["standard"] == "CLC/TS 50701"
+    assert refs[1]["edition"] == "2023"
 
 
 def test_discover_checks_includes_unauthenticated_industrial_protocol():

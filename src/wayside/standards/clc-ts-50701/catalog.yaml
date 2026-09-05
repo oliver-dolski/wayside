@@ -1,0 +1,32 @@
+entries:
+  - standard: "CLC/TS 50701"
+    edition: "2023"
+    clause: "nieustalony-1"
+    clause_title: "Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej"
+    paraphrase: >-
+      Własna, robocza parafraza: dokument dotyczy wymagań cyberbezpieczeństwa
+      stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym
+      ochrony ich prawidłowego działania przed celowym i przypadkowym
+      naruszeniem bezpieczeństwa. Nigdy cytat normy.
+    verified: false
+    verification_note: >-
+      Dokument ma status specyfikacji technicznej CENELEC, nie normy
+      europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia
+      go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie
+      została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje;
+      wpis jest z tego powodu prowizoryczny (decyzja 0006).
+  - standard: "CLC/TS 50701"
+    edition: "2023"
+    clause: "nieustalony-2"
+    clause_title: "Ochrona poufności informacji w komunikacji systemu kolejowego"
+    paraphrase: >-
+      Własna, robocza parafraza: dokument dotyczy ochrony poufności
+      informacji przesyłanej w komunikacji systemów kolejowych objętych jego
+      zakresem, przed ujawnieniem stronom nieuprawnionym. Nigdy cytat normy.
+    verified: false
+    verification_note: >-
+      Dokument ma status specyfikacji technicznej CENELEC, nie normy
+      europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia
+      go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie
+      została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje;
+      wpis jest z tego powodu prowizoryczny (decyzja 0006).

@@ -12,6 +12,9 @@ standards:
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 4.1"
+  - standard: "CLC/TS 50701"
+    edition: "2023"
+    clause: "nieustalony-2"
 evaluator: "cleartext_protocol:evaluate"
 remediation: >-
   Przenieść zarządzanie tym ruchem na kanał szyfrowany tam, gdzie protokół

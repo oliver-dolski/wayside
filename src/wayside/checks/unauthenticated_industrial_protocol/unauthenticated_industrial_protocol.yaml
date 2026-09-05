@@ -15,6 +15,9 @@ standards:
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 1.2"
+  - standard: "CLC/TS 50701"
+    edition: "2023"
+    clause: "nieustalony-1"
 evaluator: "unauthenticated_industrial_protocol:evaluate"
 remediation: >-
   Ograniczyc na poziomie sieci grono hostow, ktore moga w ogole otworzyc

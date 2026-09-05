@@ -16,7 +16,9 @@ wzorzec co
 
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -30,6 +32,7 @@ from wayside.protocols import registry
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_RELATIVE = "tests/fixtures/pcap/modbus_write_single_register.pcap"
 FIXTURE_RTU_RELATIVE = "tests/fixtures/pcap/modbus_rtu_over_tcp.pcap"
+DISSECTORS_ROOT = REPO_ROOT / "src" / "wayside" / "protocols" / "dissectors"
 
 # --- Wzorzec pol domyslnych do budowy dissectorow probnych na tmp_path ------
 
@@ -395,3 +398,145 @@ def test_rtu_over_tcp_fixture_gives_empty_protocol_events_and_two_low_confidence
     assert len(low_confidence_events) == 2
     for event in low_confidence_events:
         assert event["protocol"] == "modbus-rtu-over-tcp"
+
+
+# --- Kryterium 2 fazy: dissector probny bez zmiany zadnego pliku rdzenia ---
+#
+# Wzorowane linia po linii na
+# `tests/test_check_engine.py::test_new_check_discovered_without_engine_change`.
+# Ten test tymczasowo dodaje dissector PROBNY do PRAWDZIWEGO katalogu
+# `src/wayside/protocols/dissectors/` (nie do `tmp_path`), bo dokladnie to
+# bada kryterium 2 fazy: nowy protokol w czasie dzialania, bez zmiany zadnego
+# pliku rdzenia. Fixture `probe_dissector_dir` sprzata w bloku `finally`, a
+# autouse fixture modulu sprzata takze wtedy, gdy setup padnie przed `yield`.
+
+# Nazwa stala, nie losowa - nieudany wczesniejszy przebieg zostawilby wtedy
+# slad zmieniajacy wynik innych testow (ten sam powod co w pliku wzorcowym).
+# Identyfikator protokolu probnego jest "probe-extensibility-protocol" -
+# nazwany tu wprost, zeby komunikat bledu asercji nizej mial czytelne zrodlo.
+PROBE_DISSECTOR_DIR_NAME = "probe_extensibility_protocol"
+PROBE_DISSECTOR_DIR = DISSECTORS_ROOT / PROBE_DISSECTOR_DIR_NAME
+PROBE_PROTOCOL_ID = "probe-extensibility-protocol"
+
+# Lista dluzsza niz jednoelementowa lista pliku wzorcowego (`engine.py`
+# samego), bo PROTO-05 dotyka wiecej warstw niz CHECK-01 dotykal: rejestr,
+# potok, macierz komunikacji, model i raport - kazdy z nich zmieniony przez
+# Task 1 i Task 2 tego planu, plus konfiguracja projektu.
+CORE_PATHS: tuple[Path, ...] = (
+    REPO_ROOT / "src" / "wayside" / "pipeline.py",
+    REPO_ROOT / "src" / "wayside" / "decode.py",
+    REPO_ROOT / "src" / "wayside" / "flow.py",
+    REPO_ROOT / "src" / "wayside" / "model.py",
+    REPO_ROOT / "src" / "wayside" / "report.py",
+    REPO_ROOT / "src" / "wayside" / "protocols" / "registry.py",
+    REPO_ROOT / "pyproject.toml",
+)
+
+# Dissector probny: jedno zdarzenie dla PIERWSZEGO segmentu na wejsciu, lista
+# pusta dla wejscia pustego. Zdarzenie niesie wylacznie packet_number i
+# session_id - pola protocol i confidence dopisuje rejestr, a to jest czesc
+# tego, co ten test ma udowodnic.
+PROBE_EXTENSIBILITY_DISSECTOR_SOURCE = textwrap.dedent(
+    """
+    from __future__ import annotations
+
+    def dissect(segments):
+        if not segments:
+            return []
+        first = segments[0]
+        return [
+            {"packet_number": first.packet_number, "session_id": first.session_id}
+        ]
+    """
+).lstrip()
+
+
+def _sha256(path: Path) -> str:
+    """Wzorzec `_sha256` z `tests/test_check_engine.py`."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _cleanup_probe_dissector_dir_after_module():
+    """Sprzata katalog dissectora probnego takze wtedy, gdy test padnie w
+    polowie i wlasny `finally` fixture `probe_dissector_dir` nie zdazy
+    zadzialac (np. blad w setupie przed jego wlasnym `yield`)."""
+    yield
+    if PROBE_DISSECTOR_DIR.exists():
+        shutil.rmtree(PROBE_DISSECTOR_DIR)
+
+
+@pytest.fixture
+def probe_dissector_dir():
+    assert not PROBE_DISSECTOR_DIR.exists(), (
+        f"{PROBE_DISSECTOR_DIR} juz istnieje - poprzedni przebieg testu nie "
+        "posprzatal po sobie."
+    )
+    _write_dissector(
+        DISSECTORS_ROOT,
+        subdir=PROBE_DISSECTOR_DIR_NAME,
+        manifest_overrides={
+            "id": PROBE_PROTOCOL_ID,
+            "dissector": "probe_extensibility_dissector:dissect",
+        },
+        dissector_filename="probe_extensibility_dissector",
+        dissector_source=PROBE_EXTENSIBILITY_DISSECTOR_SOURCE,
+    )
+    try:
+        yield PROBE_DISSECTOR_DIR
+    finally:
+        if PROBE_DISSECTOR_DIR.exists():
+            shutil.rmtree(PROBE_DISSECTOR_DIR)
+
+
+def test_probe_dissector_discovered_without_core_file_change(probe_dissector_dir, tmp_path):
+    before = {path: _sha256(path) for path in CORE_PATHS}
+
+    result = _run_analyze(FIXTURE_RELATIVE, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    for path in CORE_PATHS:
+        after = _sha256(path)
+        assert after == before[path], f"plik rdzenia zmieniony przez dissector probny: {path}"
+
+    analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
+    probe_events = [
+        e for e in analysis["protocol_events"] if e["protocol"] == PROBE_PROTOCOL_ID
+    ]
+    assert probe_events, "zdarzenie dissectora probnego nie pojawilo sie w analysis.json"
+
+    report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert PROBE_PROTOCOL_ID in report_text, "raport.md nie wymienia dissectora probnego"
+
+
+def test_probe_dissector_session_gets_matrix_label_from_its_manifest(
+    probe_dissector_dir, tmp_path
+):
+    """Domyka dowod, ze genericyzacja `flow.py` z Task 2 dziala nad
+    protokolem, ktorego nazwa nie wystepuje w zadnym pliku pod
+    `src/wayside/`."""
+    result = _run_analyze(FIXTURE_RELATIVE, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
+    labels = {row["protocol"]["value"] for row in analysis["comm_matrix"]}
+    assert any(PROBE_PROTOCOL_ID in label for label in labels), labels
+
+
+def test_protocol_events_unaffected_after_probe_dissector_removed(tmp_path):
+    """Bez tego testu bramka dowodzilaby, ze dissector wchodzi, a nie ze
+    wychodzi bez sladu - a to drugie jest warunkiem, zeby pozostale testy
+    pakietu nadal liczyly to, co licza. Wola PO tym, jak `probe_dissector_dir`
+    (function-scoped) juz posprzatal w bloku `finally` po poprzednich dwoch
+    testach - pytest uruchamia testy tego pliku w kolejnosci zapisu."""
+    assert not PROBE_DISSECTOR_DIR.exists(), (
+        "katalog dissectora probnego wciaz istnieje - kolejnosc testow w tym "
+        "module jest zlamana."
+    )
+
+    result = _run_analyze(FIXTURE_RELATIVE, tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
+    protocols = sorted({e["protocol"] for e in analysis["protocol_events"]})
+    assert protocols == ["modbus-tcp"]

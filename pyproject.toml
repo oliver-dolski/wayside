@@ -7,6 +7,7 @@ dependencies = [
     "scapy>=2.7.0",
     "typer>=0.27.2",
     "pyyaml>=6.0.3",
+    "fpdf2>=2.8.8",
 ]
 
 [project.scripts]
@@ -17,6 +18,7 @@ dev = [
     "pytest>=9.1.1",
     "syrupy>=6.0.0",
     "pre-commit>=4.6.2",
+    "pypdf>=6.17.0",
 ]
 
 [build-system]

@@ -13,3 +13,17 @@ entries:
       Numeracja punktu i tresc parafrazy czekaja na zestawienie z legalnym
       egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
       prowizoryczny i nie stanowi potwierdzonego powolania.
+  - standard: "IEC-62443-3-3"
+    edition: "2013"
+    clause: "SR 4.1"
+    clause_title: "Poufność informacji w komunikacji"
+    paraphrase: >-
+      Własna, robocza parafraza: punkt dotyczy ochrony poufności informacji
+      przesyłanej w komunikacji systemu sterowania, w tym danych
+      uwierzytelniających, przed ujawnieniem stronom nieuprawnionym. Nigdy
+      cytat normy.
+    verified: false
+    verification_note: >-
+      Numeracja punktu i tresc parafrazy czekaja na zestawienie z legalnym
+      egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
+      prowizoryczny i nie stanowi potwierdzonego powolania.

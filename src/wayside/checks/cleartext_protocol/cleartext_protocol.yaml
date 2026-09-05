@@ -1,0 +1,20 @@
+id: cleartext-protocol
+title: "Obecność protokołu jawnotekstowego w zaobserwowanej komunikacji"
+applies_to:
+  protocol: ["telnet", "ftp", "http"]
+severity: medium
+rationale: >-
+  Protokół bez szyfrowania transmisji wystawia treść sesji, w tym dane
+  uwierzytelniające, każdemu, kto widzi ten segment sieci. Własna analiza
+  zaobserwowanej właściwości ruchu, nie ocena pracy operatora instalacji -
+  starsze instalacje przemysłowe często nie mają dostępnej alternatywy.
+standards:
+  - standard: "IEC-62443-3-3"
+    edition: "2013"
+    clause: "SR 4.1"
+evaluator: "cleartext_protocol:evaluate"
+remediation: >-
+  Przenieść zarządzanie tym ruchem na kanał szyfrowany tam, gdzie protokół
+  ma wariant szyfrowany. Gdy wariantu szyfrowanego brak, odseparować ten
+  ruch na poziomie sieci - np. przez segmentację i ograniczenie dostępu do
+  tego segmentu do niezbędnych hostów.

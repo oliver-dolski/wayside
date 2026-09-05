@@ -149,7 +149,7 @@ def test_report_markdown_carries_evidence_and_unverified_marker(tmp_path):
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    assert "Dowod: pakiet nr 1, sesja nr 0" in report_text
+    assert "Dowód: pakiet nr 1, sesja nr 0" in report_text
     assert "SR 1.1" in report_text
     assert "PROWIZORYCZNE" in report_text
     assert "NIEZWERYFIKOWANE" in report_text
@@ -192,7 +192,7 @@ def test_empty_valid_header_exits_zero_with_warning_and_empty_lists(tmp_path):
 
     headers = re.findall(r"^## (.+)$", report_text, flags=re.MULTILINE)
     assert headers == list(SECTIONS)
-    assert "Brak findingow w tym przebiegu." in report_text
+    assert "Brak findingów w tym przebiegu." in report_text
 
     ograniczenia_start = report_text.index("## Ograniczenia")
     findingi_start = report_text.index("## Findingi")
@@ -357,7 +357,7 @@ def test_report_markdown_zakres_section_names_no_protocol_recognized_for_empty_d
     metodyka_start = report_text.index("## Metodyka")
     zakres_section = report_text[zakres_start:metodyka_start]
 
-    assert "zaden protokol aplikacyjny nie zostal rozpoznany" in zakres_section
+    assert "żaden protokół aplikacyjny nie został rozpoznany" in zakres_section
 
 
 def test_report_markdown_zakres_section_no_longer_claims_single_protocol_exclusivity(tmp_path):
@@ -416,7 +416,7 @@ def test_snaplen_truncation_produces_named_warning(tmp_path):
     result = _run_analyze_path(FIXTURE_SNAPLEN_TRUNCATED, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "54" in result.stderr
-    assert "falszow" in result.stderr
+    assert "fałszow" in result.stderr
 
     analysis = _load_analysis(tmp_path)
     capture = analysis["capture"]
@@ -454,7 +454,7 @@ def test_report_zakres_section_states_snaplen_truncated_frame_count(tmp_path):
     metodyka_start = report_text.index("## Metodyka")
     zakres_section = report_text[zakres_start:metodyka_start]
 
-    assert "Ramek ucietych przez snaplen: 2" in zakres_section
+    assert "Ramek uciętych przez snaplen: 2" in zakres_section
 
 
 # --- INGEST-04: ostrzezenie o oknie zrzutu krotszym niz prog wobec ---------
@@ -550,7 +550,7 @@ def test_rtu_over_tcp_report_zakres_section_states_low_confidence_count(tmp_path
     metodyka_start = report_text.index("## Metodyka")
     zakres_section = report_text[zakres_start:metodyka_start]
 
-    assert "Zdarzen rozpoznanych z niska pewnoscia" in zakres_section
+    assert "Zdarzeń rozpoznanych z niską pewnością" in zakres_section
     assert "2" in zakres_section
 
 
@@ -563,7 +563,7 @@ def test_rtu_over_tcp_report_ograniczenia_section_names_possible_false_match(tmp
     findingi_start = report_text.index("## Findingi")
     ograniczenia_section = report_text[ograniczenia_start:findingi_start]
 
-    assert "falszywego dopasowania sumy kontrolnej" in ograniczenia_section
+    assert "fałszywego dopasowania sumy kontrolnej" in ograniczenia_section
 
 
 def test_baseline_report_ograniczenia_section_lacks_false_match_sentence(tmp_path):
@@ -575,7 +575,7 @@ def test_baseline_report_ograniczenia_section_lacks_false_match_sentence(tmp_pat
     findingi_start = report_text.index("## Findingi")
     ograniczenia_section = report_text[ograniczenia_start:findingi_start]
 
-    assert "falszywego dopasowania sumy kontrolnej" not in ograniczenia_section
+    assert "fałszywego dopasowania sumy kontrolnej" not in ograniczenia_section
 
 
 def test_two_runs_on_rtu_over_tcp_fixture_give_byte_identical_analysis_json(tmp_path):
@@ -662,7 +662,7 @@ def test_missing_oui_table_gives_named_warning_and_analyze_still_succeeds(tmp_pa
         generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 
-    assert any("Tabela producentow OUI" in warning for warning in result.warnings)
+    assert any("Tabela producentów OUI" in warning for warning in result.warnings)
     assert all(
         host["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
         for host in result.analysis["assets"]
@@ -706,7 +706,7 @@ def test_gateway_fixture_report_host_block_carries_all_five_new_rows(tmp_path):
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    for label in ("- Podadresy Unit ID:", "- Brama:", "- Rola:", "- Dowod roli:", "- Pewnosc roli:"):
+    for label in ("- Podadresy Unit ID:", "- Brama:", "- Rola:", "- Dowód roli:", "- Pewność roli:"):
         assert label in report_text
 
 
@@ -791,7 +791,7 @@ def test_report_has_macierz_komunikacji_section_with_a_table(tmp_path):
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
     assert "## Macierz komunikacji" in report_text
-    assert "| Sesja | Zrodlo | Cel | Kierunek | Protokol |" in report_text
+    assert "| Sesja | Źródło | Cel | Kierunek | Protokół |" in report_text
     assert "192.0.2.10:50400" in report_text
 
 
@@ -817,10 +817,10 @@ def test_limitations_section_carries_run_numbers_and_undetermined_field_rows(tmp
     section = report_text.split("## Ograniczenia", 1)[1].split("\n## ", 1)[0]
 
     assert "Zakres tego przebiegu" in section
-    assert "adresow zaobserwowanych 2" in section
-    assert "sesji z ladunkiem 1" in section
+    assert "adresów zaobserwowanych 2" in section
+    assert "sesji z ładunkiem 1" in section
     assert "pole `" in section
-    assert " wpisow" in section
+    assert " wpisów" in section
 
 
 def test_report_from_every_fixture_makes_no_completeness_claim(tmp_path):

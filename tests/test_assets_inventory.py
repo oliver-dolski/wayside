@@ -575,7 +575,7 @@ def test_no_forbidden_organisational_label_occurs_in_any_role_label():
 
 
 def test_confidence_levels_has_exactly_two_values_and_no_high():
-    assert CONFIDENCE_LEVELS == ("niska", "srednia")
+    assert CONFIDENCE_LEVELS == ("niska", "średnia")
     assert not any("wysok" in level for level in CONFIDENCE_LEVELS)
 
 
@@ -685,7 +685,7 @@ def test_three_directionally_consistent_events_give_medium_confidence():
     assets = build_assets(segments=_client_server_segments(), events=events)
     server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
 
-    assert server["role_confidence"]["value"] == "srednia"
+    assert server["role_confidence"]["value"] == "średnia"
 
 
 def test_three_events_in_both_directions_give_low_confidence():
@@ -734,7 +734,7 @@ def _host_entry(*, ip: str, role: str) -> dict:
         "unit_ids": {"value": None, "provenance": "not-derivable-passively"},
         "gateway": {"value": None, "provenance": "not-derivable-passively"},
         "role": {"value": role, "provenance": "inferred:modbus-traffic-direction"},
-        "role_evidence": {"value": "Zadania Modbus wyslane przez ten adres: 1; "
+        "role_evidence": {"value": "Zadania Modbus wysłane przez ten adres: 1; "
                                    "zadania Modbus odebrane przez ten adres: 0.",
                           "provenance": "observed"},
         "role_confidence": {"value": "niska",
@@ -775,7 +775,7 @@ def test_role_evidence_row_stands_directly_under_the_role_row():
     ).splitlines()
     role_index = next(i for i, line in enumerate(lines) if line.startswith("- Rola:"))
 
-    assert lines[role_index + 1].startswith("- Dowod roli:")
+    assert lines[role_index + 1].startswith("- Dowód roli:")
 
 
 def test_gateway_true_renders_probable_gateway_sentence_with_device_count():

@@ -398,7 +398,7 @@ def test_vantage_point_limitations_without_window_says_so_instead_of_empty_value
     )
     joined = " ".join(lines)
 
-    assert "nie zostalo ustalone" in joined
+    assert "nie zostało ustalone" in joined
     assert "None" not in joined
 
 
@@ -422,8 +422,8 @@ def test_limitations_section_names_blind_spots():
 
     for sentence in VANTAGE_POINT_LIMITATIONS:
         assert sentence in body
-    assert "sekcja `assets`, pole `mac`: 1 z 1 wpisow" in body
-    assert "sekcja `comm_matrix`, pole `initiator`: 1 z 1 wpisow" in body
+    assert "sekcja `assets`, pole `mac`: 1 z 1 wpisów" in body
+    assert "sekcja `comm_matrix`, pole `initiator`: 1 z 1 wpisów" in body
 
 
 def test_limitations_section_states_explicitly_when_nothing_is_undetermined():
@@ -436,7 +436,7 @@ def test_limitations_section_states_explicitly_when_nothing_is_undetermined():
 
     body = _limitations_body(analysis)
 
-    assert "kazde pole sekcji inwentarza i macierzy komunikacji zostalo ustalone" in body
+    assert "każde pole sekcji inwentarza i macierzy komunikacji zostało ustalone" in body
 
 
 def test_report_makes_no_completeness_claim():

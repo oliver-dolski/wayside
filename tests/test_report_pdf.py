@@ -133,11 +133,11 @@ def test_render_pdf_without_findings_is_nonzero_length_with_same_sentence_as_mar
     # Zdanie o braku findingow (sekcja Streszczenie) jest DOKLADNIE tym samym
     # lancuchem w obu formatach - krawedz empty z must_haves planu.
     empty_sentence = (
-        "Analiza zrzutu `test.pcap` nie wykazala zadnego findingu w tym przebiegu."
+        "Analiza zrzutu `test.pcap` nie wykazała żadnego findingu w tym przebiegu."
     )
     assert empty_sentence in markdown_text
     assert empty_sentence in pdf_text
-    assert "Brak findingow w tym przebiegu." in pdf_text
+    assert "Brak findingów w tym przebiegu." in pdf_text
 
 
 def test_render_pdf_with_one_finding_carries_expected_fields():

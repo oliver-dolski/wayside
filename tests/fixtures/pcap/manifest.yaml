@@ -156,3 +156,18 @@ fixtures:
       konwerter szeregowo-sieciowy przekazujacy ramke z magistrali wprost do
       gniazda TCP. Zaden z ladunkow nie przechodzi walidacji MBAP.
     protocol: modbus-rtu-over-tcp
+  - path: cleartext_telnet_ftp_http.pcap
+    sha256: "59d659b74a4abcbd63a87e1b87e28fe41c9cd5e1881f5195267030ba22839b32"
+    source: synthetic
+    generator: scripts/gen_fixtures.py::gen_cleartext_telnet_ftp_http
+    license: "CC0 - dane wlasne, syntetyczne"
+    description: >-
+      Siedem pakietow, trzy sesje TCP jawnotekstowe: Telnet na porcie 23
+      (dwa pakiety z trzybajtowa sekwencja negocjacji opcji), kanal
+      kontrolny FTP na porcie 21 (odpowiedz powitalna serwera, polecenie
+      podania nazwy uzytkownika, polecenie podania hasla), HTTP na porcie
+      niestandardowym 8080 zamiast 80 - rozpoznanie ma isc po zawartosci
+      ladunku, nigdy po numerze portu (PROTO-01 jako wzorzec). Nazwa
+      uzytkownika `testuser` i haslo `testpass123` w kanale kontrolnym FTP
+      sa jawnie wymyslone na potrzeby testu i nie naleza do zadnego konta.
+    protocol: "telnet,ftp,http"

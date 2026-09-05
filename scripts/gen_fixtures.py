@@ -59,6 +59,29 @@ BASE_TIMESTAMP = 1700000000.0
 # kolizja portu miedzy nimi nie ma znaczenia.
 RTU_TUNNEL_PORT = 10502
 
+# Porty trzech protokolow jawnotekstowych (plan 04-02, Task 1).
+TELNET_PORT = 23
+FTP_CONTROL_PORT = 21
+# Port HTTP niestandardowy: rozpoznanie w tym projekcie idzie po zawartosci
+# ladunku, nigdy po numerze portu (PROTO-01) - port 8080 zamiast 80 jest tym
+# samym dowodem, ktory `gen_modbus_non_standard_port` niesie od Fazy 2
+# (zalozenie Z-49).
+HTTP_PORT = 8080
+
+# Porty zrodlowe klienta trzech sesji jawnotekstowych, z zakresu
+# efemerycznego - stale, nie literaly powtorzone w trzech miejscach.
+TELNET_CLIENT_PORT = 49600
+FTP_CLIENT_PORT = 49601
+HTTP_CLIENT_PORT = 49602
+
+# Wartosci jawnie testowe fixture'u jawnotekstowego (zalozenie Z-50): nazwa
+# uzytkownika i haslo w kanale kontrolnym FTP nie naleza do zadnego konta,
+# opisane jako testowe we wpisie manifestu. `tests/test_dissectors_cleartext.py`
+# importuje te same stale zamiast powielac ich wartosc.
+FTP_TEST_USERNAME = "testuser"
+FTP_TEST_PASSWORD = "testpass123"
+HTTP_TEST_PATH = "/status.json"
+
 # Nagłówek globalny klasycznego pcapa, mikrosekundowy, little-endian
 # (zgodne z `PCAP_MAGICS` w `wayside.pcap` po Task 2 tego planu).
 PCAP_CLASSIC_MAGIC_LE = 0xA1B2C3D4
@@ -100,6 +123,7 @@ __all__ = [
     "gen_modbus_gateway_multi_unit_id",
     "gen_modbus_tcp_handshake",
     "gen_modbus_rtu_over_tcp",
+    "gen_cleartext_telnet_ftp_http",
     "main",
 ]
 
@@ -723,6 +747,108 @@ def gen_modbus_rtu_over_tcp(output_dir: Path) -> Path:
     return output_path
 
 
+# --- Faza 4: fixture jawnotekstowy Telnet/FTP/HTTP (plan 04-02, Task 1) ----
+
+
+def gen_cleartext_telnet_ftp_http(output_dir: Path) -> Path:
+    """Trzy sesje TCP jawnotekstowe: Telnet, kanal kontrolny FTP, HTTP na
+    porcie niestandardowym (CHECK-03, material dowodowy kryterium 1 fazy).
+
+    Kazda sesja niesie ruch rozpoznawalny po ksztalcie pierwszych bajtow
+    ladunku, nigdy po numerze portu ani po pelnym dekodowaniu protokolu -
+    HTTP nasluchuje na `HTTP_PORT` niestandardowym wlasnie po to, zeby
+    rozpoznanie po zawartosci bylo jedynym wytlumaczeniem wyniku (PROTO-01
+    jako wzorzec, zalozenie Z-49). Nazwa uzytkownika i haslo w kanale
+    kontrolnym FTP sa jawnie wymyslone i testowe (zalozenie Z-50) -
+    `tests/test_dissectors_cleartext.py` importuje te same stale zamiast
+    powielac ich wartosc, zeby sprawdzic ich nieobecnosc w artefaktach.
+    """
+    # Sesja Telneta, dwa pakiety: kazdy niesie trzybajtowa sekwencje
+    # negocjacji opcji. Bajt 0: IAC (0xFF, interpretacja polecenia jako
+    # polecenie, nie jako dane). Bajt 1: polecenie negocjacji (klient: WILL
+    # / 0xFB, serwer: DO / 0xFD - odpowiedz na inne polecenie, tak jak
+    # prawdziwa negocjacja Telneta). Bajt 2: numer opcji (0x01 = echo) -
+    # wartosc dowolna, dissector jej nie sprawdza (rozstrzygniecie, nie
+    # pominiecie).
+    telnet_client = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=TELNET_CLIENT_PORT, dport=TELNET_PORT, seq=1, ack=0, flags="PA")
+        / Raw(load=bytes([0xFF, 0xFB, 0x01]))
+    )
+    telnet_server = (
+        Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+        / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+        / TCP(sport=TELNET_PORT, dport=TELNET_CLIENT_PORT, seq=1, ack=1, flags="PA")
+        / Raw(load=bytes([0xFF, 0xFD, 0x01]))
+    )
+
+    # Sesja FTP, kanal kontrolny, trzy pakiety: odpowiedz powitalna serwera
+    # (kod liczbowy 220, spacja, wlasny wymyslony tekst), potem polecenie
+    # klienta z nazwa uzytkownika, potem polecenie klienta z haslem.
+    ftp_welcome = (
+        Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+        / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+        / TCP(sport=FTP_CONTROL_PORT, dport=FTP_CLIENT_PORT, seq=1, ack=0, flags="PA")
+        / Raw(load=b"220 Test FTP service ready\r\n")
+    )
+    ftp_user = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=FTP_CLIENT_PORT, dport=FTP_CONTROL_PORT, seq=1, ack=1, flags="PA")
+        / Raw(load=f"USER {FTP_TEST_USERNAME}\r\n".encode("ascii"))
+    )
+    ftp_pass = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=FTP_CLIENT_PORT, dport=FTP_CONTROL_PORT, seq=2, ack=1, flags="PA")
+        / Raw(load=f"PASS {FTP_TEST_PASSWORD}\r\n".encode("ascii"))
+    )
+
+    # Sesja HTTP, dwa pakiety: linia zadania (metoda, sciezka, wersja) z
+    # naglowkiem nazwy hosta, potem linia statusu odpowiedzi z naglowkiem
+    # typu tresci i krotkim cialem.
+    http_request = (
+        Ether(src=CLIENT_MAC, dst=SERVER_MAC)
+        / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
+        / TCP(sport=HTTP_CLIENT_PORT, dport=HTTP_PORT, seq=1, ack=0, flags="PA")
+        / Raw(
+            load=(
+                f"GET {HTTP_TEST_PATH} HTTP/1.1\r\n"
+                f"Host: {SERVER_IP}\r\n\r\n"
+            ).encode("ascii")
+        )
+    )
+    http_response = (
+        Ether(src=SERVER_MAC, dst=CLIENT_MAC)
+        / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
+        / TCP(sport=HTTP_PORT, dport=HTTP_CLIENT_PORT, seq=1, ack=1, flags="PA")
+        / Raw(
+            load=(
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n\r\nOK"
+            ).encode("ascii")
+        )
+    )
+
+    packets = [
+        telnet_client,
+        telnet_server,
+        ftp_welcome,
+        ftp_user,
+        ftp_pass,
+        http_request,
+        http_response,
+    ]
+    for i, pkt in enumerate(packets):
+        pkt.time = BASE_TIMESTAMP + i * 0.01
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "cleartext_telnet_ftp_http.pcap"
+    wrpcap(str(output_path), packets)
+    return output_path
+
+
 GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_write_single_register.pcap", gen_modbus_write_single_register),
     ("modbus_write_non_standard_port.pcap", gen_modbus_non_standard_port),
@@ -738,6 +864,7 @@ GENERATORS: tuple[tuple[str, Callable[[Path], Path]], ...] = (
     ("modbus_gateway_multi_unit_id.pcap", gen_modbus_gateway_multi_unit_id),
     ("modbus_tcp_handshake.pcap", gen_modbus_tcp_handshake),
     ("modbus_rtu_over_tcp.pcap", gen_modbus_rtu_over_tcp),
+    ("cleartext_telnet_ftp_http.pcap", gen_cleartext_telnet_ftp_http),
 )
 
 

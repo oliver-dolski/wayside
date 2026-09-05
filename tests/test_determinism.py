@@ -42,6 +42,9 @@ FIXTURE_HANDSHAKE = REPO_ROOT / "tests" / "fixtures" / "pcap" / "modbus_tcp_hand
 FIXTURE_SNAPLEN = (
     REPO_ROOT / "tests" / "fixtures" / "pcap" / "snaplen_truncated_frames.pcap"
 )
+FIXTURE_CLEARTEXT = (
+    REPO_ROOT / "tests" / "fixtures" / "pcap" / "cleartext_telnet_ftp_http.pcap"
+)
 
 FIXTURES: dict[str, Path] = {
     "write": FIXTURE_WRITE,
@@ -56,6 +59,11 @@ FIXTURES: dict[str, Path] = {
     "gateway": FIXTURE_GATEWAY,
     "handshake": FIXTURE_HANDSHAKE,
     "snaplen": FIXTURE_SNAPLEN,
+    # Fixture jawnotekstowy (plan 04-02): trzy dissectory nowe w tej fazie
+    # przechodza przez te sama sciezke serializacji zdarzen protokolu co
+    # Modbus - bez tego wpisu bramka determinizmu pilnuje kodu z faz
+    # poprzednich, nie kodu Fazy 4 (luka W-2 z weryfikacji Fazy 3).
+    "cleartext": FIXTURE_CLEARTEXT,
 }
 
 # Linia znacznika czasu wygenerowania raportu (D-02) - jedyna dopuszczalna

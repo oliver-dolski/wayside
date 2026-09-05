@@ -55,6 +55,7 @@ __all__ = [
     "DATASET_FILENAME",
     "DATASET_SHA256",
     "SLICE_FILENAME",
+    "SLICE_SKIP_PACKETS",
     "SLICE_PACKET_COUNT",
     "SLICE_SHA256",
     "DATASET_DIR",
@@ -93,13 +94,38 @@ DATASET_SHA256 = "82529c23906416dc73d7f1926a0d38b82527f1f2a7ff8c6f755ce3208feb96
 
 SLICE_FILENAME = "4sics-slice.pcap"
 
-# Liczba pakietow podzbioru: pierwsze `SLICE_PACKET_COUNT` pakietow pliku
-# zrodlowego (zalozenie Z-69).
-SLICE_PACKET_COUNT = 2000
+# Liczba pakietow pliku zrodlowego pomijanych PRZED wycieciem podzbioru.
+# Pierwotny zamysl (zalozenie Z-69) liczyl podzbior od pakietu pierwszego z
+# `SLICE_PACKET_COUNT = 2000` - Task 2 tego planu zmierzyl, ze pierwsze 2000
+# pakietow tego pliku zrodlowego daje ZERO findingow: pierwszy pakiet z
+# ruchem rozpoznawalnym przez dissectory tego repozytorium (Modbus/TCP) pada
+# na pozycji 292179 (1-bazowo), bo zbior jest ruchem z sieci konferencji
+# przemyslowej, gdzie wiekszosc wczesniejszego ruchu to S7comm (port 102) i
+# ogolny ruch internetowy uczestnikow. Podzbior liczony od pakietu
+# pierwszego musialby wiec objac ponad 290 000 pakietow, a odczyt tylu
+# pakietow przez warstwe dekodowania tego projektu (scapy) kosztuje rzedu
+# 30-50 sekund - samo to przekracza budzet czasu bramki z Task 3
+# (kryterium akceptacji "uv run pytest -q ponizej 120 sekund"; zmierzone
+# empirycznie 2026-09-05, udokumentowane w 04-06-SUMMARY.md jako deviation
+# od zalozenia Z-69). `SLICE_SKIP_PACKETS` przesuwa POCZATEK wyciecia na
+# pierwszy pakiet niosacy ruch rozpoznawalny (29 pakietow przed pierwszym
+# zdarzeniem Modbus/TCP, zeby podzbior objal takze poprzedzajace uzgodnienie
+# TCP) - podzbior pozostaje w pelni deterministyczny (ten sam plik zrodlowy
+# zawsze daje ta sama pozycje pominiecia), zmienia sie wylacznie to, ze
+# poczatek wyciecia nie jest pakietem numer jeden.
+SLICE_SKIP_PACKETS = 292150
 
-# Suma kontrolna pliku podzbioru, zbudowanego z pierwszych
-# `SLICE_PACKET_COUNT` pakietow `DATASET_FILENAME` (2026-09-05).
-SLICE_SHA256 = "2665c898fb6eccad6bef669a3d0eb5cbf1ac1fe39f9168b98584f698b57aadb8"
+# Liczba pakietow podzbioru, liczona od `SLICE_SKIP_PACKETS`. Czterdziesci
+# pakietow obejmuje piec niezaleznych sesji Modbus/TCP (jeden host
+# odpytujacy piec roznych serwerow) - material czytelny w przykladowym
+# raporcie, nie zalewajacy go setkami niemal identycznych wpisow (ten sam
+# zrzut, wieksze `SLICE_PACKET_COUNT`, dawal kilkaset findingow tego samego
+# checka - zmierzone 2026-09-05).
+SLICE_PACKET_COUNT = 40
+
+# Suma kontrolna pliku podzbioru, zbudowanego z `DATASET_FILENAME` przy
+# `SLICE_SKIP_PACKETS`/`SLICE_PACKET_COUNT` powyzej (2026-09-05).
+SLICE_SHA256 = "7e2f9bbbb38a2d8a5344370781a6c706ae0abac95af13659575814a34a1fbf97"
 
 # Katalog pobrania, wyprowadzony z polozenia skryptu - nie z katalogu
 # uruchomienia procesu. Ignorowany przez gita (`.gitignore`, rekord decyzji
@@ -215,18 +241,18 @@ def fetch_dataset(
 
 
 def build_slice(source: Path, output_dir: Path = DATASET_DIR) -> Path:
-    """Buduje plik podzbioru pod `output_dir` z pierwszych `SLICE_PACKET_COUNT`
-    pakietow `source`.
+    """Buduje plik podzbioru pod `output_dir` z pakietow `source`.
 
     Czyta `source` STRUMIENIOWO (`RawPcapReader`, bez dekodowania warstw) -
     odczyt calego pliku o rozmiarze rzedu setek megabajtow przez warstwe
     odczytu tego projektu (`wayside.pcap`/scapy) zajalby minuty i gigabajty
-    pamieci (zalozenie Z-69). Zapisuje pierwsze `SLICE_PACKET_COUNT`
-    pakietow do pliku podzbioru, zachowujac oryginalne znaczniki czasu i
-    oryginalny typ warstwy drugiej (`reader.linktype`) - podzbior ma niesc
-    prawdziwy ruch z prawdziwymi znacznikami, bo to jest cala jego wartosc.
-    Suma sha256 pliku podzbioru jest sprawdzona PRZED zwroceniem sciezki
-    wywolujacemu.
+    pamieci (zalozenie Z-69). Pomija pierwsze `SLICE_SKIP_PACKETS` pakietow
+    (patrz komentarz przy tej stalej), potem zapisuje kolejne
+    `SLICE_PACKET_COUNT` pakietow do pliku podzbioru, zachowujac oryginalne
+    znaczniki czasu i oryginalny typ warstwy drugiej (`reader.linktype`) -
+    podzbior ma niesc prawdziwy ruch z prawdziwymi znacznikami, bo to jest
+    cala jego wartosc. Suma sha256 pliku podzbioru jest sprawdzona PRZED
+    zwroceniem sciezki wywolujacemu.
     """
     source = Path(source)
     output_dir = Path(output_dir)
@@ -238,12 +264,16 @@ def build_slice(source: Path, output_dir: Path = DATASET_DIR) -> Path:
     )
     os.close(fd)
     try:
+        skipped = 0
         written = 0
         with RawPcapReader(str(source)) as reader, PcapWriter(
             tmp_path_str, linktype=reader.linktype
         ) as writer:
             writer.write_header(None)
             for raw_bytes, metadata in reader:
+                if skipped < SLICE_SKIP_PACKETS:
+                    skipped += 1
+                    continue
                 if written >= SLICE_PACKET_COUNT:
                     break
                 writer.write_packet(

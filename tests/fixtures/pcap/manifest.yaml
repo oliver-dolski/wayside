@@ -200,8 +200,8 @@ external_datasets:
     filename: "4SICS-GeekLounge-151022.pcap"
     sha256: "82529c23906416dc73d7f1926a0d38b82527f1f2a7ff8c6f755ce3208feb9643"
     slice_filename: "4sics-slice.pcap"
-    slice_sha256: "2665c898fb6eccad6bef669a3d0eb5cbf1ac1fe39f9168b98584f698b57aadb8"
-    slice_packet_count: 2000
+    slice_sha256: "7e2f9bbbb38a2d8a5344370781a6c706ae0abac95af13659575814a34a1fbf97"
+    slice_packet_count: 40
     source: external
     license: >-
       Redystrybucja dozwolona, takze w materialach szkoleniowych, pod
@@ -214,10 +214,13 @@ external_datasets:
       CS3Sthlm (nastepcy konferencji 4SICS) na udostepnienie przechwyconego
       ruchu.
     description: >-
-      Podzbior pierwszych 2000 pakietow trzeciego z trzech plikow zrzutu
-      udostepnionych na stronie zbioru. Ruch pochodzi z laboratorium
-      konferencji przemyslowej, NIE z instalacji kolejowej - przykladowy
-      raport zbudowany z tego podzbioru nie pokazuje dziedziny, w ktorej ten
+      Podzbior 40 pakietow trzeciego z trzech plikow zrzutu udostepnionych
+      na stronie zbioru, wyciety z pozycji 292150 (po pominieciu ruchu, ktorego
+      dissectory tego repozytorium nie rozpoznaja): piec sesji Modbus/TCP
+      jednego hosta odpytujacego piec roznych serwerow, bez mechanizmu
+      uwierzytelnienia. Ruch pochodzi z laboratorium konferencji
+      przemyslowej, NIE z instalacji kolejowej - przykladowy raport
+      zbudowany z tego podzbioru nie pokazuje dziedziny, w ktorej ten
       projekt ma swoj wyroznik (ryzyko rezydualne rekordu decyzji `0005`).
     in_repo: false
     fetch_script: scripts/fetch_4sics_sample.py

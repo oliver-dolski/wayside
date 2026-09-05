@@ -4,3 +4,13 @@
 *.ambr text eol=lf
 *.ps1 text eol=crlf
 *.py text eol=lf
+
+# Artefakty przykladowego raportu (REPORT-05) sa porownywane bajtowo z
+# plikami swiezo wygenerowanymi (tests/test_example_report.py) - normalizacja
+# konca linii przy checkoucie zestawialaby wtedy plik, ktory przez nia
+# przeszedl, z plikiem, ktory nie przeszedl (ten sam tryb porazki, dla
+# ktorego bramka determinizmu z Fazy 2 odmawia porownywania z plikiem z
+# repozytorium - tests/test_determinism.py).
+examples/4sics/report.md -text
+examples/4sics/analysis.json -text
+examples/4sics/report.pdf binary

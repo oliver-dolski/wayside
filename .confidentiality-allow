@@ -39,3 +39,22 @@ tests/test_review_blockers_01.py
 # wylaczajacy pojedyncza linie), a nie kolejny wpis na cala sciezke - wpis
 # na plik zdejmuje warstwe 2 z CALEGO pliku, takze z tresci dopisanej pozniej.
 .planning/phases/01-fundament-poufno-i-warunek-publikacji/01-VERIFICATION.md
+
+# Ten wpis jest INNEJ klasy niz cztery powyzsze: `analysis.json` nie
+# zawiera zadnego wymyslonego zdania o ksztalcie normatywnym - zawiera
+# `dump_deterministic` (jeden ciag bez konca linii, separator bez bialych
+# znakow). Warstwa 2 dzieli fragment po TERMINATORACH ZDANIA (kropka,
+# wykrzyknik, pytajnik), a minifikowany JSON ma ich bardzo malo (tylko
+# wewnatrz wartosci tekstowych), wiec pojedynczy "fragment" miedzy dwoma
+# takimi terminatorami rozciaga sie na tysiace znakow, tam gdzie w prozie
+# byloby to jedno zdanie. Zmierzone 2026-09-06: fragment od pola
+# `rubric_version":"1.0"` (dopasowuje ksztalt numeru klauzuli) do slowa
+# "nalezy" w calkiem niezwiazanym zdaniu `zones.py` ("... nalezy do Fazy 3
+# (macierz komunikacji)."), setki pol JSON dalej - dwa niezwiazane fragmenty
+# tekstu, zlaczone przez brak kropek miedzy nimi w zserializowanym JSON, nie
+# cytat normy. Wplyw ograniczony do TEGO pliku: `dump_deterministic` jest
+# ta sama funkcja dla kazdego `analysis.json` w projekcie, ale zaden inny
+# taki plik nie jest sledzony przez gita (katalogi wyjsciowe sa
+# gitignorowane) - to jest pierwszy i jedyny commitowany artefakt tego
+# ksztaltu.
+examples/4sics/analysis.json

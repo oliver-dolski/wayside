@@ -70,6 +70,17 @@ uruchomieniowej.
 uv run wayside analyze <plik.pcap> --pdf --out-dir wayside-out
 ```
 
+## Przykladowy raport
+
+Katalog [`examples/4sics/`](examples/4sics/) niesie gotowy przykladowy
+raport (`analysis.json`, `report.md`, `report.pdf`) wygenerowany z
+publicznego zbioru 4SICS Geek Lounge, udostepnionego przez
+[Netresec](https://www.netresec.com/?page=PCAP4SICS) za zgoda
+[CS3Sthlm](https://cs3sthlm.se/). Raport jest odtwarzalny ze skryptu
+pobierajacego - zaden plik zrzutu tego zbioru nie jest sledzony przez gita.
+Szczegoly, atrybucja pelna i granica dziedzinowa stoja w
+[`examples/4sics/README.md`](examples/4sics/README.md).
+
 ## Stan weryfikacji powolan na normy
 
 Kazdy finding niesie powolanie na punkt normy razem z sygnatura i edycja, a

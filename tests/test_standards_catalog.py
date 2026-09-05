@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from wayside import cli as cli_module
 from wayside import zones
 from wayside.checks import engine
 from wayside.pcap import CaptureFormatError, CaptureTruncatedError
@@ -171,6 +172,177 @@ def test_load_catalog_accepts_verified_false_without_raising(tmp_path):
     _write_catalog(sub, overrides={"verified": False})
     catalog = mapper.load_catalog(catalog_root=sub)
     assert catalog[("TEST-STANDARD", "T 1.1")]["verified"] is False
+
+
+# --- Grupa nowa: bramka typu pola katalogu (STD-03, STD-05, G-04-2) --------
+#
+# Zamyka luke UAT G-04-2: wpis z polem `verified` zapisanym jako napis albo
+# liczba wczytywal sie bez bledu, a `resolve` zamienial kazdy niepusty napis
+# w `True` przez `bool(...)`. Testy nizej dowodza, ze bramka siedzi w warstwie
+# WCZYTUJACEJ, nie tylko w tym pakiecie testow.
+
+
+def test_load_catalog_rejects_verified_as_string(tmp_path):
+    sub = tmp_path / "verified_string"
+    _write_catalog(sub, overrides={"verified": "prawda"})
+    with pytest.raises(mapper.StandardsError):
+        mapper.load_catalog(catalog_root=sub)
+
+
+def test_load_catalog_rejects_verified_as_int(tmp_path):
+    sub = tmp_path / "verified_int"
+    _write_catalog(sub, overrides={"verified": 1})
+    with pytest.raises(mapper.StandardsError):
+        mapper.load_catalog(catalog_root=sub)
+
+
+def test_load_catalog_accepts_verified_true_without_raising(tmp_path):
+    sub = tmp_path / "verified_true"
+    _write_catalog(sub, overrides={"verified": True})
+    catalog = mapper.load_catalog(catalog_root=sub)
+    assert catalog[("TEST-STANDARD", "T 1.1")]["verified"] is True
+
+
+def test_load_catalog_rejects_edition_as_int(tmp_path):
+    sub = tmp_path / "edition_int"
+    _write_catalog(sub, overrides={"edition": 2020})
+    with pytest.raises(mapper.StandardsError):
+        mapper.load_catalog(catalog_root=sub)
+
+
+def test_load_catalog_rejects_clause_as_float(tmp_path):
+    sub = tmp_path / "clause_float"
+    _write_catalog(sub, overrides={"clause": 1.1})
+    with pytest.raises(mapper.StandardsError):
+        mapper.load_catalog(catalog_root=sub)
+
+
+@pytest.mark.parametrize("field", ["standard", "clause_title", "paraphrase"])
+def test_load_catalog_rejects_non_string_scalar_field(tmp_path, field):
+    sub = tmp_path / f"non_string_{field}"
+    _write_catalog(sub, overrides={field: 42})
+    with pytest.raises(mapper.StandardsError):
+        mapper.load_catalog(catalog_root=sub)
+
+
+def test_load_catalog_rejects_verification_note_wrong_type(tmp_path):
+    sub = tmp_path / "verification_note_int"
+    _write_catalog(sub, overrides={"verification_note": 123})
+    with pytest.raises(mapper.StandardsError):
+        mapper.load_catalog(catalog_root=sub)
+
+
+def test_load_catalog_accepts_missing_optional_verification_note(tmp_path):
+    sub = tmp_path / "no_verification_note"
+    _write_catalog(sub, remove_fields=["verification_note"])
+    catalog = mapper.load_catalog(catalog_root=sub)
+    assert "verification_note" not in catalog[("TEST-STANDARD", "T 1.1")]
+
+
+def test_type_error_komunikat_niesie_pole_i_typy_bez_wartosci(tmp_path):
+    sub = tmp_path / "komunikat_ksztalt"
+    secret_paraphrase_value = 424242
+    _write_catalog(sub, overrides={"paraphrase": secret_paraphrase_value})
+
+    with pytest.raises(mapper.StandardsError) as excinfo:
+        mapper.load_catalog(catalog_root=sub)
+
+    message = str(excinfo.value)
+    assert "paraphrase" in message
+    assert "str" in message
+    assert "int" in message
+    assert str(secret_paraphrase_value) not in message
+
+
+def test_type_error_komunikat_niesie_wszystkie_pola_naraz(tmp_path):
+    sub = tmp_path / "komunikat_wiele_pol"
+    _write_catalog(sub, overrides={"edition": 2020, "verified": "prawda"})
+
+    with pytest.raises(mapper.StandardsError) as excinfo:
+        mapper.load_catalog(catalog_root=sub)
+
+    message = str(excinfo.value)
+    assert "edition" in message
+    assert "verified" in message
+
+
+def test_resolve_passes_verified_value_without_conversion():
+    zone_model = zones.build_zone_model(
+        observed_ips=["192.0.2.10"], observed_protocols=["modbus-tcp"]
+    )
+    catalog = mapper.load_catalog()
+    (standard, clause), entry = next(iter(catalog.items()))
+
+    ref = mapper.resolve(standard, clause, zone_model=zone_model)
+
+    assert ref.verified is entry["verified"]
+
+
+# Wpis probny o zlym typie pola weryfikacji, wpisany do PRAWDZIWEGO drzewa
+# pakietu - wzorzec `probe_catalog_and_check` z grupy siodmej nizej w tym
+# pliku. Zaden check nie odwoluje sie do tej pary, wiec sam fakt obecnosci
+# pliku w drzewie katalogu norm wystarcza, by zlamac `load_catalog()` na
+# KAZDYM wywolaniu (skan jest rekurencyjny nad calym `CATALOG_ROOT`).
+BAD_TYPE_PROBE_DIR_NAME = "probe_bad_type_catalog"
+BAD_TYPE_PROBE_DIR = STANDARDS_ROOT / BAD_TYPE_PROBE_DIR_NAME
+
+
+def _write_bad_type_probe_catalog() -> None:
+    _write_catalog(BAD_TYPE_PROBE_DIR, overrides={"verified": "prawda"})
+
+
+def _remove_bad_type_probe_catalog() -> None:
+    if BAD_TYPE_PROBE_DIR.exists():
+        shutil.rmtree(BAD_TYPE_PROBE_DIR)
+
+
+@pytest.fixture
+def bad_type_probe_catalog():
+    assert not BAD_TYPE_PROBE_DIR.exists(), (
+        f"{BAD_TYPE_PROBE_DIR} juz istnieje - poprzedni przebieg testu nie "
+        "posprzatal po sobie."
+    )
+    _write_bad_type_probe_catalog()
+    try:
+        yield
+    finally:
+        _remove_bad_type_probe_catalog()
+
+
+def test_catalog_bad_verified_type_stops_analyze_with_nonzero_exit_and_no_analysis(
+    bad_type_probe_catalog, tmp_path
+):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "wayside.cli",
+            "analyze",
+            FIXTURE_RELATIVE,
+            "--out-dir",
+            str(tmp_path),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == cli_module.EXIT_UNREADABLE, result.stderr
+    assert not (tmp_path / "analysis.json").exists()
+
+
+def test_untouched_catalog_report_carries_provisional_status_for_every_reference(tmp_path):
+    fixture = FIXTURE_DIR / "modbus_write_single_register.pcap"
+    result = analyze(fixture, out_dir=tmp_path, generated_at=GENERATED_AT)
+
+    assert result.analysis["findings"], "Fixture bazowy nie dal ani jednego findingu."
+    total_refs = sum(len(f["standard_refs"]) for f in result.analysis["findings"])
+    assert total_refs > 0
+
+    provisional_marker_count = result.report_markdown.count(
+        "PROWIZORYCZNE, NIEZWERYFIKOWANE"
+    )
+    assert provisional_marker_count == total_refs
 
 
 # --- Encoding: polskie znaki z parafrazy przechodza bez escapowania --------
@@ -647,6 +819,8 @@ def _cleanup_probe_catalog_and_check_after_module():
         shutil.rmtree(PROBE_CATALOG_DIR)
     if PROBE_TARGET_CHECK_YAML.read_bytes() != _PROBE_TARGET_ORIGINAL_BYTES:
         PROBE_TARGET_CHECK_YAML.write_bytes(_PROBE_TARGET_ORIGINAL_BYTES)
+    if BAD_TYPE_PROBE_DIR.exists():
+        shutil.rmtree(BAD_TYPE_PROBE_DIR)
 
 
 @pytest.fixture

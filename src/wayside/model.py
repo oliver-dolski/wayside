@@ -24,6 +24,7 @@ __all__ = [
     "build_analysis",
     "dump_deterministic",
     "write_atomic",
+    "write_atomic_bytes",
     "PROVENANCE_OBSERVED",
     "PROVENANCE_NOT_DERIVABLE",
     "PROVENANCE_PATTERN",
@@ -279,6 +280,30 @@ def write_atomic(path: Path, text: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
+        os.replace(tmp_path_str, path)
+    except BaseException:
+        try:
+            os.remove(tmp_path_str)
+        except OSError:
+            pass
+        raise
+
+
+def write_atomic_bytes(path: Path, data: bytes) -> None:
+    """Zapisuje `data` do `path` przez plik tymczasowy w tym samym katalogu
+    docelowym i `os.replace` - ten sam wzorzec co `write_atomic`. Osobna
+    funkcja, nie argument istniejacej: `write_atomic` otwiera plik w trybie
+    tekstowym z jawnym `newline='\\n'`, a bajty PDF nie sa tekstem i nie
+    maja konca linii do tlumaczenia - dwa tryby otwarcia w jednej funkcji,
+    za galezia warunkowa, ukrylyby w jednym miejscu dwie rozne umowy o
+    tresc parametru."""
+    path = Path(path)
+    fd, tmp_path_str = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
         os.replace(tmp_path_str, path)
     except BaseException:
         try:

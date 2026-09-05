@@ -99,12 +99,22 @@ def analyze(
         "--out-dir",
         help="Katalog wyjsciowy na analysis.json i report.md.",
     ),
+    export_pdf: bool = typer.Option(
+        False,
+        "--pdf/--no-pdf",
+        help="Doloz trzeci artefakt, report.pdf, z osadzonym fontem Unicode.",
+    ),
 ) -> None:
-    """Uruchamia pelny potok analizy: od pliku pcap do dwoch artefaktow."""
+    """Uruchamia pelny potok analizy: od pliku pcap do dwoch albo trzech
+    artefaktow (REPORT-03: `--pdf` dokladajac report.pdf jest opcja
+    wlaczana, domyslnie wylaczona - zalozenie Z-51)."""
+    # Znacznik czasu wygenerowania idzie do zmiennej lokalnej PRZED
+    # wywolaniem potoku i ta sama wartosc wchodzi pozniej do renderowania
+    # PDF - dwa osobne odczyty zegara dalyby markdown i PDF z roznymi
+    # znacznikami z tego samego przebiegu (04-03-PLAN.md, Task 3).
+    generated_at = datetime.now(timezone.utc)
     try:
-        result = run_analyze(
-            path, out_dir=out_dir, generated_at=datetime.now(timezone.utc)
-        )
+        result = run_analyze(path, out_dir=out_dir, generated_at=generated_at)
     except FileNotFoundError:
         typer.echo(f"Nie znaleziono pliku zrzutu: {path}", err=True)
         raise typer.Exit(code=EXIT_UNREADABLE) from None
@@ -134,6 +144,25 @@ def analyze(
     typer.echo(f"Liczba findingow: {len(result.analysis['findings'])}")
     for warning in result.warnings:
         typer.echo(f"Ostrzezenie: {warning}", err=True)
+
+    if export_pdf:
+        # Import WEWNATRZ galezi obslugujacej flage, nie na gorze pliku -
+        # bez tego kazdy przebieg komendy analizy (takze dziesiatki testow
+        # w podprocesie bez flagi) wciagalby biblioteke generowania PDF do
+        # domyslnej sciezki narzedzia (FOUND-01, 04-03-PLAN.md Task 3).
+        from wayside.model import write_atomic_bytes
+        from wayside.report_pdf import PdfRenderError, render_pdf
+
+        try:
+            pdf_bytes = render_pdf(
+                result.analysis, generated_at=generated_at, warnings=result.warnings
+            )
+        except PdfRenderError as exc:
+            typer.echo(f"Nie udalo sie wyrenderowac pliku PDF: {exc}", err=True)
+            raise typer.Exit(code=EXIT_UNREADABLE) from None
+        pdf_path = out_dir / "report.pdf"
+        write_atomic_bytes(pdf_path, pdf_bytes)
+        typer.echo(f"Zapisano: {pdf_path}")
 
 
 def run() -> None:

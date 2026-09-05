@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
 
 from wayside import risk
 from wayside.flow import (
@@ -20,14 +23,21 @@ from wayside.flow import (
     vantage_point_limitations,
 )
 from wayside.model import collect_not_derivable_fields
+from wayside.pcap import CaptureFormatError, CaptureTruncatedError
+from wayside.pipeline import analyze
 from wayside.report import (
     CITATION_SCOPE_LABEL,
     SECTIONS,
+    aggregated_remediations,
     citation_line,
     citation_scope_line,
+    finding_genitive_phrase,
     render_markdown,
     session_parties_line,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "pcap"
 
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -515,3 +525,79 @@ def test_report_makes_no_completeness_claim():
 
     for term in COMPLETENESS_CLAIM_TERMS:
         assert term.lower() not in text
+
+
+# --- G-04-5a: sekcja zbiorcza zalecen bez powtorzen ------------------------
+
+
+def test_aggregated_remediations_collapses_identical_remediations_with_count():
+    findings = [{"remediation": "X"}, {"remediation": "X"}, {"remediation": "X"}]
+
+    assert aggregated_remediations(findings) == [("X", 3)]
+
+
+def test_aggregated_remediations_keeps_first_occurrence_order():
+    findings = [
+        {"remediation": "A"},
+        {"remediation": "B"},
+        {"remediation": "A"},
+    ]
+
+    assert aggregated_remediations(findings) == [("A", 2), ("B", 1)]
+
+
+def test_aggregated_remediations_treats_shared_prefix_as_two_distinct_entries():
+    """Zalozenie Z-94: dwa zalecenia rozniace sie samym koncem sa dwoma
+    roznymi wpisami - dedupikacja idzie po pelnym lancuchu, nigdy po
+    prefiksie."""
+    findings = [
+        {"remediation": "Ala ma kota"},
+        {"remediation": "Ala ma kota i psa"},
+    ]
+
+    assert aggregated_remediations(findings) == [
+        ("Ala ma kota", 1),
+        ("Ala ma kota i psa", 1),
+    ]
+
+
+def test_aggregated_remediations_on_empty_list_is_empty_list():
+    assert aggregated_remediations([]) == []
+
+
+def test_finding_genitive_phrase_singular_for_one():
+    assert finding_genitive_phrase(1) == "1 findingu"
+
+
+def test_finding_genitive_phrase_genitive_plural_for_every_other_count():
+    """Ta odmiana nie ma wyjatku dla 12-14: forma dopelniaczowa jest ta sama
+    dla kazdej liczby wiekszej niz jeden w tej konstrukcji."""
+    for count in (2, 5, 12, 13, 14, 22, 100):
+        assert finding_genitive_phrase(count) == f"{count} findingów", count
+
+
+def _analyzable_fixtures() -> list[Path]:
+    """Wzorzec `tests/test_report_forbidden_phrases.py::_analyzable_fixtures` -
+    lista budowana GLOBEM, nie recznym wyliczeniem nazw."""
+    return sorted(FIXTURE_DIR.glob("*.pcap")) + sorted(FIXTURE_DIR.glob("*.pcapng"))
+
+
+def _analyze_or_skip(fixture: Path, out_dir: Path):
+    try:
+        return analyze(fixture, out_dir=out_dir, generated_at=GENERATED_AT)
+    except (CaptureTruncatedError, CaptureFormatError):
+        pytest.skip(f"fixture {fixture.name} nie produkuje artefaktow (brama D-01)")
+
+
+def _remediation_section_rows(report_markdown: str) -> list[str]:
+    section = report_markdown.split(f"## {SECTIONS[7]}", 1)[1]
+    return [line for line in section.splitlines() if line.startswith("- ")]
+
+
+@pytest.mark.parametrize("fixture", _analyzable_fixtures(), ids=lambda path: path.name)
+def test_remediations_section_has_no_duplicate_rows(fixture, tmp_path):
+    result = _analyze_or_skip(fixture, tmp_path)
+
+    rows = _remediation_section_rows(result.report_markdown)
+
+    assert len(rows) == len(set(rows)), f"{fixture.name}: {rows}"

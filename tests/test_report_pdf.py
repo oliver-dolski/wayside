@@ -43,8 +43,10 @@ from wayside.pipeline import analyze as pipeline_analyze
 from wayside.report import (
     CITATION_SCOPE_LABEL,
     SECTIONS,
+    aggregated_remediations,
     citation_line,
     citation_scope_line,
+    finding_genitive_phrase,
     render_markdown,
     session_parties_line,
 )
@@ -292,6 +294,38 @@ def test_pdf_wlasny_provenance_finding_carries_scope_label_not_title_inline():
     for line in pdf_text.splitlines():
         if "SR 1.1" in line:
             assert "Tytul opisu wlasnego" not in line
+
+
+def test_remediation_list_order_and_content_matches_between_markdown_and_pdf():
+    """G-04-5a, Task 2: sekcja zbiorcza zalecen ma te sama liste, w tej samej
+    kolejnosci, w obu formatach - zbudowana ta sama funkcja czysta
+    `aggregated_remediations`. Model reczny z jednym powtorzonym zaleceniem
+    unika krawedzi zawijania dlugiego tekstu w PDF (`_body`, WORD wrapmode)."""
+    findings = [
+        _finding(remediation="X"),
+        _finding(remediation="Y"),
+        _finding(remediation="X"),
+    ]
+    analysis = _analysis(findings=findings)
+
+    markdown_text = render_markdown(analysis, generated_at=GENERATED_AT)
+    pdf_text = _extract_text(render_pdf(analysis, generated_at=GENERATED_AT))
+    collapsed_pdf_text = re.sub(r"\s+", " ", pdf_text)
+
+    expected_rows = [
+        f"{remediation} (dotyczy {finding_genitive_phrase(count)})"
+        for remediation, count in aggregated_remediations(findings)
+    ]
+    assert expected_rows == ["X (dotyczy 2 findingów)", "Y (dotyczy 1 findingu)"]
+
+    for row in expected_rows:
+        assert row in markdown_text, row
+        assert row in collapsed_pdf_text, row
+
+    markdown_positions = [markdown_text.index(row) for row in expected_rows]
+    pdf_positions = [collapsed_pdf_text.index(row) for row in expected_rows]
+    assert markdown_positions == sorted(markdown_positions)
+    assert pdf_positions == sorted(pdf_positions)
 
 
 def test_citation_line_and_scope_line_match_report_module_contract():

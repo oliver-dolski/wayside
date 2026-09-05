@@ -359,3 +359,104 @@ def test_run_checks_preserves_yaml_order_for_distinct_standards(tmp_path):
 
     assert len(findings) == 1
     assert [entry["clause"] for entry in findings[0]["standards"]] == ["SR 2.1", "SR 1.1"]
+
+
+# --- G-04-5b: para adresow sesji dopisywana z macierzy komunikacji ----------
+
+
+def _comm_matrix_row(session_id: int, source: str, target: str) -> dict:
+    """Wiersz macierzy komunikacji w ksztalcie pola obserwowanego
+    (`dataclasses.asdict(ObservedField(...))`), wzorem prawdziwego
+    `flow.build_comm_matrix`."""
+    return {
+        "session_id": {"value": session_id, "provenance": "observed"},
+        "source": {"value": source, "provenance": "observed"},
+        "target": {"value": target, "provenance": "observed"},
+    }
+
+
+def test_endpoints_by_session_maps_two_matrix_rows():
+    analysis = {
+        "comm_matrix": [
+            _comm_matrix_row(0, "10.0.0.1:502", "10.0.0.2:50210"),
+            _comm_matrix_row(1, "10.0.0.3:502", "10.0.0.4:50333"),
+        ]
+    }
+
+    mapping = engine._endpoints_by_session(analysis)
+
+    assert mapping == {
+        0: ("10.0.0.1:502", "10.0.0.2:50210"),
+        1: ("10.0.0.3:502", "10.0.0.4:50333"),
+    }
+
+
+def test_endpoints_by_session_is_empty_without_comm_matrix_key():
+    assert engine._endpoints_by_session({}) == {}
+
+
+def test_run_checks_finding_carries_endpoints_from_matrix_row(tmp_path):
+    _write_check(
+        tmp_path,
+        subdir="with_matrix_row",
+        spec_overrides={"id": "with-matrix-row-check"},
+        evaluator_source=EVALUATOR_ONE_FINDING_SOURCE,
+    )
+    checks = engine.discover_checks(checks_root=tmp_path / "with_matrix_row")
+    analysis = {
+        "protocol_events": [{"packet_number": 1, "session_id": 0}],
+        "comm_matrix": [_comm_matrix_row(0, "10.0.0.1:502", "10.0.0.2:50210")],
+    }
+
+    findings = engine.run_checks(analysis, checks)
+
+    assert findings[0]["evidence"]["source"] == "10.0.0.1:502"
+    assert findings[0]["evidence"]["target"] == "10.0.0.2:50210"
+
+
+def test_run_checks_finding_uses_placeholder_for_session_absent_from_matrix(tmp_path):
+    _write_check(
+        tmp_path,
+        subdir="without_matrix_row",
+        spec_overrides={"id": "without-matrix-row-check"},
+        evaluator_source=EVALUATOR_ONE_FINDING_SOURCE,
+    )
+    checks = engine.discover_checks(checks_root=tmp_path / "without_matrix_row")
+    # Analiza bez klucza `comm_matrix` w ogole - zalozenie Z-92: model probny
+    # tego modulu nie ma macierzy, a odwzorowanie ma byc na to tolerancyjne.
+    analysis = {"protocol_events": [{"packet_number": 1, "session_id": 0}]}
+
+    findings = engine.run_checks(analysis, checks)
+
+    assert findings[0]["evidence"]["source"] == engine.ENDPOINT_UNKNOWN
+    assert findings[0]["evidence"]["target"] == engine.ENDPOINT_UNKNOWN
+
+
+def test_run_checks_does_not_mutate_evidence_dict_returned_by_evaluator():
+    """Zalozenie Z-91: silnik sklada NOWY slownik dowodu zamiast mutowac ten
+    zwrocony przez evaluator. Test buduje `CheckSpec` wprost, z evaluatorem
+    zwracajacym WSPOLDZIELONY slownik dowodu, zeby mutacja w miejscu byla
+    wykrywalna bez posredniego odczytu z dysku."""
+    shared_evidence = {"packet_number": 1, "session_id": 0}
+    shared_result = {"evidence": shared_evidence}
+
+    def evaluate(analysis: dict) -> list[dict]:
+        return [shared_result]
+
+    spec = engine.CheckSpec(
+        path=Path("unused-probe-path"),
+        spec={
+            "id": "shared-evidence-check",
+            "title": "Check probny slownika wspoldzielonego",
+            "severity": "high",
+            "rationale": "Wlasna testowa przyczyna, nigdy cytat normy.",
+            "standards": [],
+            "remediation": "Testowe zalecenie, nieuzywane poza tym testem.",
+        },
+        evaluate=evaluate,
+    )
+
+    engine.run_checks({}, [spec])
+
+    assert shared_result["evidence"] is shared_evidence
+    assert shared_evidence == {"packet_number": 1, "session_id": 0}

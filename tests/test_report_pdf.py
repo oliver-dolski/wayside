@@ -46,6 +46,7 @@ from wayside.report import (
     citation_line,
     citation_scope_line,
     render_markdown,
+    session_parties_line,
 )
 from wayside.report_pdf import PdfRenderError, render_pdf
 
@@ -92,7 +93,12 @@ def _finding(**overrides) -> dict:
                 "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
             }
         ],
-        "evidence": {"packet_number": 1, "session_id": 0},
+        "evidence": {
+            "packet_number": 1,
+            "session_id": 0,
+            "source": "10.0.0.1:502",
+            "target": "10.0.0.2:50210",
+        },
         "remediation": "Ograniczyc mozliwosc wysylania kodow zapisu do znanych hostow inzynierskich.",
     }
     base.update(overrides)
@@ -154,6 +160,15 @@ def test_render_pdf_with_one_finding_carries_expected_fields():
     assert "Human user identification and authentication" in pdf_text
     assert "Parafraza punktu normy" in pdf_text
     assert "Ograniczyc mozliwosc wysylania kodow zapisu" in pdf_text
+    assert "Uczestnicy sesji: 10.0.0.1:502 -> 10.0.0.2:50210" in pdf_text
+
+
+def test_pdf_finding_block_uses_session_parties_line_not_own_copy():
+    """G-04-5b: PDF sklada linie uczestnikow sesji ta sama funkcja czysta co
+    markdown, importowana z `wayside.report` - nie wlasna kopia logiki."""
+    import inspect
+
+    assert "session_parties_line" in inspect.getsource(report_pdf)
 
 
 def test_render_pdf_unverified_reference_carries_same_status_text_as_markdown():

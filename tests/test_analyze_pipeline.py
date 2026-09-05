@@ -102,6 +102,30 @@ def test_analysis_json_has_exactly_two_findings_with_expected_evidence(tmp_path)
     assert standard_ref["verified"] is False
 
 
+def test_finding_evidence_carries_endpoint_pair_matching_comm_matrix_row(tmp_path):
+    """G-04-5b: dowod findingu z prawdziwego przebiegu ma cztery klucze, i
+    para adresow zgadza sie z wierszem macierzy komunikacji tej samej sesji -
+    para adresow dopisywana przez silnik checkow, nie przez check ani przez
+    warstwe potoku."""
+    result = _run_analyze(tmp_path)
+    assert result.returncode == 0, result.stderr
+    analysis = _load_analysis(tmp_path)
+
+    rows_by_session = {
+        row["session_id"]["value"]: (row["source"]["value"], row["target"]["value"])
+        for row in analysis["comm_matrix"]
+    }
+
+    findings = analysis["findings"]
+    assert findings
+    for finding in findings:
+        evidence = finding["evidence"]
+        assert set(evidence) == {"packet_number", "session_id", "source", "target"}
+        expected_source, expected_target = rows_by_session[evidence["session_id"]]
+        assert evidence["source"] == expected_source
+        assert evidence["target"] == expected_target
+
+
 def test_analysis_json_has_two_protocol_events(tmp_path):
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr

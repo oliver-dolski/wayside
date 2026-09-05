@@ -26,6 +26,7 @@ from wayside.report import (
     citation_line,
     citation_scope_line,
     render_markdown,
+    session_parties_line,
 )
 
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -68,7 +69,12 @@ def _finding(**overrides) -> dict:
                 "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
             }
         ],
-        "evidence": {"packet_number": 1, "session_id": 0},
+        "evidence": {
+            "packet_number": 1,
+            "session_id": 0,
+            "source": "10.0.0.1:502",
+            "target": "10.0.0.2:50210",
+        },
         "remediation": "Ograniczyc mozliwosc wysylania kodow zapisu do znanych hostow inzynierskich.",
     }
     base.update(overrides)
@@ -169,6 +175,54 @@ def test_one_finding_section_carries_evidence_clause_and_unverified_marker():
     assert "Parafraza punktu normy" in findings_body
     assert "PROWIZORYCZNE" in findings_body
     assert "NIEZWERYFIKOWANE" in findings_body
+
+
+# --- G-04-5b: linia uczestnikow sesji, przed linia dowodu ------------------
+
+
+def test_session_parties_line_builds_source_arrow_target():
+    evidence = {"packet_number": 1, "session_id": 0, "source": "A:1", "target": "B:2"}
+
+    line = session_parties_line(evidence)
+
+    assert line == "Uczestnicy sesji: A:1 -> B:2"
+
+
+def test_finding_block_carries_session_parties_line_before_evidence_line():
+    text = _render(findings=[_finding()])
+
+    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
+
+    assert "Uczestnicy sesji: 10.0.0.1:502 -> 10.0.0.2:50210" in findings_body
+    parties_pos = findings_body.index("Uczestnicy sesji:")
+    evidence_pos = findings_body.index("Dowód:")
+    assert parties_pos < evidence_pos
+
+
+def test_five_findings_of_same_check_have_five_distinct_session_parties_lines():
+    """Piec findingow tego samego checka w jednym przebiegu maja piec
+    roznych linii uczestnikow sesji, gdy sesje sa rozne (blok <behavior>
+    zadania 1 planu 04-09)."""
+    findings = [
+        _finding(
+            evidence={
+                "packet_number": i,
+                "session_id": i,
+                "source": "10.0.0.1:502",
+                "target": f"10.0.0.{i + 2}:502",
+            }
+        )
+        for i in range(5)
+    ]
+
+    text = _render(findings=findings)
+
+    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
+    parties_lines = [
+        line for line in findings_body.splitlines() if line.startswith("- Uczestnicy sesji:")
+    ]
+    assert len(parties_lines) == 5
+    assert len(set(parties_lines)) == 5
 
 
 # --- citation_line i citation_scope_line: prowieniencja tytulu (G-04-3c) --

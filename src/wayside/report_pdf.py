@@ -45,6 +45,7 @@ from wayside.report import (
     citation_line,
     citation_scope_line,
     finding_count_phrase,
+    session_parties_line,
 )
 
 __all__ = [
@@ -395,6 +396,7 @@ def render_pdf(
         _bold_line(pdf, finding["title"])
         _body(pdf, f"- Identyfikator checka: {finding['check_id']}")
         _body(pdf, f"- Waga: {finding['severity']} (ryzyko: {finding['risk']})")
+        _body(pdf, f"- {session_parties_line(evidence)}")
         _body(
             pdf,
             f"- Dowód: pakiet nr {evidence['packet_number']}, "

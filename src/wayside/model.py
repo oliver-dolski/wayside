@@ -186,11 +186,18 @@ def assert_provenance_complete(node: object, path: str = "") -> None:
 @dataclass(frozen=True)
 class Evidence:
     """Dowod findingu: numer pakietu i identyfikator sesji, do ktorych da
-    sie wrocic w zrzucie. Celowo bez pola na surowe bajty ani tresc
-    ladunku (CHECK-06, zagrozenie T-2-06)."""
+    sie wrocic w zrzucie, oraz para punktow koncowych (adres:port) sesji,
+    dopisywana przez silnik checkow z macierzy komunikacji TEGO SAMEGO
+    modelu (G-04-5b) - bez niej dwa wystapienia tego samego checka sa dla
+    czytelnika nieodroznialne. Adres i port sa metadanymi polaczenia, ktore
+    macierz komunikacji i inwentarz tego samego dokumentu juz niosa; pola
+    na surowe bajty ani tresc ladunku tu nie ma i miec nie bedzie (CHECK-06,
+    zagrozenie T-2-06)."""
 
     packet_number: int
     session_id: int
+    source: str
+    target: str
 
 
 @dataclass(frozen=True)

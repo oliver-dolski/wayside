@@ -340,6 +340,8 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
             evidence=Evidence(
                 packet_number=raw["evidence"]["packet_number"],
                 session_id=raw["evidence"]["session_id"],
+                source=raw["evidence"]["source"],
+                target=raw["evidence"]["target"],
             ),
             remediation=raw["remediation"],
         )

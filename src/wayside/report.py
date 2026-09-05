@@ -21,6 +21,7 @@ __all__ = [
     "citation_line",
     "citation_scope_line",
     "finding_count_phrase",
+    "session_parties_line",
 ]
 
 SECTIONS: tuple[str, ...] = (
@@ -92,6 +93,15 @@ def citation_scope_line(ref: dict) -> str | None:
     if ref["clause_title_source"] == "egzemplarz":
         return None
     return f"{CITATION_SCOPE_LABEL}: {ref['clause_title']}"
+
+
+def session_parties_line(evidence: dict) -> str:
+    """Buduje linie uczestnikow sesji, ktorej finding dotyczy (G-04-5b):
+    strony sesji w postaci adres zrodlowy, strzalka, adres docelowy, wziete
+    z pary punktow koncowych dopisanej do dowodu przez silnik checkow.
+    Wspolna funkcja czysta dla markdown i PDF (`report_pdf.py` importuje ja
+    ta sama droga co `citation_line`)."""
+    return f"Uczestnicy sesji: {evidence['source']} -> {evidence['target']}"
 
 
 def render_markdown(
@@ -379,6 +389,7 @@ def render_markdown(
         lines.append("")
         lines.append(f"- Identyfikator checka: `{finding['check_id']}`")
         lines.append(f"- Waga: {finding['severity']} (ryzyko: {finding['risk']})")
+        lines.append(f"- {session_parties_line(evidence)}")
         lines.append(
             f"- Dowód: pakiet nr {evidence['packet_number']}, "
             f"sesja nr {evidence['session_id']}"

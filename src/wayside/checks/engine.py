@@ -23,6 +23,7 @@ import yaml
 __all__ = [
     "CHECKS_ROOT",
     "REQUIRED_CHECK_FIELDS",
+    "ENDPOINT_UNKNOWN",
     "CheckSchemaError",
     "CheckSpec",
     "discover_checks",
@@ -30,6 +31,13 @@ __all__ = [
 ]
 
 CHECKS_ROOT = Path(__file__).resolve().parent
+
+# Wartosc zastepcza punktu koncowego (G-04-5b, zalozenie Z-92): finding
+# sesji, ktora nie ma wiersza w macierzy komunikacji. Na sciezce prawdziwego
+# potoku ten przypadek dzis nie zachodzi (finding powstaje ze zdarzenia
+# protokolu, a zdarzenie protokolu z segmentu z ladunkiem, ktory wiersz
+# macierzy ma); zachodzi natomiast w modelach probnych testow tego modulu.
+ENDPOINT_UNKNOWN = "nieustalony"
 
 REQUIRED_CHECK_FIELDS: tuple[str, ...] = (
     "id",
@@ -144,11 +152,40 @@ def _dedupe_standards(standards: list[dict]) -> list[dict]:
     return deduped
 
 
+def _endpoints_by_session(analysis: dict) -> dict[int, tuple[str, str]]:
+    """Odwzorowanie identyfikatora sesji na pare punktow koncowych (zrodlo,
+    cel), zbudowane z macierzy komunikacji TEGO SAMEGO modelu (G-04-5b).
+    Wzorem `_dedupe_standards` powyzej: funkcja prywatna, czysta, jedna
+    pozycja na wiersz macierzy.
+
+    Dostep do klucza `comm_matrix` jest tolerancyjny na jego brak (zalozenie
+    Z-92) - model probny testow tego modulu nie ma macierzy komunikacji, a
+    wyjatek przewrocilby je bez zysku. Kazdy wiersz macierzy jest polem
+    obserwowanym opakowanym w slownik `{"value": ..., "provenance": ...}`,
+    wiec odwzorowanie siega do wartosci pola, nie do samego pola."""
+    mapping: dict[int, tuple[str, str]] = {}
+    for row in analysis.get("comm_matrix") or []:
+        session_id = row["session_id"]["value"]
+        source = row["source"]["value"]
+        target = row["target"]["value"]
+        mapping[session_id] = (source, target)
+    return mapping
+
+
 def run_checks(analysis: dict, checks: list[CheckSpec]) -> list[dict]:
     """Uruchamia kazdy check nad `analysis`, zbiera wyniki do jednej
     plaskiej listy (wzorzec `scan_files`) - zaden check nie przerywa petli.
-    Wynik jest posortowany po trojce (check_id, session_id, packet_number)."""
+    Wynik jest posortowany po trojce (check_id, session_id, packet_number).
+
+    Kazdy finding dostaje pare adresow sesji (G-04-5b), dopisana z
+    odwzorowania zbudowanego RAZ przed petla po checkach, a nie raz na
+    finding. Slownik dowodu zwrocony przez evaluator NIE jest mutowany
+    (zalozenie Z-91): silnik sklada NOWY slownik z jego zawartosci i dwoch
+    nowych kluczy - evaluator moze zwrocic slownik wspoldzielony albo
+    zbudowany na zdarzeniu modelu, a testy wolajace evaluator wprost
+    sprawdzaja rownosc pelnego slownika dowodu."""
     findings: list[dict] = []
+    endpoints_by_session = _endpoints_by_session(analysis)
 
     for check in checks:
         standards = _dedupe_standards(check.spec["standards"])
@@ -162,6 +199,18 @@ def run_checks(analysis: dict, checks: list[CheckSpec]) -> list[dict]:
                 "remediation": check.spec["remediation"],
             }
             finding.update(result)
+            # Brak klucza dowodu albo brak identyfikatora sesji w wyniku
+            # evaluatora ma nadal konczyc sie bledem klucza - to jest sygnal
+            # niepoprawnego ksztaltu wyniku checka, a nie legalny brak danych.
+            session_id = finding["evidence"]["session_id"]
+            source, target = endpoints_by_session.get(
+                session_id, (ENDPOINT_UNKNOWN, ENDPOINT_UNKNOWN)
+            )
+            finding["evidence"] = {
+                **finding["evidence"],
+                "source": source,
+                "target": target,
+            }
             findings.append(finding)
 
     findings.sort(

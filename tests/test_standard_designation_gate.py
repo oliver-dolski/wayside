@@ -9,23 +9,30 @@ Wartosc `FORBIDDEN_DESIGNATION` jest WZIETA z sekcji "Odrzucone alternatywy"
 rekordu `0004`, nie wpisana z pamieci - rekord jest zrodlem prawdy dla tego,
 co bramka ma zakazac.
 
-**Bramka nad tekstem PDF jest pominieta (skip), nie fikcyjna.** Plan `04-03`
-(eksport do PDF) jest zaparkowany na bramce dla czlowieka (legalnosc pakietu)
-i nie wykonal sie przed tym planem, wiec `wayside.report_pdf` i `pypdf` nie
-istnieja jeszcze w tym drzewie. Test importuje oba przez `pytest.importorskip`
-- gdy plan `04-03` wyladuje, ten sam test zacznie sie faktycznie wykonywac bez
-zadnej zmiany tego pliku. Zarejestrowane w `.planning/WINDOWS.md`.
+**Bramka obejmuje takze pliki binarne sledzone przez gita w zakresie skanu**
+(plan `04-07`, zamkniecie WR-03 z `04-VERIFICATION.md`). Skan tekstowy
+`_scan_tree_for_designation` pomija kazdy plik nieodczytywalny jako UTF-8 -
+dokladnie ta droga, przez ktora `examples/4sics/report.pdf` wypadal z zasiegu
+bramki mimo bycia sledzonym przez gita. `BINARY_SCAN_TARGETS` deklaruje po
+nazwie strategie przeszukania kazdego takiego pliku, a test kompletnosci
+zaczerwienia sie na kazdym pliku binarnym niezadeklarowanym. Plan `04-03`
+(eksport do PDF) wyladowal 2026-09-05, wiec `wayside.report_pdf` i `pypdf` sa
+dzis zaleznosciami tego drzewa - import obu jest bezwarunkowy, nie ma juz w
+tym module zadnej sciezki cichego pominiecia.
 """
 
 from __future__ import annotations
 
 import io
 import re
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pypdf
 import pytest
 
+from wayside import report_pdf
 from wayside.pcap import CaptureFormatError, CaptureTruncatedError
 from wayside.pipeline import analyze
 from wayside.standards import mapper
@@ -168,14 +175,9 @@ def test_rendered_report_carries_no_forbidden_designation(fixture, tmp_path):
 
 
 # --- Test czwarty: brak oznaczenia odrzuconego w warstwie tekstowej PDF ----
-#
-# Pominiety (skip), nie fikcyjny - patrz docstring modulu.
 
 
 def test_pdf_text_layer_carries_no_forbidden_designation(tmp_path):
-    report_pdf = pytest.importorskip("wayside.report_pdf")
-    pypdf = pytest.importorskip("pypdf")
-
     fixture = FIXTURE_DIR / "modbus_write_single_register.pcap"
     result = _analyze_or_skip(fixture, tmp_path)
 
@@ -269,3 +271,103 @@ def test_readme_verification_section_links_both_decision_records():
     body = _readme_section_body(README_SECTION_HEADER)
     assert "0004-sygnatura-clc-ts-50701.md" in body
     assert "0006-weryfikacja-powolan-wobec-egzemplarza-normy.md" in body
+
+
+# --- Grupa nowa (plan 04-07): bramka obejmuje pliki binarne sledzone przez -
+# --- gita w zakresie skanu, WR-03 z 04-VERIFICATION.md ----------------------
+#
+# Sledzony plik binarny w zakresie skanu jest albo przeszukiwalny po warstwie
+# tekstowej, albo po surowych bajtach - nie ma trzeciej mozliwosci ani listy
+# wykluczen (zalozenie Z-79). Lista wykluczen jest dokladnie tym mechanizmem,
+# przez ktory `examples/4sics/report.pdf` wypadl z zasiegu tej bramki.
+BINARY_SCAN_TARGETS: dict[str, str] = {
+    "examples/4sics/report.pdf": "pdf-text",
+    "src/wayside/assets/fonts/DejaVuSans.ttf": "raw-bytes",
+    "src/wayside/assets/fonts/DejaVuSans-Bold.ttf": "raw-bytes",
+}
+
+
+def _tracked_files_in_scope() -> list[Path]:
+    """Pliki SLEDZONE przez gita w `SCAN_SCOPE`, nie pliki lezace na dysku
+    (zalozenie Z-78): drzewo robocze niesie katalogi skompilowanego kodu
+    posredniego, ktorych w repozytorium nie ma, a pytanie rekordu decyzji
+    `0004` dotyczy zawartosci repozytorium. Niezerowy kod wyjscia gita konczy
+    ten test porazka niosaca wyjscie bledu, nigdy pominieciem - wzorzec
+    `tests/test_example_report.py::_git_tracked_files`."""
+    result = subprocess.run(
+        ["git", "ls-files", "--", *SCAN_SCOPE],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"git ls-files zakonczyl sie kodem {result.returncode}: {result.stderr}"
+    )
+    return [REPO_ROOT / line for line in result.stdout.splitlines() if line]
+
+
+def _undecodable_tracked_files() -> list[Path]:
+    """Z plikow sledzonych w zakresie skanu, dokladnie te, ktorych proba
+    odczytu jako tekst UTF-8 konczy sie bledem dekodowania - czyli dokladnie
+    ten zbior, ktory `_scan_tree_for_designation` dzis po cichu pomija."""
+    undecodable: list[Path] = []
+    for path in _tracked_files_in_scope():
+        try:
+            path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            undecodable.append(path)
+    return undecodable
+
+
+def test_binary_scan_targets_declare_every_undecodable_tracked_file():
+    undecodable = {
+        p.relative_to(REPO_ROOT).as_posix() for p in _undecodable_tracked_files()
+    }
+    declared = set(BINARY_SCAN_TARGETS)
+
+    undeclared = sorted(undecodable - declared)
+    orphaned = sorted(declared - undecodable)
+
+    assert not undeclared and not orphaned, (
+        "Niezadeklarowane pliki binarne sledzone przez gita: "
+        f"{undeclared}; sciezki zadeklarowane bez odpowiadajacego pliku: "
+        f"{orphaned}"
+    )
+
+
+_FORBIDDEN_PATTERN = re.compile(re.escape(FORBIDDEN_DESIGNATION), re.IGNORECASE)
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "strategy"),
+    sorted(BINARY_SCAN_TARGETS.items()),
+    ids=list(sorted(BINARY_SCAN_TARGETS)),
+)
+def test_declared_binaries_carry_no_forbidden_designation(relative_path, strategy):
+    target = REPO_ROOT / relative_path
+    assert target.is_file(), f"Zadeklarowany plik nie istnieje: {relative_path}"
+
+    if strategy == "pdf-text":
+        reader = pypdf.PdfReader(str(target))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        assert not _FORBIDDEN_PATTERN.search(text), (
+            f"{relative_path}: warstwa tekstowa niesie oznaczenie odrzucone "
+            f"(strategia {strategy!r})."
+        )
+    elif strategy == "raw-bytes":
+        # Dwa kodowania: ASCII i UTF-16BE - tablica nazw pliku czcionki
+        # (tabela `name` formatu TrueType/OpenType) trzyma lancuchy w
+        # UTF-16BE na platformie Microsoft.
+        data = target.read_bytes()
+        ascii_needle = FORBIDDEN_DESIGNATION.encode("ascii")
+        utf16be_needle = FORBIDDEN_DESIGNATION.encode("utf-16-be")
+        assert ascii_needle not in data, (
+            f"{relative_path}: bajty ASCII niosa oznaczenie odrzucone "
+            f"(strategia {strategy!r})."
+        )
+        assert utf16be_needle not in data, (
+            f"{relative_path}: bajty UTF-16BE niosa oznaczenie odrzucone "
+            f"(strategia {strategy!r})."
+        )
+    else:  # pragma: no cover - zabezpieczenie przed trzecia strategia
+        raise AssertionError(f"Nieznana strategia przeszukania: {strategy!r}")

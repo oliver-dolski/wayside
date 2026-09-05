@@ -40,7 +40,13 @@ from wayside import report_pdf
 from wayside.model import dump_deterministic, write_atomic_bytes
 from wayside.pcap import CaptureFormatError, CaptureTruncatedError
 from wayside.pipeline import analyze as pipeline_analyze
-from wayside.report import SECTIONS, render_markdown
+from wayside.report import (
+    CITATION_SCOPE_LABEL,
+    SECTIONS,
+    citation_line,
+    citation_scope_line,
+    render_markdown,
+)
 from wayside.report_pdf import PdfRenderError, render_pdf
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +86,7 @@ def _finding(**overrides) -> dict:
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
+                "clause_title_source": "egzemplarz",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": False,
                 "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
@@ -169,6 +176,7 @@ def test_render_pdf_verified_reference_carries_verified_status_text():
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
+                "clause_title_source": "egzemplarz",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": True,
                 "verification_note": "",
@@ -233,6 +241,60 @@ def test_text_layer_carries_eight_section_headers_in_order():
         f"Nie wszystkie naglowki sekcji obecne: {list(zip(SECTIONS, positions))}"
     )
     assert positions == sorted(positions)
+
+
+def test_pdf_finding_block_uses_shared_citation_functions_not_own_copy():
+    """T-4-40: rendering pdf i markdown przez te same dwie funkcje czyste -
+    dowod na drzewie skladni, nie na zgadywaniu (G-04-3c)."""
+    import inspect
+
+    src = inspect.getsource(report_pdf)
+    assert "citation_line" in src
+    assert "citation_scope_line" in src
+
+
+def test_pdf_wlasny_provenance_finding_carries_scope_label_not_title_inline():
+    finding = _finding(
+        standard_refs=[
+            {
+                "standard": "IEC-62443-3-3",
+                "edition": "2013",
+                "clause": "SR 1.1",
+                "clause_title": "Tytul opisu wlasnego",
+                "clause_title_source": "wlasny",
+                "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
+                "verified": False,
+                "verification_note": "Numeracja prowizoryczna.",
+            }
+        ]
+    )
+
+    pdf_text = _extract_text(
+        render_pdf(_analysis(findings=[finding]), generated_at=GENERATED_AT)
+    )
+
+    assert CITATION_SCOPE_LABEL in pdf_text
+    for line in pdf_text.splitlines():
+        if "SR 1.1" in line:
+            assert "Tytul opisu wlasnego" not in line
+
+
+def test_citation_line_and_scope_line_match_report_module_contract():
+    """Sanity: `report_pdf` uzywa DOKLADNIE tych samych funkcji, ktore
+    importuje z `wayside.report` - zaimportowana funkcja i wywolanie w tym
+    module daja identyczny wynik."""
+    ref_egzemplarz = {
+        "standard": "IEC-62443-3-3",
+        "clause": "SR 1.1",
+        "clause_title": "Tytul",
+        "clause_title_source": "egzemplarz",
+    }
+    ref_wlasny = dict(ref_egzemplarz, clause_title_source="wlasny")
+
+    assert "Tytul" in citation_line(ref_egzemplarz)
+    assert "Tytul" not in citation_line(ref_wlasny)
+    assert citation_scope_line(ref_egzemplarz) is None
+    assert citation_scope_line(ref_wlasny) is not None
 
 
 def test_render_pdf_signature_is_identical_to_render_markdown():

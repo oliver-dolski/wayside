@@ -55,6 +55,7 @@ DEFAULT_ENTRY: dict = {
     "edition": "2020",
     "clause": "T 1.1",
     "clause_title": "Tytul testowy",
+    "clause_title_source": "wlasny",
     "paraphrase": "Testowa parafraza, nigdy cytat normy.",
     "verified": False,
     "verification_note": "Uwaga testowa, wpis prowizoryczny.",
@@ -197,8 +198,12 @@ def test_load_catalog_rejects_verified_as_int(tmp_path):
 
 
 def test_load_catalog_accepts_verified_true_without_raising(tmp_path):
+    # clause_title_source musi byc "egzemplarz" tutaj - regula miedzypolowa
+    # z G-04-3c odrzuca podniesione `verified` przy prowieniencji `wlasny`.
     sub = tmp_path / "verified_true"
-    _write_catalog(sub, overrides={"verified": True})
+    _write_catalog(
+        sub, overrides={"verified": True, "clause_title_source": "egzemplarz"}
+    )
     catalog = mapper.load_catalog(catalog_root=sub)
     assert catalog[("TEST-STANDARD", "T 1.1")]["verified"] is True
 
@@ -217,7 +222,9 @@ def test_load_catalog_rejects_clause_as_float(tmp_path):
         mapper.load_catalog(catalog_root=sub)
 
 
-@pytest.mark.parametrize("field", ["standard", "clause_title", "paraphrase"])
+@pytest.mark.parametrize(
+    "field", ["standard", "clause_title", "clause_title_source", "paraphrase"]
+)
 def test_load_catalog_rejects_non_string_scalar_field(tmp_path, field):
     sub = tmp_path / f"non_string_{field}"
     _write_catalog(sub, overrides={field: 42})
@@ -264,6 +271,66 @@ def test_type_error_komunikat_niesie_wszystkie_pola_naraz(tmp_path):
     message = str(excinfo.value)
     assert "edition" in message
     assert "verified" in message
+
+
+# --- Grupa nowa: prowieniencja tytulu punktu (STD-03, G-04-3c) -------------
+#
+# Zamyka luke UAT G-04-3c: katalog nie niosl w danych roznicy miedzy tytulem
+# potwierdzonym wobec egzemplarza a opisem wlasnym, wiec oba renderowaly sie
+# w tym samym ksztalcie.
+
+
+def test_load_catalog_rejects_clause_title_source_outside_closed_set(tmp_path):
+    sub = tmp_path / "clause_title_source_bad_value"
+    _write_catalog(sub, overrides={"clause_title_source": "zmyslony"})
+
+    with pytest.raises(mapper.StandardsError) as excinfo:
+        mapper.load_catalog(catalog_root=sub)
+
+    message = str(excinfo.value)
+    assert "zmyslony" in message
+    assert "egzemplarz" in message
+    assert "wlasny" in message
+
+
+def test_load_catalog_rejects_verified_true_with_clause_title_source_wlasny(tmp_path):
+    sub = tmp_path / "verified_true_wlasny"
+    _write_catalog(sub, overrides={"verified": True, "clause_title_source": "wlasny"})
+
+    with pytest.raises(mapper.StandardsError) as excinfo:
+        mapper.load_catalog(catalog_root=sub)
+
+    message = str(excinfo.value)
+    assert "verified" in message
+    assert "clause_title_source" in message
+
+
+def test_load_catalog_accepts_verified_true_with_clause_title_source_egzemplarz(tmp_path):
+    sub = tmp_path / "verified_true_egzemplarz"
+    _write_catalog(
+        sub, overrides={"verified": True, "clause_title_source": "egzemplarz"}
+    )
+
+    catalog = mapper.load_catalog(catalog_root=sub)
+
+    assert catalog[("TEST-STANDARD", "T 1.1")]["clause_title_source"] == "egzemplarz"
+
+
+@pytest.mark.parametrize("clause_title_source", sorted(mapper.CLAUSE_TITLE_SOURCES))
+def test_load_catalog_accepts_verified_false_with_either_clause_title_source(
+    tmp_path, clause_title_source
+):
+    sub = tmp_path / f"verified_false_{clause_title_source}"
+    _write_catalog(
+        sub, overrides={"verified": False, "clause_title_source": clause_title_source}
+    )
+
+    catalog = mapper.load_catalog(catalog_root=sub)
+
+    assert (
+        catalog[("TEST-STANDARD", "T 1.1")]["clause_title_source"]
+        == clause_title_source
+    )
 
 
 def test_resolve_passes_verified_value_without_conversion():
@@ -758,6 +825,7 @@ PROBE_CATALOG_ENTRY: dict = {
     "edition": "9999",
     "clause": PROBE_CLAUSE,
     "clause_title": "Tytul probny bramki rozszerzalnosci katalogu norm",
+    "clause_title_source": "wlasny",
     "paraphrase": "Testowa parafraza bramki rozszerzalnosci katalogu norm, nigdy cytat normy.",
     "verified": False,
     "verification_note": "Wpis probny, uzywany wylacznie przez test bramki rozszerzalnosci.",

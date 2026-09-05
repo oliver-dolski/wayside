@@ -20,7 +20,13 @@ from wayside.flow import (
     vantage_point_limitations,
 )
 from wayside.model import collect_not_derivable_fields
-from wayside.report import SECTIONS, render_markdown
+from wayside.report import (
+    CITATION_SCOPE_LABEL,
+    SECTIONS,
+    citation_line,
+    citation_scope_line,
+    render_markdown,
+)
 
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -56,6 +62,7 @@ def _finding(**overrides) -> dict:
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
+                "clause_title_source": "egzemplarz",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": False,
                 "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
@@ -162,6 +169,75 @@ def test_one_finding_section_carries_evidence_clause_and_unverified_marker():
     assert "Parafraza punktu normy" in findings_body
     assert "PROWIZORYCZNE" in findings_body
     assert "NIEZWERYFIKOWANE" in findings_body
+
+
+# --- citation_line i citation_scope_line: prowieniencja tytulu (G-04-3c) --
+
+
+def _ref(**overrides) -> dict:
+    base = {
+        "standard": "IEC-62443-3-3",
+        "clause": "SR 1.1",
+        "clause_title": "Tytul punktu",
+        "clause_title_source": "egzemplarz",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_citation_line_carries_title_for_egzemplarz_provenance():
+    line = citation_line(_ref(clause_title_source="egzemplarz"))
+
+    assert "IEC-62443-3-3" in line
+    assert "SR 1.1" in line
+    assert "Tytul punktu" in line
+
+
+def test_citation_line_omits_title_for_wlasny_provenance():
+    line = citation_line(_ref(clause_title_source="wlasny"))
+
+    assert "IEC-62443-3-3" in line
+    assert "SR 1.1" in line
+    assert "Tytul punktu" not in line
+
+
+def test_citation_scope_line_is_none_for_egzemplarz_provenance():
+    assert citation_scope_line(_ref(clause_title_source="egzemplarz")) is None
+
+
+def test_citation_scope_line_carries_label_and_title_for_wlasny_provenance():
+    line = citation_scope_line(_ref(clause_title_source="wlasny"))
+
+    assert line is not None
+    assert CITATION_SCOPE_LABEL in line
+    assert "Tytul punktu" in line
+
+
+def test_wlasny_provenance_finding_has_no_line_with_both_clause_and_title():
+    """Zbiorowy dowod na modelu recznym: wpis o prowieniencji wlasnej nie ma
+    ani jednej linii niosacej jednoczesnie numer punktu i tytul (G-04-3c)."""
+    finding = _finding(
+        standard_refs=[
+            {
+                "standard": "IEC-62443-3-3",
+                "edition": "2013",
+                "clause": "SR 1.1",
+                "clause_title": "Tytul opisu wlasnego",
+                "clause_title_source": "wlasny",
+                "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
+                "verified": False,
+                "verification_note": "Numeracja prowizoryczna.",
+            }
+        ]
+    )
+    text = _render(findings=[finding])
+    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
+
+    for line in findings_body.splitlines():
+        if "SR 1.1" in line:
+            assert "Tytul opisu wlasnego" not in line
+    assert CITATION_SCOPE_LABEL in findings_body
+    assert "Tytul opisu wlasnego" in findings_body
 
 
 # --- Sekcja metodyki niesie tresc kazdego kryterium rubryki ----------------

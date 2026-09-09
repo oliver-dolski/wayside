@@ -392,8 +392,25 @@ def test_history_identity_rules_exclude_the_local_only_fifth_rule():
     assert len(HISTORY_IDENTITY_RULE_IDS) == 4
 
 
-def test_all_revisions_is_non_empty():
-    assert len(_all_revisions()) >= 200
+def test_all_revisions_covers_every_reachable_revision():
+    """Skan ma widziec CALA historie, nie tylko biezaca galaz.
+
+    Porownanie idzie z niezaleznym pomiarem git zamiast ze stalym progiem:
+    prog dopasowany do chwilowej liczby commitow starzeje sie przy kazdym
+    przepisaniu historii i wtedy czerwieni sie test, a nie bramka. Ta asercja
+    lapie to, o co naprawde chodzi - ze `_all_revisions()` nie zwrocilo
+    samego HEAD ani pustej listy.
+    """
+    expected = subprocess.run(
+        ["git", "rev-list", "--all", "--count"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    revisions = _all_revisions()
+    assert len(revisions) == int(expected)
+    assert len(revisions) > 1
 
 
 def test_each_surface_is_a_separate_function_with_separate_parsing():

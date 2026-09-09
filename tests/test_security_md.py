@@ -24,10 +24,13 @@ czlowiek - kontrola reczna zapisana w `05-VALIDATION.md` pod
 `## Manual-Only Verifications`, nie ten plik.
 
 **Zamkniety zbior obietnic zakazanych (`FORBIDDEN_REMEDIATION_PROMISES`)
-zyje WYLACZNIE w tym module.** Powtorzenie tych literalow w dokumentacji
-planowania konczyloby sie bramka czerwieniaca sie na wlasnym tekscie
-wyjasniajacym, dlatego SUMMARY tego planu opisuje ich tresc parafraza, nie
-cytatem.
+zyje WYLACZNIE w tym module jako jedyne zrodlo prawdy** - `SECURITY.md`
+sam go nie powtarza (bramka skanuje `SECURITY.md`, nie ten modul), a gdyby
+powtorzyl, bylby to duplikat, ktory rozjezdza sie po pierwszej poprawce
+w jednym z dwoch miejsc. SUMMARY tego planu cytuje pelna zawartosc zbioru
+razem z uzasadnieniem kazdej pozycji (wymog `<output>` planu 05-02) - to
+jest bezpieczne, bo bramka skanuje wylacznie `SECURITY.md`, nie
+`.planning/`.
 
 Kazdy wzorzec ponizej jest zawezony wobec konkretnego zdania negujacego,
 ktore SECURITY.md musi umiec wypowiedziec bez zapalania wlasnej bramki -

@@ -313,3 +313,46 @@ def test_commit_with_ordinary_text_file_is_accepted(temp_repo: Path, tmp_path: P
 
     log = _run_git(["log", "--oneline"], cwd=temp_repo, env=env)
     assert "to powinno przejsc" in log.stdout
+
+
+def test_commit_with_local_literal_file_present_is_rejected(
+    temp_repo: Path, tmp_path: Path
+):
+    """Regula literalna (identity-local-literal) na prawdziwym commicie.
+
+    `.confidentiality-identity.local` nie jest w `FILES_TO_COPY` ani
+    scommitowany - jest zapisany bezposrednio na dysku repozytorium
+    tymczasowego, dokladnie tak jak deweloper zapisze go na swojej maszynie.
+    Hak wola bramke bez zadnego argumentu `--identity-local-file`
+    (`.pre-commit-config.yaml` go nie przekazuje), wiec bramka uzywa sciezki
+    domyslnej wzgledem katalogu roboczego haka - katalogu glownego
+    repozytorium tymczasowego.
+    """
+    _install_hook(temp_repo, tmp_path)
+    env = _build_env(tmp_path)
+
+    local_literal_file = temp_repo / ".confidentiality-identity.local"
+    local_literal_file.write_text(
+        "# literal wymyslony na potrzeby tego testu\nMUT-PROBE-DEVICE-77\n",
+        encoding="utf-8",
+    )
+
+    carrying_file = temp_repo / "notatka-literal.txt"
+    carrying_file.write_text("linia z MUT-PROBE-DEVICE-77 w srodku", encoding="utf-8")
+
+    add = _run_git(["add", "notatka-literal.txt"], cwd=temp_repo, env=env)
+    assert add.returncode == 0, add.stderr
+
+    commit = _run_git(
+        ["commit", "-m", "to nie powinno przejsc - literal lokalny"],
+        cwd=temp_repo,
+        env=env,
+    )
+
+    assert commit.returncode != 0
+    output = commit.stdout + commit.stderr
+    assert "identity-local-literal" in output
+    assert "MUT-PROBE-DEVICE-77" not in output
+
+    log = _run_git(["log", "--oneline"], cwd=temp_repo, env=env)
+    assert "to nie powinno przejsc - literal lokalny" not in log.stdout

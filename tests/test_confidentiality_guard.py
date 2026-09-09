@@ -648,6 +648,116 @@ def test_every_identity_address_match_in_tracked_tree_is_declared_or_exempted():
     assert undeclared == [], undeclared
 
 
+# --- Warstwa 3: tozsamosciowa - regula literalna, lokalna (05-03/3) --------
+
+
+def test_load_identity_local_literals_reads_existing_file(tmp_path):
+    local_file = tmp_path / "lok.txt"
+    local_file.write_text("# komentarz\n\nWYMYSLONA-NAZWA\n", encoding="utf-8")
+    assert guard.load_identity_local_literals(local_file) == ("WYMYSLONA-NAZWA",)
+
+
+def test_load_identity_local_literals_missing_file_warns_and_returns_empty(
+    tmp_path, capsys
+):
+    missing = tmp_path / "nie-ma.txt"
+    assert guard.load_identity_local_literals(missing) == ()
+    captured = capsys.readouterr()
+    assert captured.err != ""
+    assert captured.out == ""
+
+
+def test_load_identity_local_literals_existing_empty_file_is_silent(tmp_path, capsys):
+    empty_file = tmp_path / "pusty.txt"
+    empty_file.write_text("# same komentarze\n\n", encoding="utf-8")
+    assert guard.load_identity_local_literals(empty_file) == ()
+    captured = capsys.readouterr()
+    assert captured.err == ""
+
+
+def test_identity_layer_flags_local_literal_when_present():
+    violations = guard.scan_text_identity(
+        "linia z WYMYSLONA-NAZWA w srodku", "x.md", local_literals=("wymyslona-nazwa",)
+    )
+    assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_LOCAL_LITERAL]
+
+
+def test_identity_layer_local_literal_matches_after_diacritics_and_case_fold():
+    violations = guard.scan_text_identity(
+        "URZADZENIE-TESTOWE w podglosnej sieci",
+        "x.md",
+        local_literals=("urzadzenie-testowe",),
+    )
+    assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_LOCAL_LITERAL]
+
+
+def test_identity_layer_local_literal_reason_never_carries_the_literal():
+    violations = guard.scan_text_identity(
+        "linia z WYMYSLONA-NAZWA w srodku", "x.md", local_literals=("wymyslona-nazwa",)
+    )
+    assert len(violations) == 1
+    assert "WYMYSLONA" not in violations[0].reason
+    assert "wymyslona" not in violations[0].reason.lower()
+
+
+def test_identity_layer_absent_local_literals_yield_no_local_literal_violation():
+    assert guard.scan_text_identity("dowolny tekst", "x.md") == []
+
+
+def test_cli_help_mentions_identity_local_file_flag(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        guard.main(["--help"])
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "--identity-local-file" in captured.out
+
+
+# --- Warstwa tekstowa zadeklarowanych plikow binarnych (05-03/3) ------------
+#
+# Sam skrypt bramki czyta wylacznie tresc tekstowa (importuje WYLACZNIE
+# biblioteke standardowa), wiec plikow binarnych nie obejmuje i obejmowac nie
+# bedzie - dolozenie czytnika PDF do niego zlamaloby izolacje zaleznosciowa,
+# ktora jest warunkiem dzialania haka pre-commit bez synchronizacji
+# srodowiska. Ten test w pakiecie MOZE to zrobic, bo pakiet ma zaleznosci
+# deweloperskie (pypdf) - to jest podzial, nie luka. Deklaracje plikow
+# binarnych IMPORTUJEMY z bramki oznaczenia odrzuconego, nie tworzymy drugiej
+# listy (jedno zrodlo prawdy, wzorem D-19).
+
+
+def test_declared_binary_files_text_layer_carries_no_undeclared_identity_match():
+    import pypdf
+
+    from test_standard_designation_gate import BINARY_SCAN_TARGETS
+
+    allow_patterns = guard._load_allow_patterns(REPO_ROOT / ".confidentiality-allow")
+    declared_values = guard._identity_declared_values(allow_patterns)
+    path_exceptions = guard._identity_path_exceptions(allow_patterns)
+
+    undeclared: list[str] = []
+    for relative_path, strategy in BINARY_SCAN_TARGETS.items():
+        target = REPO_ROOT / relative_path
+        assert target.is_file(), f"Zadeklarowany plik nie istnieje: {relative_path}"
+
+        if strategy == "pdf-text":
+            reader = pypdf.PdfReader(str(target))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        elif strategy == "raw-bytes":
+            text = target.read_bytes().decode("latin-1")
+        else:  # pragma: no cover - zamkniety zbior strategii
+            raise AssertionError(f"Nieznana strategia: {strategy}")
+
+        for violation in guard.scan_text_identity(
+            text, relative_path, declared_values=declared_values
+        ):
+            if guard._identity_rule_is_suppressed(
+                relative_path, violation.rule_id, path_exceptions
+            ):
+                continue
+            undeclared.append(f"{relative_path}:{violation.line}:{violation.rule_id}")
+
+    assert undeclared == [], undeclared
+
+
 # --- Regresja na wlasnym drzewie ----------------------------------------------
 
 

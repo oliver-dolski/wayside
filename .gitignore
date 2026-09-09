@@ -4,6 +4,15 @@ __pycache__/
 .venv/
 standards/.local/
 
+# Plik literalow lokalnych warstwy tozsamosciowej bramki poufnosci (piata
+# regula, identity-local-literal). Niesie literalne nazwy urzadzen i
+# sygnatury z sieci pracodawcy, ktorych zaden wzorzec ksztaltu nie wyraza -
+# jego trafienie do repozytorium bylby dokladnie tym wyciekiem, ktoremu ta
+# warstwa ma zapobiegac. Ta sama koniecznosc architektoniczna, co przy
+# lokalnym korpusie norm powyzej: nie wolno go wgrywac do sekretow
+# repozytorium ani do konfiguracji CI.
+.confidentiality-identity.local
+
 # Stan runtime GSD zwiazany z maszyna i sesja, nie z projektem:
 # sentinel izolacji dispatchu oraz blokada milestone z PID i identyfikatorem
 # sesji. Oba sa odtwarzane przy kazdym uruchomieniu i w historii tylko

@@ -94,6 +94,64 @@ entries:
     evidence: "tests/test_confidentiality_guard.py::test_corpus_layer_flags_matching_twelve_word_shingle"
     status: active
 
+  - id: confidentiality-identity-layer-blocks-project-name-outside-exempted-path
+    claim: >-
+      Warstwa tozsamosciowa bramki poufnosci odrzuca commit niosacy nazwe
+      wlasna projektu odgrodzonego granica poufnosci autora poza sciezkami
+      jawnie wyjetymi tej reguly.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard_integration.py::test_commit_with_project_name_outside_exempted_path_is_rejected"
+    status: active
+
+  - id: confidentiality-identity-layer-shape-rules-are-public-abbreviations
+    claim: >-
+      Cztery reguly ksztaltu warstwy tozsamosciowej (adresacja prywatna
+      RFC 1918, adres sprzetowy, nazwa urzadzenia, nazwa wlasna) sa
+      zbudowane z publicznie znanych skrotow branzowych i ksztaltow
+      adresowych, dzialaja bez zadnego lokalnego materialu, a wiec takze
+      w CI.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard.py::test_device_role_prefixes_are_closed_set_of_uppercase_abbreviations"
+    status: active
+
+  - id: confidentiality-identity-layer-declared-address-required
+    claim: >-
+      Adres o ksztalcie adresacji prywatnej albo adresu sprzetowego obecny
+      w drzewie sledzonym musi byc zadeklarowany po wartosci razem z
+      pochodzeniem w .confidentiality-allow - adres niezadeklarowany
+      zapala bramke niezaleznie od pliku.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard.py::test_every_identity_address_match_in_tracked_tree_is_declared_or_exempted"
+    status: active
+
+  - id: confidentiality-identity-layer-fifth-rule-local-only
+    claim: >-
+      Piata regula warstwy tozsamosciowej, literalna, dziala WYLACZNIE
+      lokalnie z pliku gitignorowanego, a jej brak jest zglaszany
+      ostrzezeniem na standardowe wyjscie bledu, nie przemilczany.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard.py::test_load_identity_local_literals_missing_file_warns_and_returns_empty"
+    status: active
+
+  - id: confidentiality-identity-layer-does-not-cover-binary-files-itself
+    claim: >-
+      Sam skrypt bramki czyta wylacznie tresc tekstowa i nie obejmuje
+      plikow binarnych - warstwa tekstowa zadeklarowanych plikow binarnych
+      sledzonych przez gita jest przeszukana wzorcami tozsamosciowymi
+      osobnym testem pakietu.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard.py::test_declared_binary_files_text_layer_carries_no_undeclared_identity_match"
+    status: active
+
+  - id: confidentiality-remediation-contract-covers-every-pattern
+    claim: >-
+      Trafienie w historii repozytorium wymaga przepisania historii przez
+      git filter-repo przed jakimkolwiek publicznym pushem, dla kazdego
+      wzorca bramki, nie tylko sciezki standards/.local.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_no_history_leak.py::test_standards_local_never_appears_in_commit_history"
+    status: active
+
   # --- ## Uruchomienie ---------------------------------------------------------
 
   - id: analyze-writes-two-artifacts-without-pdf
@@ -216,6 +274,16 @@ entries:
       standards/.local`), i konczy sie bledem, gdy wynik nie jest pusty.
     readme_anchor: Weryfikacja w CI
     evidence: "tests/test_ci_workflow_contract.py::test_backstop_checks_empty_history_for_local_corpus_path"
+    status: active
+
+  - id: ci-does-not-see-identity-local-literal-file
+    claim: >-
+      Plik literalow lokalnych warstwy tozsamosciowej jest gitignorowany i
+      nigdy nie trafia do CI - jego brak jest zglaszany ostrzezeniem, a
+      piata regula pozostaje nieaktywna, dokladnie tak samo jak korpus
+      standards/.local dla warstwy korpusowej.
+    readme_anchor: Weryfikacja w CI
+    evidence: "tests/test_confidentiality_guard.py::test_load_identity_local_literals_missing_file_warns_and_returns_empty"
     status: active
 
   # --- ## Licencja --------------------------------------------------------

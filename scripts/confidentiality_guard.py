@@ -71,6 +71,7 @@ __all__ = [
     "scan_text_identity",
     "scan_files",
     "AllowListShapeError",
+    "load_identity_local_literals",
     "main",
 ]
 
@@ -534,6 +535,37 @@ def scan_text_corpus(text: str, path: str, corpus_dir: Path) -> list[Violation]:
     return violations
 
 
+def load_identity_local_literals(local_file: Path) -> tuple[str, ...]:
+    """Wczytuje literaly piatej reguly warstwy 3 (`identity-local-literal`)
+    z pliku LOKALNEGO, gitignorowanego, nieobecnego w CI (rozstrzygniecie
+    R-2) - siostra warstwy 1 (korpusowej), ktora dziala na tej samej zasadzie.
+
+    Pomija wiersze puste i wiersze zaczynajace sie od `#`, zdejmuje biale
+    znaki brzegowe. Przy braku pliku wypisuje ostrzezenie na standardowe
+    wyjscie bledu i zwraca pusta krotke - cicha nieobecnosc tej kontroli
+    jest gorsza od halasu, dokladnie tak samo jak przy braku katalogu
+    korpusu (warstwa 1). Przy pliku istniejacym, ale bez ani jednego
+    literalu, zwraca pusta krotke i NIE ostrzega (zalozenie Z-94): plik
+    z samymi komentarzami jest jawnym oswiadczeniem "brak literalow
+    lokalnych", droga wyjscia, ktora nie jest wylaczeniem warstwy.
+    """
+    if not local_file.is_file():
+        print(
+            f"[confidentiality-guard] Plik literalow lokalnych '{local_file}' "
+            "nie istnieje na tej maszynie. Regula literalna warstwy "
+            "tozsamosciowej (identity-local-literal) NIE zostala wykonana.",
+            file=sys.stderr,
+        )
+        return ()
+    literals: list[str] = []
+    for raw_line in local_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        literals.append(line)
+    return tuple(literals)
+
+
 def _load_allow_patterns(allow_file: Path) -> list[str]:
     """Wczytuje wzorce `fnmatch` z pliku wyjatkow warstwy strukturalnej.
 
@@ -706,12 +738,16 @@ def scan_text_identity(
     """Warstwa 3: wzorce tozsamosciowe.
 
     Dziala bez zadnego korpusu - a wiec takze w CI, jak warstwa 2, ktorej
-    jest siostrzana. Cztery reguly ksztaltu dzialaja zawsze: adresacja
+    jest siostrzana. Cztery reguly ksztaltu dzialaja zawsze, WSZEDZIE: adresacja
     prywatna RFC 1918 poza `declared_values`, adres sprzetowy poza
     `declared_values`, nazwa urzadzenia, i nazwa wlasna projektu odgrodzonego
-    (`RULE_IDENTITY_PROJECT_NAME`). Piata regula, literalna, dziala WYLACZNIE
-    lokalnie z pliku gitignorowanego (`local_literals`) - dochodzi w zadaniu
-    05-03/3.
+    (`RULE_IDENTITY_PROJECT_NAME`) - zbudowane z publicznie znanych skrotow
+    branzowych i z ksztaltow adresowych, nigdy z niczyjego inwentarza
+    (rozstrzygniecie R-1). Piata regula, literalna (`local_literals`), dziala
+    WYLACZNIE lokalnie, z pliku gitignorowanego (rozstrzygniecie R-2) - to
+    jest najwrazliwsza regula z piatki, bo jej dane wejsciowe sa dokladnie ta
+    trescia, ktorej cala bramka broni, wiec jej pole powodu (jak wszystkie
+    pozostale) nie niesie ani literalu, ani fragmentu linii.
 
     Naruszenia sa zwracane posortowane po numerze linii, a przy tym samym
     numerze linii po identyfikatorze reguly - kolejnosc stabilna miedzy
@@ -784,6 +820,23 @@ def scan_text_identity(
                 )
             )
 
+        for literal in local_literals:
+            normalized_literal = _strip_diacritics(literal).casefold()
+            if normalized_literal and normalized_literal in normalized:
+                violations.append(
+                    Violation(
+                        path=path,
+                        line=line_no,
+                        layer="identity",
+                        rule_id=RULE_IDENTITY_LOCAL_LITERAL,
+                        reason=(
+                            "Linia niesie literal z lokalnej listy "
+                            "tozsamosciowej "
+                            f"({DEFAULT_IDENTITY_LOCAL_FILE})."
+                        ),
+                    )
+                )
+
     violations.sort(key=lambda v: (v.line, v.rule_id))
     return violations
 
@@ -813,14 +866,20 @@ def scan_files(
     Z-92), wiec dopuszczenie jednej reguly nie zdejmuje drugiej z tej samej
     sciezki.
 
-    `identity_local_file` jest przyjmowany juz teraz (kazde dzisiejsze
-    wywolanie pozostaje poprawne bez zmiany), ale uzywany dopiero od zadania
-    05-03/3, ktore dolozy piata regule, literalna.
+    `identity_local_file` wskazuje plik literalow lokalnych piatej reguly
+    (`load_identity_local_literals`); przy `None` uzywana jest sciezka
+    domyslna (`DEFAULT_IDENTITY_LOCAL_FILE`), wiec kazde dzisiejsze wywolanie
+    bez tego argumentu zostaje poprawne bez zmiany.
     """
     allow_patterns = allow_patterns or []
     structural_patterns = _structural_allow_patterns(allow_patterns)
     declared_values = _identity_declared_values(allow_patterns)
     identity_path_exceptions = _identity_path_exceptions(allow_patterns)
+    local_literals = load_identity_local_literals(
+        identity_local_file
+        if identity_local_file is not None
+        else Path(DEFAULT_IDENTITY_LOCAL_FILE)
+    )
 
     violations: list[Violation] = []
 
@@ -845,7 +904,10 @@ def scan_files(
             violations.extend(scan_text_structural(text, raw_path))
 
         for violation in scan_text_identity(
-            text, raw_path, declared_values=declared_values
+            text,
+            raw_path,
+            declared_values=declared_values,
+            local_literals=local_literals,
         ):
             if _identity_rule_is_suppressed(
                 raw_path, violation.rule_id, identity_path_exceptions
@@ -889,6 +951,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Wypisz naruszenia jako JSON zamiast jednej linii na naruszenie.",
     )
+    parser.add_argument(
+        "--identity-local-file",
+        default=DEFAULT_IDENTITY_LOCAL_FILE,
+        help=(
+            "Plik literalow lokalnych warstwy tozsamosciowej, LOKALNY "
+            f"i gitignorowany, nieobecny w CI (domyslnie {DEFAULT_IDENTITY_LOCAL_FILE})."
+        ),
+    )
     return parser
 
 
@@ -899,12 +969,14 @@ def main(argv: list[str] | None = None) -> int:
     corpus_dir = Path(args.corpus_dir)
     allow_file = Path(args.allow_file)
     allow_patterns = _load_allow_patterns(allow_file)
+    identity_local_file = Path(args.identity_local_file)
 
     violations = scan_files(
         paths=args.paths,
         corpus_dir=corpus_dir,
         use_corpus=not args.no_corpus,
         allow_patterns=allow_patterns,
+        identity_local_file=identity_local_file,
     )
 
     if args.json:

@@ -57,7 +57,7 @@ zrzutu.
 ## Bramka poufnosci
 
 Kazdy `git commit` przechodzi przez `scripts/confidentiality_guard.py`
-w trzech warstwach:
+w czterech warstwach:
 
 1. **Sciezkowa** - kazdy plik pod `standards/.local/` jest odrzucany,
    niezaleznie od tresci, nawet gdy zostal dodany przez `git add -f`.
@@ -68,6 +68,16 @@ w trzech warstwach:
 3. **Strukturalna** - regex na odcisk jezyka normatywnego (kropkowany numer
    punktu + modalnosc normatywna w tej samej linii). Dziala bez zadnego
    korpusu, wiec takze w CI.
+4. **Tozsamosciowa** - piec regul lapiacych tresc z sieci pracodawcy zamiast
+   tresci normy: adresacja prywatna RFC 1918, adres sprzetowy jako sygnatura
+   urzadzenia, nazwa urzadzenia, oraz nazwa wlasna projektu odgrodzonego
+   granica poufnosci autora - te cztery sa regulami KSZTALTU, zbudowanymi
+   z publicznie znanych skrotow branzowych i z ksztaltow adresowych, nigdy
+   z niczyjego inwentarza, i dzialaja bez zadnego lokalnego materialu, a wiec
+   takze w CI. Piata regula jest literalna i dziala WYLACZNIE lokalnie, z
+   pliku gitignorowanego. Adres obecny w repozytorium musi byc zadeklarowany
+   po wartosci razem z pochodzeniem w `.confidentiality-allow` - adres
+   niezadeklarowany zapala bramke niezaleznie od pliku, w ktorym stoi.
 
 Katalog `standards/.local` nigdy nie opuszcza maszyny autora - jest
 gitignorowany i **nie wolno** go wysylac do sekretow repozytorium ani do
@@ -80,8 +90,31 @@ zadnej konfiguracji CI, bo to zniweczyloby cel tej bramki.
   wlasciwosc kazdego lokalnego haka git, nie luka tej implementacji.
 - Warstwa uruchamiana w CI jest **detekcyjna, nie prewencyjna** - wykrywa po
   fakcie (juz po `git push`) i nie powstrzymuje samego wyslania tresci. CI
-  nie ma tez dostepu do `standards/.local` (gitignorowany), wiec w CI dziala
-  wylacznie warstwa strukturalna.
+  nie ma tez dostepu do `standards/.local` (gitignorowany), wiec w CI dzialaja
+  wylacznie warstwa strukturalna i cztery reguly ksztaltu warstwy
+  tozsamosciowej.
+- Piata regula warstwy tozsamosciowej, literalna, dziala WYLACZNIE lokalnie -
+  plik z literalami jest gitignorowany i **nie wolno** go wgrywac do
+  sekretow repozytorium ani do konfiguracji CI, bo to zniweczyloby cel tej
+  warstwy dokladnie tak samo, jak wgranie korpusu norm zniweczyloby warstwe
+  2. Brak tego pliku jest zglaszany ostrzezeniem na standardowe wyjscie
+  bledu, nie przemilczany.
+- Sam skrypt bramki czyta wylacznie tresc tekstowa (importuje wylacznie
+  biblioteke standardowa Pythona), wiec plikow binarnych nie obejmuje -
+  obejmuje je osobny test pakietu, dzialajacy po warstwie tekstowej tych
+  plikow, bo skrypt musi dzialac bez zaleznosci zewnetrznych, a czytnik PDF
+  zaleznoscia jest.
+- Wzorce warstwy tozsamosciowej sa wzorcami ksztaltu, wiec lapia konwencje
+  nazewnicza, a nie kazda mozliwa nazwe - literaly, ktorych zaden ksztalt nie
+  wyraza, sa rola piatej reguly, lokalnej.
+
+**Trafienie w BIEZACYM drzewie naprawia sie poprawka przed commitem. Trafienie
+w HISTORII to zupelnie inna sytuacja: tresc jest juz zapisana i zaden kolejny
+commit tego nie cofa.** Droga naprawy to przepisanie historii przez
+`git filter-repo` PRZED jakimkolwiek publicznym pushem. Jesli publiczny push
+juz sie odbyl, przepisanie historii nie cofa faktu, ze tresc mogla zostac
+zescrapowana albo zmirrorowana - ten kontrakt dotyczy kazdego wzorca tej
+bramki, nie tylko sciezki `standards/.local`.
 
 ## Uruchomienie
 
@@ -171,12 +204,15 @@ ma dzialac. Dwa joby:
    `git log --all -- standards/.local`, ktory konczy job bledem, gdy wynik
    nie jest pusty.
 
-**Czego CI z zalozenia NIE widzi:** lokalnego korpusu `standards/.local`.
-Katalog jest gitignorowany i nigdy nie trafia do zdalnego repozytorium ani do
-sekretow CI - to jest architektoniczna koniecznosc, nie niedopatrzenie: wgranie
-korpusu do sekretow repozytorium zniweczyloby cel calej bramki. W CI dziala
-wylacznie warstwa strukturalna (regex na odcisk jezyka normatywnego) i
-kontrola sciezki - nigdy warstwa korpusowa.
+**Czego CI z zalozenia NIE widzi:** lokalnego korpusu `standards/.local` oraz
+pliku literalow lokalnych warstwy tozsamosciowej (piata regula,
+`identity-local-literal`). Oba sa gitignorowane i nigdy nie trafiaja do
+zdalnego repozytorium ani do sekretow CI - to jest architektoniczna
+koniecznosc, nie niedopatrzenie: wgranie ktoregos z nich do sekretow
+repozytorium zniweczyloby cel warstwy, ktorej bronia. W CI dziala warstwa
+strukturalna (regex na odcisk jezyka normatywnego), kontrola sciezki, oraz
+cztery reguly ksztaltu warstwy tozsamosciowej - nigdy warstwa korpusowa ani
+piata regula, literalna.
 
 **Charakter tej warstwy jest detekcyjny, nie prewencyjny.** CI potwierdza
 naruszenie PO fakcie - juz po `git push` - i uruchamia reakcje: revert,

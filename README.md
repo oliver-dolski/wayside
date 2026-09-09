@@ -200,9 +200,19 @@ ma dzialac. Dwa joby:
    fazy 1 nie zniknelo z kolekcji `pytest`), potem `uv run pytest`.
 2. **`confidentiality-backstop`** - detekcyjny backstop poufnosci: checkout
    z `fetch-depth: 0` (pelna historia), `scripts/confidentiality_guard.py`
-   w trybie `--no-corpus` na wszystkich sledzonych plikach, oraz
+   w trybie `--no-corpus` na wszystkich sledzonych plikach,
    `git log --all -- standards/.local`, ktory konczy job bledem, gdy wynik
-   nie jest pusty.
+   nie jest pusty, oraz trzeci krok: audyt trzech powierzchni CALEJ historii
+   repozytorium (tresc drzew, komunikaty commitow, nazwy plikow) tymi samymi
+   wzorcami warstwy tozsamosciowej co bramka biezaca, uruchamiany z jawnym
+   wlaczeniem znacznika `slow` pakietu testow.
+
+Ten trzeci krok jest **domyslnie pomijany lokalnie** (znacznik `slow` jest
+filtrowany w opcjach domyslnych pakietu testow), bo jego koszt to trzy
+powierzchnie razy caly zbior commitow repozytorium - deweloper, ktory nigdy
+nie wykonuje publicznego pushu, nigdy go nie uruchamia, i to jest swiadomy
+wybor, nie luka. Miejscem, w ktorym ten skan jest obowiazkowy, jest CI oraz
+bramka przed publicznym pushem (`compliance/history-audit.md`).
 
 **Czego CI z zalozenia NIE widzi:** lokalnego korpusu `standards/.local` oraz
 pliku literalow lokalnych warstwy tozsamosciowej (piata regula,

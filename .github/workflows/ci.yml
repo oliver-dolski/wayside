@@ -67,6 +67,15 @@ jobs:
           $collected = uv run pytest --collect-only -q 2>&1 | Out-String
           Write-Host $collected
 
+          # UWAGA (Z-101, plan 05-04): modul testu audytu trzech powierzchni
+          # calej historii (znacznik `slow`, pomijany domyslnie przez filtr w
+          # pyproject.toml) swiadomie NIE WCHODZI na te liste. Po wprowadzeniu
+          # domyslnego filtra znacznika ten modul nie pojawia sie w ponizszej
+          # kolekcji (ktora dziedziczy opcje domyslne), wiec dopisanie go tu
+          # zaczerwienilo by ten krok natychmiast. Jego obecnosc w CI pilnuje
+          # OSOBNY test kontraktu workflow (plik testowy audytu historii w
+          # katalogu tests/), ktory sprawdza, ze job confidentiality-backstop
+          # wola go z jawnym wlaczeniem znacznika `slow`.
           $criticalModules = @(
             'test_confidentiality_guard_integration',
             'test_no_history_leak',
@@ -156,3 +165,14 @@ jobs:
           }
 
           Write-Host "Historia standards/.local jest pusta."
+
+      - name: Audyt trzech powierzchni calej historii (PUB-05, znacznik wolny)
+        shell: pwsh
+        run: |
+          # JEDYNE miejsce w calym repozytorium, w ktorym znacznik `slow` jest
+          # jawnie wlaczany - patrz komentarz przy `addopts` w pyproject.toml
+          # (D-22: sama rejestracja znacznika niczego nie pomija, filtr w
+          # addopts pomija domyslnie, ta linia go jawnie nadpisuje). Ten job
+          # ma checkout z pelna historia (`fetch-depth: 0` wyzej) - bez tego
+          # ten skan wygladalby na zielony, w ogole nie sprawdziwszy historii.
+          uv run pytest -o addopts="-q" -m slow tests/test_history_audit.py

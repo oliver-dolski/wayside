@@ -30,7 +30,14 @@ packages = ["src/wayside"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# UWAGA (D-22, Pitfall 1 badania fazy 5): rejestracja znacznika "slow" w liscie
+# `markers` ponizej NIE POMIJA zadnego testu - odpowiada wylacznie za walidacje
+# nazwy znacznika i wyciszenie ostrzezenia "unknown marker". Faktyczne pominiecie
+# robi WYLACZNIE filtr `-m 'not slow'` w `addopts` ponizej - to jest druga, rownie
+# konieczna polowa tego samego rozstrzygniecia; sama rejestracja bez tego filtra
+# zostawia znacznik zarejestrowany, ale nieskuteczny.
+addopts = "-q -m 'not slow'"
 markers = [
     "integration: testy integracyjne (m.in. prawdziwy subprocess git)",
+    "slow: skan pelnej historii repozytorium (trzy powierzchnie razy caly zbior commitow) - pomijany domyslnie lokalnie, wlaczany jawnie wylacznie w jobie CI confidentiality-backstop",
 ]

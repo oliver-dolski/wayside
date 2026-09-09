@@ -276,6 +276,32 @@ entries:
     evidence: "tests/test_ci_workflow_contract.py::test_backstop_checks_empty_history_for_local_corpus_path"
     status: active
 
+  - id: ci-backstop-runs-history-audit-scan
+    claim: >-
+      Job `confidentiality-backstop` niesie trzeci krok: audyt trzech
+      powierzchni calej historii repozytorium (tresc drzew, komunikaty
+      commitow, nazwy plikow) tymi samymi wzorcami warstwy tozsamosciowej co
+      bramka biezaca, uruchamiany z jawnym wlaczeniem znacznika slow.
+    readme_anchor: Weryfikacja w CI
+    evidence: "tests/test_ci_workflow_contract.py::test_backstop_runs_history_audit_scan_with_slow_marker_enabled"
+    status: active
+
+  - id: history-audit-scan-skipped-by-default-locally
+    claim: >-
+      Skan trzech powierzchni calej historii jest domyslnie pomijany
+      lokalnie (znacznik slow filtrowany w opcjach domyslnych pakietu
+      testow) i uruchamiany jawnie wylacznie w CI.
+    readme_anchor: Weryfikacja w CI
+    evidence: manual
+    reason: >-
+      Twierdzenie o zachowaniu domyslnej kolekcji pytest, potwierdzone
+      pomiarem liczby zebranych testow (z domyslnymi opcjami i z jawnym
+      nadpisaniem) zapisanym w SUMMARY planu 05-04, nie osobnym testem
+      pakietu - test powtarzajacy ten pomiar musialby spawnowac wlasny
+      subprocess pytest przy kazdym przebiegu, co jest dokladnie kosztem,
+      ktorego istnienie znacznika ma unikac.
+    status: active
+
   - id: ci-does-not-see-identity-local-literal-file
     claim: >-
       Plik literalow lokalnych warstwy tozsamosciowej jest gitignorowany i

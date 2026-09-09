@@ -118,6 +118,30 @@ def test_backstop_checks_empty_history_for_local_corpus_path():
     ), "brak kroku `git log --all -- standards/.local`"
 
 
+def test_backstop_runs_history_audit_scan_with_slow_marker_enabled():
+    """PUB-05/D-22: job backstopu niesie krok wolajacy modul skanu trzech
+    powierzchni calej historii z jawnym wlaczeniem znacznika `slow` - bez
+    tego jawnego wlaczenia domyslny filtr znacznika (pyproject.toml)
+    pomijalby ten modul takze w CI, i skan wygladalby na zielony, w ogole
+    sie nie wykonujac."""
+    workflow = load_workflow()
+    commands = step_commands(steps_of(workflow, "confidentiality-backstop"))
+    assert any(
+        "-m slow" in cmd and "test_history_audit" in cmd for cmd in commands
+    ), "brak kroku uruchamiajacego skan historii z jawnym wlaczeniem znacznika slow"
+
+
+def test_job_test_collection_gate_does_not_list_history_audit_module():
+    """Z-101: modul skanu historii NIE ma prawa stac na liscie modulow
+    krytycznych kroku kolekcji jobu `test` - po wprowadzeniu domyslnego
+    filtra znacznika `slow` ten modul nie pojawia sie w tamtej kolekcji,
+    wiec dopisanie go zaczerwienilo by krok natychmiast."""
+    workflow = load_workflow()
+    commands = step_commands(steps_of(workflow, "test"))
+    collection_gate = next(cmd for cmd in commands if "collect-only" in cmd)
+    assert "test_history_audit" not in collection_gate
+
+
 # --- Zadny krok nie uzywa lokalnego korpusu jako zrodla danych ---------------
 
 

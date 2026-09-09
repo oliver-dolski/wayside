@@ -9,10 +9,11 @@ Ktore rozstrzygniecie realizuje kazda asercja:
 - D-16: bramka ma TRZY asercje - (a) kazdy wpis ma niepuste `evidence`,
   (b) kazdy `evidence` niebedacy dowodem recznym jest obecny w kolekcji
   pytest zbieranej przez `--collect-only`, (c) kazdy naglowek `##` README ma
-  wpis albo jawne wylaczenie w tym samym pliku. **W TYM zadaniu (05-01
-  Task 1) wchodza wylacznie asercje (a) i (b)**, razem z bramka ksztaltu
-  sekcji `## Intended Use` (D-10, D-11, D-12) - asercja (c) dochodzi
-  w zadaniu 2.
+  wpis albo jawne wylaczenie w tym samym pliku. Zadanie 1 wprowadzilo
+  asercje (a) i (b) razem z bramka ksztaltu sekcji `## Intended Use`
+  (D-10, D-11, D-12). **Zadanie 2 dokłada asercje (c)**, jej odwrotnosc
+  przeciw pozycjom martwym, obsluge statusu `retired`, oraz bramke
+  bezdiakrytycznej ortografii README (D-13).
 - D-17: dowod reczny (`evidence == MANUAL_EVIDENCE`) jest dopuszczalny
   wylacznie z niepustym polem `reason`.
 
@@ -38,6 +39,19 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Siostrzana bramka importuje `tests/` jawnie do sys.path "na wszelki wypadek"
+# (wzorzec `tests/test_example_report.py`), zamiast polegac wylacznie na
+# insercji, ktora pytest robi dla WLASNEGO katalogu tego modulu.
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+# Jedno zrodlo prawdy dla zbioru osiemnastu polskich znakow diakrytycznych,
+# dzielone z regula ODWROTNA dla raportu (tests/test_report_orthography.py):
+# import wprost, nie kopia wartosci - `test_readme_claims.POLISH_DIACRITICS
+# is test_report_orthography.POLISH_DIACRITICS` musi byc prawda.
+from test_report_orthography import POLISH_DIACRITICS  # noqa: E402
 
 CATALOG_PATH = REPO_ROOT / "compliance" / "readme-claims.yaml"
 README_PATH = REPO_ROOT / "README.md"
@@ -114,6 +128,26 @@ def _section_body(text: str, header: str) -> str:
 
 def _readme_section_body(header: str) -> str:
     return _section_body(_readme_text(), header)
+
+
+def _readme_anchors() -> list[str]:
+    """Lista naglowkow drugiego poziomu README, w kolejnosci wystapienia,
+    bez znakow kratki i bez spacji wiodacej (zgodnie z ksztaltem pola
+    `readme_anchor` z D-15)."""
+    return [
+        match.group(0)[3:].strip()
+        for match in _HEADER_LINE_RE.finditer(_readme_text())
+    ]
+
+
+def _excluded_anchors() -> dict[str, str]:
+    """Odwzorowanie naglowka wylaczonego na jego powod, wczytane z katalogu
+    na dysku."""
+    raw = _load_catalog()
+    return {
+        item.get("anchor"): item.get("reason", "")
+        for item in (raw.get("excluded_anchors") or [])
+    }
 
 
 _collected_test_ids_cache: frozenset[str] | None = None
@@ -231,6 +265,61 @@ def _entry_errors(catalog: dict, collected: frozenset[str]) -> list[str]:
 
         if not _evidence_is_collected(evidence, collected):
             errors.append(f"{entry_id}: dowod {evidence!r} nieobecny w kolekcji pytest.")
+
+    return errors
+
+
+# --- Asercja D-16 (c): kompletnosc pokrycia naglowkow, plus odwrotnosc -----
+
+
+def _completeness_errors(catalog: dict, readme_headers: list[str]) -> list[str]:
+    """Asercja (c) z D-16 [kazdy naglowek ma aktywny wpis albo jawne
+    wylaczenie] razem z jej odwrotnoscia przeciw pozycjom martwym [kazdy
+    wpis i kazde wylaczenie wskazuje naglowek, ktory naprawde istnieje w
+    README] i z regula D-16 podpunkt trzeci o niepustym powodzie wylaczenia.
+    Dziala na DOWOLNYM slowniku katalogu i DOWOLNEJ liscie naglowkow w
+    pamieci - przypadki negatywne katalogu NIE modyfikuja pliku w drzewie.
+
+    Bledy o brakujacym pokryciu wymieniane sa w kolejnosci wystapienia
+    naglowka w `readme_headers` (wiersz E-09 sondy krawedziowej)."""
+    entries = catalog.get("entries") or []
+    excluded = catalog.get("excluded_anchors")
+    if excluded is None:
+        excluded = []
+
+    errors: list[str] = []
+
+    excluded_map: dict[str, str] = {}
+    for item in excluded:
+        anchor = item.get("anchor")
+        reason = (item.get("reason") or "").strip()
+        if not reason:
+            errors.append(f"Wylaczenie naglowka {anchor!r} ma puste pole 'reason'.")
+        if anchor not in readme_headers:
+            errors.append(
+                f"Wylaczenie wskazuje naglowek {anchor!r}, ktorego w README nie ma."
+            )
+        excluded_map[anchor] = reason
+
+    seen_entry_anchors: set[str] = set()
+    active_anchors: set[str] = set()
+    for entry in entries:
+        anchor = entry.get("readme_anchor")
+        if anchor not in seen_entry_anchors:
+            seen_entry_anchors.add(anchor)
+            if anchor not in readme_headers:
+                errors.append(
+                    f"Wpis wskazuje naglowek {anchor!r}, ktorego w README nie ma."
+                )
+        active_anchors.add(anchor)
+
+    for header in readme_headers:
+        if header in active_anchors or header in excluded_map:
+            continue
+        errors.append(
+            f"Naglowek '## {header}' nie ma aktywnego wpisu ani jawnego wylaczenia "
+            "w compliance/readme-claims.yaml."
+        )
 
     return errors
 
@@ -523,6 +612,144 @@ def test_failure_message_never_carries_claim_text():
     errors = _entry_errors(catalog, frozenset())
     assert errors, "test wymaga co najmniej jednego bledu do sprawdzenia"
     assert all(claim_text not in e for e in errors)
+
+
+# --- Testy: `_readme_anchors`, `_excluded_anchors` --------------------------
+
+
+def test_readme_anchors_lists_headers_in_order():
+    anchors = _readme_anchors()
+    assert anchors[0] == "Bootstrap"
+    assert anchors[1] == "Intended Use"
+    assert "Testy" in anchors
+
+
+def test_excluded_anchors_maps_real_catalog_exclusions_to_reasons():
+    excluded = _excluded_anchors()
+    assert "Testy" in excluded
+    assert excluded["Testy"].strip() != ""
+
+
+# --- Testy: asercja (c) D-16 - kompletnosc pokrycia i pozycje martwe -------
+
+
+def test_real_catalog_covers_every_readme_header():
+    errors = _completeness_errors(_load_catalog(), _readme_anchors())
+    assert errors == []
+
+
+def test_header_without_entry_or_exclusion_fails_completeness():
+    headers = ["Naglowek A", "Naglowek B"]
+    catalog = {
+        "entries": [
+            {"id": "x", "readme_anchor": "Naglowek A", "evidence": "e", "status": "active"}
+        ],
+        "excluded_anchors": [],
+    }
+    errors = _completeness_errors(catalog, headers)
+    assert any("Naglowek B" in e for e in errors)
+
+
+def test_entry_pointing_to_nonexistent_header_fails_completeness():
+    headers = ["Naglowek A"]
+    catalog = {
+        "entries": [
+            {"id": "x", "readme_anchor": "Widmo", "evidence": "e", "status": "active"}
+        ],
+        "excluded_anchors": [],
+    }
+    errors = _completeness_errors(catalog, headers)
+    assert any("Widmo" in e for e in errors)
+
+
+def test_exclusion_pointing_to_nonexistent_header_fails_completeness():
+    headers = ["Naglowek A"]
+    catalog = {"entries": [], "excluded_anchors": [{"anchor": "Widmo", "reason": "powod"}]}
+    errors = _completeness_errors(catalog, headers)
+    assert any("Widmo" in e for e in errors)
+
+
+def test_exclusion_with_empty_reason_fails_completeness():
+    headers = ["Naglowek A"]
+    catalog = {"entries": [], "excluded_anchors": [{"anchor": "Naglowek A", "reason": "   "}]}
+    errors = _completeness_errors(catalog, headers)
+    assert any("Naglowek A" in e and "reason" in e for e in errors)
+
+
+def test_header_covered_only_by_retired_entry_fails_completeness():
+    headers = ["Naglowek A"]
+    catalog = {
+        "entries": [
+            {"id": "x", "readme_anchor": "Naglowek A", "evidence": "e", "status": "retired"}
+        ],
+        "excluded_anchors": [],
+    }
+    errors = _completeness_errors(catalog, headers)
+    assert any("Naglowek A" in e for e in errors)
+
+
+def test_two_active_entries_same_header_is_not_a_completeness_collision():
+    headers = ["Naglowek A"]
+    catalog = {
+        "entries": [
+            {"id": "one", "readme_anchor": "Naglowek A", "evidence": "e1", "status": "active"},
+            {"id": "two", "readme_anchor": "Naglowek A", "evidence": "e2", "status": "active"},
+        ],
+        "excluded_anchors": [],
+    }
+    assert _completeness_errors(catalog, headers) == []
+
+
+def test_new_header_added_to_readme_without_coverage_fails_completeness():
+    """D-16 podpunkt trzeci: bramka odporna na DODANIE tresci do README, nie
+    tylko na jej zmiane. Symulacja dopisania nowego naglowka bez wpisu i bez
+    wylaczenia - lista naglowkow w pamieci, README na dysku nietkniety."""
+    headers = _readme_anchors() + ["Naglowek Probny Nowy"]
+    errors = _completeness_errors(_load_catalog(), headers)
+    assert any("Naglowek Probny Nowy" in e for e in errors)
+
+
+def test_completeness_errors_report_missing_headers_in_readme_order():
+    headers = ["Pierwszy", "Drugi", "Trzeci"]
+    catalog = {"entries": [], "excluded_anchors": []}
+    errors = _completeness_errors(catalog, headers)
+    positions = [next(i for i, e in enumerate(errors) if name in e) for name in headers]
+    assert positions == sorted(positions)
+
+
+def test_completeness_verdict_is_independent_of_entry_order():
+    headers = ["A", "B"]
+    catalog_forward = {
+        "entries": [
+            {"id": "one", "readme_anchor": "A", "evidence": "e1", "status": "active"},
+            {"id": "two", "readme_anchor": "B", "evidence": "e2", "status": "active"},
+        ],
+        "excluded_anchors": [],
+    }
+    catalog_reversed = {
+        "entries": list(reversed(catalog_forward["entries"])),
+        "excluded_anchors": [],
+    }
+    assert _completeness_errors(catalog_forward, headers) == []
+    assert _completeness_errors(catalog_reversed, headers) == []
+
+
+# --- Testy: bramka bezdiakrytycznej ortografii README (D-13) ---------------
+
+
+def test_readme_orthography_gate_shares_frozen_diacritics_set_with_report_gate():
+    """Jeden zapis zbioru osiemnastu znakow w repozytorium - regula README
+    (bezdiakrytyczna) i regula raportu (odwrotna) stoja na tym samym
+    obiekcie, nie na dwoch kopiach tej samej wartosci."""
+    import test_report_orthography as _orthography_module
+
+    assert POLISH_DIACRITICS is _orthography_module.POLISH_DIACRITICS
+
+
+def test_readme_has_no_polish_diacritics():
+    text = _readme_text()
+    hits = [(i, ch) for i, ch in enumerate(text) if ch in POLISH_DIACRITICS]
+    assert hits == [], f"Znaki diakrytyczne w README (pozycja, znak): {hits[:5]}"
 
 
 # --- Testy: `_evidence_is_collected` ----------------------------------------

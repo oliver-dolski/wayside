@@ -92,11 +92,14 @@ uv run wayside analyze <plik.pcap> --out-dir wayside-out
 
 Komenda `analyze` zapisuje w katalogu wyjsciowym `analysis.json` (model
 maszynowy) i `report.md` (raport w markdown). Flaga `--pdf` dokladajac
-trzeci artefakt, `report.pdf`, z osadzonym fontem Unicode (DejaVu Sans) -
-polskie znaki diakrytyczne wygladaja przez to tak samo na kazdej maszynie,
-niezaleznie od zainstalowanych fontow systemowych. Flaga jest domyslnie
-wylaczona: domyslna sciezka narzedzia nie zyskuje przez to nowej zaleznosci
-uruchomieniowej.
+trzeci artefakt, `report.pdf`, z osadzonym fontem Unicode (DejaVu Sans):
+w warstwie tekstowej PDF kazdy z osiemnastu polskich znakow diakrytycznych
+wystepuje jako pojedynczy, zlozony punkt kodowy, niezaleznie od fontow
+zainstalowanych w systemie. Granica tego twierdzenia: to, jak dokument
+wyglada w konkretnym czytniku PDF, nie zostalo potwierdzone wzrokowo na
+wielu maszynach (`.planning/WINDOWS.md`, pozycje 12 i 13). Flaga jest
+domyslnie wylaczona: domyslna sciezka narzedzia nie zyskuje przez to nowej
+zaleznosci uruchomieniowej.
 
 ```powershell
 uv run wayside analyze <plik.pcap> --pdf --out-dir wayside-out

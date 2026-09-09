@@ -20,10 +20,213 @@ entries:
     evidence: "tests/test_oui.py::test_no_network_module_imports_under_src_wayside"
     status: active
 
+  # --- ## Bootstrap ----------------------------------------------------------
+
+  - id: bootstrap-no-npcap-needed
+    claim: >-
+      Wireshark, tshark ani sterownik przechwytywania (Npcap) nie sa
+      potrzebne do pracy z narzedziem - caly odczyt dzieje sie z pliku
+      zrzutu.
+    readme_anchor: Bootstrap
+    evidence: manual
+    reason: >-
+      Twierdzenie o srodowisku uruchomieniowym uzytkownika (brak zaleznosci
+      od narzedzi trzecich), nie o kodzie - jedyna uczciwa weryfikacja to
+      przebieg na czystej maszynie bez Npcap/Wiresharka/tsharka, otwarty
+      w .planning/WINDOWS.md pod pozycjami 1 i 2.
+    status: active
+
+  - id: bootstrap-path-refresh
+    claim: >-
+      Skrypt bootstrap.ps1 odswieza PATH biezacego procesu z rejestru
+      miedzy instalacja uv przez winget a ponownym sprawdzeniem jego
+      obecnosci, dzieki czemu jedno uruchomienie po klonie wystarcza
+      takze wtedy, gdy uv trzeba dopiero zainstalowac.
+    readme_anchor: Bootstrap
+    evidence: "tests/test_bootstrap_smoke.py::test_bootstrap_refreshes_path_between_winget_install_and_recheck"
+    status: active
+
+  - id: bootstrap-hooks-unset-before-install
+    claim: >-
+      Skrypt bootstrap.ps1 zdejmuje lokalnie ustawione core.hooksPath
+      przed instalacja haka pre-commit, gdy jest ono ustawione.
+    readme_anchor: Bootstrap
+    evidence: "tests/test_bootstrap_smoke.py::test_bootstrap_unsets_local_hooks_path_before_install"
+    status: active
+
+  - id: bootstrap-hooks-restore-after-failed-install
+    claim: >-
+      Skrypt bootstrap.ps1 przywraca zdjete lokalnie core.hooksPath nawet
+      wtedy, gdy instalacja haka pre-commit sie nie powiedzie, dzieki
+      czemu drugi przebieg skryptu zostaje idempotentny.
+    readme_anchor: Bootstrap
+    evidence: "tests/test_bootstrap_smoke.py::test_bootstrap_restores_local_hooks_path_even_when_install_failed"
+    status: active
+
+  # --- ## Bramka poufnosci ----------------------------------------------------
+
+  - id: confidentiality-path-layer-blocks-forced-add
+    claim: >-
+      Warstwa sciezkowa bramki poufnosci odrzuca kazdy plik pod
+      standards/.local/ przy commicie, niezaleznie od tresci, nawet gdy
+      zostal dodany przez git add -f.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard_integration.py::test_commit_with_standards_local_file_added_with_force_is_rejected"
+    status: active
+
+  - id: confidentiality-structural-layer-blocks-normative-clause
+    claim: >-
+      Warstwa strukturalna bramki poufnosci odrzuca commit niosacy zdanie
+      o ksztalcie klauzuli normatywnej (kropkowany numer punktu z
+      modalnoscia normatywna w tej samej linii), bez dostepu do lokalnego
+      korpusu norm.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard_integration.py::test_commit_with_forbidden_normative_sentence_is_rejected"
+    status: active
+
+  - id: confidentiality-corpus-layer-blocks-shingle-match
+    claim: >-
+      Warstwa korpusowa bramki poufnosci wykrywa tresc pokrywajaca sie z
+      lokalnym katalogiem standards/.local przez dwunastowyrazowe
+      shingle, dzialajac wylacznie lokalnie, tam gdzie ten katalog moze
+      istniec.
+    readme_anchor: Bramka poufnosci
+    evidence: "tests/test_confidentiality_guard.py::test_corpus_layer_flags_matching_twelve_word_shingle"
+    status: active
+
+  # --- ## Uruchomienie ---------------------------------------------------------
+
+  - id: analyze-writes-two-artifacts-without-pdf
+    claim: >-
+      Komenda `wayside analyze` bez flagi --pdf zapisuje w katalogu
+      wyjsciowym dokladnie dwa artefakty: analysis.json i report.md, bez
+      report.pdf.
+    readme_anchor: Uruchomienie
+    evidence: "tests/test_report_pdf.py::test_analyze_without_pdf_flag_writes_two_artifacts_and_no_pdf"
+    status: active
+
+  - id: analyze-pdf-flag-writes-third-artifact
+    claim: >-
+      Flaga --pdf dokladajac trzeci artefakt, report.pdf, i konczy sie
+      kodem 0.
+    readme_anchor: Uruchomienie
+    evidence: "tests/test_report_pdf.py::test_analyze_with_pdf_flag_writes_three_artifacts_and_exits_zero"
+    status: active
+
+  - id: pdf-embeds-unicode-font-for-diacritics
+    claim: >-
+      Eksport do PDF osadza font Unicode (DejaVu Sans), dzieki czemu
+      wszystkie polskie znaki diakrytyczne sa obecne w warstwie tekstowej
+      PDF w postaci zlozonej, niezaleznie od fontow zainstalowanych w
+      systemie.
+    readme_anchor: Uruchomienie
+    evidence: "tests/test_report_pdf.py::test_text_layer_carries_all_nine_polish_diacritics_as_single_codepoints"
+    status: active
+
+  - id: pdf-flag-disabled-by-default-no-new-runtime-dependency
+    claim: >-
+      Flaga --pdf jest domyslnie wylaczona: domyslna sciezka narzedzia
+      (analyze bez --pdf) nie importuje biblioteki fpdf i nie zyskuje
+      przez to nowej zaleznosci uruchomieniowej.
+    readme_anchor: Uruchomienie
+    evidence: "tests/test_report_pdf.py::test_pdf_library_not_imported_by_default_analyze_run"
+    status: active
+
+  # --- ## Przykladowy raport ---------------------------------------------------
+
+  - id: example-report-reproducible-from-slice
+    claim: >-
+      Przykladowy raport w examples/4sics/ jest odtwarzalny bajtowo ze
+      skryptu pobierajacego podzbior zbioru 4SICS - zaden plik zrzutu
+      tego zbioru nie jest sledzony przez gita.
+    readme_anchor: Przykladowy raport
+    evidence: "tests/test_example_report.py::test_example_artifacts_are_byte_reproducible_from_slice"
+    status: active
+
+  # --- ## Stan weryfikacji powolan na normy ------------------------------------
+
+  - id: standards-verification-section-present
+    claim: >-
+      README niesie sekcje `## Stan weryfikacji powolan na normy`
+      opisujaca status weryfikacji numeracji punktow normatywnych.
+    readme_anchor: Stan weryfikacji powolan na normy
+    evidence: "tests/test_standard_designation_gate.py::test_readme_has_standard_verification_section_header"
+    status: active
+
+  - id: standards-verification-section-carries-marker
+    claim: >-
+      Sekcja stanu weryfikacji powolan niesie znacznik `verified: no` dla
+      powolan na IEC 62443-3-3, ktorych numeracja nie zostala zestawiona
+      z legalnym egzemplarzem normy.
+    readme_anchor: Stan weryfikacji powolan na normy
+    evidence: "tests/test_standard_designation_gate.py::test_readme_verification_section_carries_verification_marker"
+    status: active
+
+  - id: standards-verification-links-decision-records
+    claim: >-
+      Sekcja stanu weryfikacji powolan odsyla do obu rekordow decyzji
+      (0004 i 0006), ktore opisuja droge rozstrzygniecia sygnatury CLC/TS
+      50701 i weryfikacji numeracji IEC 62443-3-3.
+    readme_anchor: Stan weryfikacji powolan na normy
+    evidence: "tests/test_standard_designation_gate.py::test_readme_verification_section_links_both_decision_records"
+    status: active
+
+  - id: standards-railway-catalog-edition
+    claim: >-
+      Kazdy wpis katalogu norm o sygnaturze CLC/TS niesie edycje 2023,
+      zgodnie z rekordem decyzji o sygnaturze CLC/TS 50701:2023.
+    readme_anchor: Stan weryfikacji powolan na normy
+    evidence: "tests/test_standard_designation_gate.py::test_every_railway_catalog_entry_has_expected_edition"
+    status: active
+
+  # --- ## Weryfikacja w CI ------------------------------------------------------
+
+  - id: ci-job-test-syncs-and-runs-pytest
+    claim: >-
+      Job `test` w CI synchronizuje srodowisko przez `uv sync --locked` i
+      uruchamia pelny pakiet testow przez `uv run pytest` na swiezym
+      checkoucie.
+    readme_anchor: Weryfikacja w CI
+    evidence: "tests/test_ci_workflow_contract.py::test_job_test_syncs_locked_and_runs_pytest"
+    status: active
+
+  - id: ci-backstop-full-history-checkout
+    claim: >-
+      Job `confidentiality-backstop` robi checkout z pelna historia
+      (fetch-depth: 0), zeby skan historii mogl objac wszystkie commity,
+      nie tylko ostatni.
+    readme_anchor: Weryfikacja w CI
+    evidence: "tests/test_ci_workflow_contract.py::test_backstop_checkout_has_full_history"
+    status: active
+
+  - id: ci-backstop-runs-guard-without-corpus
+    claim: >-
+      Job `confidentiality-backstop` uruchamia
+      `scripts/confidentiality_guard.py` z flaga --no-corpus na
+      wszystkich sledzonych plikach, bo warstwa korpusowa nie ma dostepu
+      do lokalnego katalogu norm w CI.
+    readme_anchor: Weryfikacja w CI
+    evidence: "tests/test_ci_workflow_contract.py::test_backstop_runs_confidentiality_guard_without_corpus"
+    status: active
+
+  - id: ci-backstop-checks-empty-history-for-local-corpus
+    claim: >-
+      Job `confidentiality-backstop` sprawdza, ze katalog standards/.local
+      nigdy nie trafil do historii repozytorium (`git log --all --
+      standards/.local`), i konczy sie bledem, gdy wynik nie jest pusty.
+    readme_anchor: Weryfikacja w CI
+    evidence: "tests/test_ci_workflow_contract.py::test_backstop_checks_empty_history_for_local_corpus_path"
+    status: active
+
 # Naglowki drugiego poziomu README, ktore swiadomie NIE skladaja zadnej
 # obietnicy o kodzie (naglowek niesie polecenie albo odwolanie, nie
 # twierdzenie o zachowaniu narzedzia), wiec katalog powyzej ich nie
 # pokrywa. Kazdy wpis niesie niepuste `reason`, sprawdzane maszynowo
 # (D-16 podpunkt trzeci). Ta lista NIE jest miejscem na obietnice bez
 # pokrycia: naglowek, dla ktorego dowod dalby sie napisac, tu nie stoi.
-excluded_anchors: []
+excluded_anchors:
+  - anchor: Testy
+    reason: >-
+      Naglowek niesie polecenie uruchomienia pakietu testow (`uv run
+      pytest`), nie twierdzenie o zachowaniu narzedzia - nie ma obietnicy
+      do pokrycia dowodem.

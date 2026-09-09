@@ -218,6 +218,18 @@ entries:
     evidence: "tests/test_ci_workflow_contract.py::test_backstop_checks_empty_history_for_local_corpus_path"
     status: active
 
+  # --- ## Licencja --------------------------------------------------------
+
+  - id: license-content-is-apache-2-0
+    claim: >-
+      Plik LICENSE niesie kanoniczna tresc Apache License 2.0, z dokladnie
+      jedna linia roznicy wobec tekstu kanonicznego (wiersz praw
+      autorskich), dowiedziona porownaniem skrotu sha256 po podstawieniu
+      wiersza wzorcowego z powrotem.
+    readme_anchor: Licencja
+    evidence: "tests/test_license.py::test_license_with_placeholder_restored_matches_canonical_sha256"
+    status: active
+
 # Naglowki drugiego poziomu README, ktore swiadomie NIE skladaja zadnej
 # obietnicy o kodzie (naglowek niesie polecenie albo odwolanie, nie
 # twierdzenie o zachowaniu narzedzia), wiec katalog powyzej ich nie

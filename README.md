@@ -190,3 +190,12 @@ szczelnosci w ogole.
 Granice lokalnego haka pre-commit (drugiej strony tej samej bramki) opisane
 sa w sekcji `## Bramka poufnosci` wyzej - oba opisy stoja obok siebie, zeby
 sobie nie zaprzeczac.
+
+## Licencja
+
+Wayside jest udostepniony na licencji Apache License, wersja 2.0. Pelna
+tresc stoi w pliku [`LICENSE`](LICENSE) w katalogu glownym repozytorium.
+Redystrybucja, takze zmodyfikowanej wersji, wymaga zachowania informacji
+o prawach autorskich i oznaczenia zmienionych plikow (punkt 4 tresci
+licencji). Powod wyboru tej licencji zamiast MIT opisuje rekord decyzji
+[`docs/decisions/0007-licencja-apache-2-0.md`](docs/decisions/0007-licencja-apache-2-0.md).

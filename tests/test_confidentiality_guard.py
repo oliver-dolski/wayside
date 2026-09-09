@@ -419,6 +419,235 @@ def test_confidentiality_allow_file_declares_identity_project_name_exceptions():
     assert "scripts/confidentiality_guard.py" in patterns
 
 
+# --- Warstwa 3: tozsamosciowa - trzy reguly ksztaltu (05-03/2) --------------
+#
+# Wartosci ponizej sa WYMYSLONE i celowo NIE koliduja z zadna zadeklarowana
+# wartoscia w .confidentiality-allow - test reguly ma dowodzic detekcji, wiec
+# musi uzywac wartosci NIEzadeklarowanej. Sklejone z fragmentow, zeby ten sam
+# plik (sledzony przez gita) nie wpadl przypadkiem na liste dopasowan wlasnej
+# regresji.
+_UNDECLARED_PRIVATE_IPV4 = "10." + "31.7.5"
+_UNDECLARED_MAC = "de:ad:be:" + "ef:00:01"
+_UNDECLARED_MAC_DASHED = "DE-AD-BE-" + "EF-00-01"
+
+
+def test_identity_layer_flags_undeclared_private_ipv4():
+    text = "host " + _UNDECLARED_PRIVATE_IPV4 + " odpytuje"
+    violations = guard.scan_text_identity(text, "x.md")
+    assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_PRIVATE_IPV4]
+
+
+def test_identity_layer_ignores_declared_private_ipv4():
+    declared = frozenset({guard._normalize_identity_value(_UNDECLARED_PRIVATE_IPV4)})
+    text = "host " + _UNDECLARED_PRIVATE_IPV4
+    assert guard.scan_text_identity(text, "x.md", declared_values=declared) == []
+
+
+def test_identity_layer_ignores_ipv4_shaped_fragment_of_version_number():
+    text = "wersja 1." + "10." + "31.7"
+    assert guard.scan_text_identity(text, "x.md") == []
+
+
+def test_identity_layer_ignores_public_address():
+    assert guard.scan_text_identity("adres 8.8.8.8", "x.md") == []
+
+
+def test_identity_layer_flags_private_ipv4_with_netmask_when_undeclared():
+    text = "siec " + _UNDECLARED_PRIVATE_IPV4 + "/24"
+    violations = guard.scan_text_identity(text, "x.md")
+    assert guard.RULE_IDENTITY_PRIVATE_IPV4 in [v.rule_id for v in violations]
+
+
+def test_identity_layer_flags_undeclared_mac_address():
+    violations = guard.scan_text_identity("sprzet " + _UNDECLARED_MAC, "x.md")
+    assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_MAC_ADDRESS]
+
+
+def test_identity_layer_dash_and_colon_mac_are_same_declared_value():
+    a = guard._normalize_identity_value(_UNDECLARED_MAC_DASHED)
+    b = guard._normalize_identity_value(_UNDECLARED_MAC)
+    assert a == b
+
+
+def test_identity_layer_dash_mac_is_suppressed_by_colon_declaration():
+    declared = frozenset({guard._normalize_identity_value(_UNDECLARED_MAC)})
+    text = "sprzet " + _UNDECLARED_MAC_DASHED
+    assert guard.scan_text_identity(text, "x.md", declared_values=declared) == []
+
+
+def test_identity_layer_ignores_timestamp_shaped_like_mac():
+    assert guard.scan_text_identity("2026-09-09T20:18:15.576Z", "x.md") == []
+
+
+def test_identity_layer_ignores_unseparated_hex_digest():
+    digest = (
+        "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    )
+    assert guard.scan_text_identity(digest, "x.md") == []
+
+
+def test_identity_layer_flags_device_name_shape():
+    prefix = guard.DEVICE_ROLE_PREFIXES[0]
+    violations = guard.scan_text_identity(f"urzadzenie {prefix}-07", "x.md")
+    assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_DEVICE_NAME]
+
+
+def test_identity_layer_device_name_requires_separator():
+    prefix = guard.DEVICE_ROLE_PREFIXES[0]
+    assert guard.scan_text_identity(f"urzadzenie {prefix}07", "x.md") == []
+
+
+def test_identity_layer_device_name_prefix_outside_closed_set_is_ignored():
+    assert guard.scan_text_identity("urzadzenie ZZZ-07", "x.md") == []
+
+
+def test_identity_layer_declared_value_has_no_effect_on_device_or_project_rule():
+    prefix = guard.DEVICE_ROLE_PREFIXES[0]
+    declared = frozenset({f"{prefix.casefold()}-07"})
+    violations = guard.scan_text_identity(
+        f"urzadzenie {prefix}-07", "x.md", declared_values=declared
+    )
+    assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_DEVICE_NAME]
+
+
+def test_device_role_prefixes_are_closed_set_of_uppercase_abbreviations():
+    assert len(guard.DEVICE_ROLE_PREFIXES) >= 12
+    assert all(p.isalpha() and p.isupper() for p in guard.DEVICE_ROLE_PREFIXES)
+
+
+def test_identity_declared_values_rejects_value_matching_no_address_shape():
+    with pytest.raises(guard.AllowListShapeError):
+        guard._identity_declared_values(["identity-value:nie-adres"])
+
+
+def test_identity_declared_values_from_real_allow_file_is_in_measured_order_of_magnitude():
+    declared = guard._identity_declared_values(
+        guard._load_allow_patterns(REPO_ROOT / ".confidentiality-allow")
+    )
+    assert 25 <= len(declared) <= 45, len(declared)
+
+
+def test_identity_layer_orders_multiple_rules_on_same_line_by_rule_id():
+    prefix = guard.DEVICE_ROLE_PREFIXES[0]
+    line = (
+        _UNDECLARED_PRIVATE_IPV4
+        + " "
+        + _UNDECLARED_MAC
+        + " "
+        + prefix
+        + "-07 "
+        + _PROJECT_NAME_JOINED
+    )
+    violations = guard.scan_text_identity(line, "x.md")
+    rule_ids_on_line_one = [v.rule_id for v in violations if v.line == 1]
+    assert rule_ids_on_line_one == sorted(rule_ids_on_line_one)
+    assert set(rule_ids_on_line_one) == {
+        guard.RULE_IDENTITY_PRIVATE_IPV4,
+        guard.RULE_IDENTITY_MAC_ADDRESS,
+        guard.RULE_IDENTITY_DEVICE_NAME,
+        guard.RULE_IDENTITY_PROJECT_NAME,
+    }
+
+
+# --- Regresja warstwy 3 nad CALYM drzewem sledzonym, razem z .planning/ -----
+#
+# Zakres jest CELOWO SZERSZY niz `test_guard_is_clean_over_tracked_tree`
+# (warstwa strukturalna), ktory pomija `.planning/`: katalog planowania jest
+# sledzony przez gita i jedzie do publicznego repozytorium (D-20), wiec adres
+# pracodawcy w notatce planistycznej jest dokladnie tak publiczny, jak w
+# pliku zrodlowym. Pominiecie uzasadnione dla odcisku jezyka normatywnego
+# (dokumentacja procesu planowania GSD cytuje wlasne przyklady ilustracyjne)
+# nie przenosi sie na wzorce tozsamosciowe.
+
+
+def _all_tracked_text_paths_including_planning() -> list[str]:
+    result = subprocess.run(
+        ["git", "ls-files"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    paths: list[str] = []
+    for rel_path in result.stdout.splitlines():
+        if not rel_path:
+            continue
+        full_path = REPO_ROOT / rel_path
+        if not full_path.is_file():
+            continue
+        try:
+            full_path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        paths.append(rel_path)
+    return paths
+
+
+def test_identity_layer_is_clean_over_tracked_tree_including_planning():
+    text_paths = _all_tracked_text_paths_including_planning()
+    allow_patterns = guard._load_allow_patterns(REPO_ROOT / ".confidentiality-allow")
+    violations = guard.scan_files(
+        paths=text_paths,
+        corpus_dir=REPO_ROOT / "standards" / ".local",
+        use_corpus=False,
+        allow_patterns=allow_patterns,
+    )
+    identity_violations = [v for v in violations if v.layer == "identity"]
+    assert identity_violations == [], [
+        (v.path, v.line, v.rule_id) for v in identity_violations
+    ]
+
+
+# --- Kompletnosc deklaracji adresacji w obie strony (05-03/2) ---------------
+
+
+def _declared_values_and_paths():
+    lines = guard._load_allow_patterns(REPO_ROOT / ".confidentiality-allow")
+    declared = guard._identity_declared_values(lines)
+    path_exceptions = guard._identity_path_exceptions(lines)
+    return declared, path_exceptions
+
+
+def test_every_declared_identity_address_value_occurs_at_least_once_in_tracked_tree():
+    declared, path_exceptions = _declared_values_and_paths()
+    seen: set[str] = set()
+    for rel_path in _all_tracked_text_paths_including_planning():
+        full_path = REPO_ROOT / rel_path
+        text = full_path.read_text(encoding="utf-8")
+        for raw_line in text.splitlines():
+            normalized = guard._strip_diacritics(raw_line).casefold()
+            for match in guard.PRIVATE_IPV4_PATTERN.finditer(normalized):
+                seen.add(guard._normalize_identity_value(match.group(0)))
+            for match in guard.MAC_ADDRESS_PATTERN.finditer(normalized):
+                seen.add(guard._normalize_identity_value(match.group(0)))
+    dead_declarations = sorted(declared - seen)
+    assert dead_declarations == [], dead_declarations
+
+
+def test_every_identity_address_match_in_tracked_tree_is_declared_or_exempted():
+    declared, path_exceptions = _declared_values_and_paths()
+    undeclared: list[str] = []
+    for rel_path in _all_tracked_text_paths_including_planning():
+        full_path = REPO_ROOT / rel_path
+        text = full_path.read_text(encoding="utf-8")
+        for line_no, raw_line in enumerate(text.splitlines(), start=1):
+            normalized = guard._strip_diacritics(raw_line).casefold()
+            for rule_id, pattern in (
+                (guard.RULE_IDENTITY_PRIVATE_IPV4, guard.PRIVATE_IPV4_PATTERN),
+                (guard.RULE_IDENTITY_MAC_ADDRESS, guard.MAC_ADDRESS_PATTERN),
+            ):
+                for match in pattern.finditer(normalized):
+                    value = guard._normalize_identity_value(match.group(0))
+                    if value in declared:
+                        continue
+                    if guard._identity_rule_is_suppressed(
+                        rel_path, rule_id, path_exceptions
+                    ):
+                        continue
+                    undeclared.append(f"{rel_path}:{line_no}:{rule_id}")
+    assert undeclared == [], undeclared
+
+
 # --- Regresja na wlasnym drzewie ----------------------------------------------
 
 

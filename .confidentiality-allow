@@ -100,3 +100,68 @@ identity-path:identity-project-name:.confidentiality-allow
 # - jest obchodzeniem bramki bez zmiany zachowania, dokladnie ten antywzorzec,
 # ktory ta faza gdzie indziej zakazuje (zalozenie Z-96).
 identity-path:identity-project-name:scripts/confidentiality_guard.py
+
+# --- Deklaracje adresacji (identity-value), regul identity-private-ipv4 ----
+# --- i identity-mac-address, rozstrzygniecie R-5 ---------------------------
+#
+# Deklaracja jest INWENTARZEM adresacji obecnej w drzewie, nie allowlista:
+# musi wystapic co najmniej raz w pliku sledzonym nieobjetym wyjatkiem tej
+# reguly (test kompletnosci), a adres bez znanego, publicznego albo
+# syntetycznego pochodzenia nie ma prawa tu wejsc. Deklarowanie jest
+# oswiadczeniem o POCHODZENIU adresu, nigdy sposobem przejscia bramki -
+# kazda grupa nizej niesie komentarz nazywajacy zrodlo.
+
+# Generator syntetycznych fixture'ow pcap Modbus/TCP (scripts/gen_fixtures.py).
+# Adresy MAC ponizej sa lokalnie administrowane (drugi bit pierwszego bajtu
+# ustawiony) i wymyslone przez ten generator - docstring modulu nazywa to
+# wprost: "nie naleza do zadnego realnego urzadzenia".
+identity-value:02:00:00:00:00:01
+identity-value:02:00:00:00:00:02
+identity-value:02:00:00:00:00:03
+identity-value:02:00:00:00:00:04
+identity-value:02:00:00:00:00:07
+identity-value:02:00:00:00:00:08
+identity-value:02:00:00:00:00:09
+
+# Publiczny zbior 4SICS Geek Lounge (examples/4sics/, rekord decyzji
+# docs/decisions/0005-zbior-publiczny-dla-przykladu-raportu.md). Adresy IPv4
+# ponizej sa host'y zaobserwowane w publicznie redystrybuowanym ruchu (patrz
+# examples/4sics/README.md, atrybucja Netresec/CS3Sthlm); adresy MAC ponizej
+# sa rzeczywiste sygnatury producenta z tego samego, publicznego przechwytu -
+# nie z sieci pracodawcy. Ich obecnosc w tym publicznym repozytorium jest
+# warunkiem licencyjnym redystrybucji tego materialu (atrybucja), nie
+# przypadkiem.
+identity-value:10.10.10.10
+identity-value:10.10.10.20
+identity-value:192.168.2.44
+identity-value:192.168.88.20
+identity-value:192.168.88.50
+identity-value:192.168.88.60
+identity-value:192.168.88.61
+identity-value:192.168.88.100
+identity-value:00:05:e4:01:24:d3
+identity-value:00:07:7c:1a:61:83
+identity-value:00:1c:06:27:64:11
+identity-value:00:90:e8:26:40:23
+identity-value:00:90:e8:27:8c:37
+identity-value:00:a0:45:6f:4b:83
+identity-value:00:e0:62:40:57:66
+identity-value:28:63:36:89:59:82
+
+# Wlasne dane wymyslone w testach jednostkowych (Faza 1: tests/test_oui.py;
+# Faza 2: tests/test_check_engine.py; ten plan: tests/test_confidentiality_guard.py)
+# - fixture'y syntetyczne, generowane przez autora dla potrzeb testu, nigdy
+# pobrane ani zaobserwowane w prawdziwej sieci.
+identity-value:10.0.0.1
+identity-value:10.0.0.2
+identity-value:10.0.0.3
+identity-value:10.0.0.4
+identity-value:00:80:f4:11:22:33
+identity-value:aa:bb:cc:dd:ee:ff
+
+# Dokumentacja fazy 5 (05-03-PLAN.md, 05-RESEARCH.md) cytujaca kanoniczne
+# przedzialy adresacji prywatnej z samego dokumentu RFC 1918 jako przyklad
+# ksztaltu wzorca ponizej - nie adresacja z sieci pracodawcy.
+identity-value:10.0.0.0
+identity-value:172.16.0.0
+identity-value:192.168.0.0

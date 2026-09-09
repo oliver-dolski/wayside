@@ -200,6 +200,95 @@ NORMATIVE_MODAL_TERMS: tuple[str, ...] = (
 # nigdy nie konczy fragmentu - stad negatywne lookaheady/lookbehindy ponizej.
 _SENTENCE_TERMINATOR_RE = re.compile(r"(?<!\d)[.!?](?!\d)")
 
+# Adresacja prywatna RFC 1918: caly pierwszy zakres (maska /8), drugi zakres
+# zawezony do wlasciwego przedzialu drugiego oktetu (maska /12), trzeci
+# zakres (maska /16) - trzy przedzialy z samego dokumentu RFC 1918, zapisane
+# tu jako regula, nigdy jako literalny przyklad (Pitfall 2 badania fazy:
+# wlasny przyklad ilustracyjny w komentarzu bramki zapala jej wlasna
+# regule). Dopasowanie idzie na tekscie znormalizowanym przez
+# `scan_text_identity` (cyfry i kropki sa niewrazliwe na diakrytyke/wielkosc
+# liter, wiec to nie zmienia dopasowania, tylko utrzymuje jedna sciezke
+# normalizacji).
+#
+# Negatywne spojrzenie wstecz `(?<![\d.])` odsiewa czlon wewnatrz dluzszego
+# ciagu cyfr i kropek (np. piecioczlonowy numer wersji, gdzie bez tego
+# zawezenia ostatnie cztery czlony zaczynajace sie od "10." zostalyby
+# zlapane jako oddzielny adres) - pomiar z tabeli faktow planu 05-03:
+# wzorzec z badania (Pattern 3) tego nie mial. Ogranicznik z prawej strony
+# `(?!\d)` odsiewa WYLACZNIE kolejna cyfre, NIE kropke - adres na koncu
+# zdania konczy sie kropka, i to jest zapis poprawny, ktory dalej ma dawac
+# naruszenie.
+PRIVATE_IPV4_PATTERN = re.compile(
+    r"(?<![\d.])"
+    r"(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r"|192\.168\.\d{1,3}\.\d{1,3})"
+    r"(?!\d)"
+)
+
+# Adres sprzetowy: szesc grup po dwie cyfry szesnastkowe rozdzielone JEDNYM
+# I TYM SAMYM separatorem (dwukropek albo dywiz), z granica slowa po obu
+# stronach. Wymog jednakowego separatora w calym dopasowaniu idzie przez
+# odwolanie do grupy przechwytujacej `\1`, nie przez alternatywe dwoch
+# calych wzorcow - "de:ad-be:ef:00:01" (separatory mieszane) NIE jest wiec
+# dopasowaniem.
+#
+# Dokladnie szesc grup, nie mniej i nie wiecej: krotszy ciag tego ksztaltu
+# (trzy grupy rozdzielone dwukropkiem) jest godzina w znaczniku czasu
+# ("20:18:15"), a dluzszy nie jest adresem sprzetowym.
+#
+# Interpretacja slowa "sygnatury" z kryterium 4 fazy (rozstrzygniecie R-3,
+# plan 05-03): adres sprzetowy jest sygnatura urzadzenia o ksztalcie scisle
+# okreslonym, przecieka z kazdego zrzutu ruchu, i dokladnie w tej dziedzinie
+# to narzedzie pracuje (identyfikacja producenta z rejestru OUI). Sygnatury
+# innego rodzaju (numery seryjne, wewnetrzne numery dokumentow) sa objete
+# regula piata, lokalna (05-03/3) - ich ksztalt jest specyficzny dla
+# organizacji, wiec wpisanie go do publicznego pliku bylo by tym samym
+# wyciekiem, o ktorym mowi R-1.
+MAC_ADDRESS_PATTERN = re.compile(
+    r"\b[0-9a-f]{2}([:-])(?:[0-9a-f]{2}\1){4}[0-9a-f]{2}\b"
+)
+
+# Zamkniety zbior publicznie znanych skrotow branzowych rol urzadzen OT/ICS
+# i sieciowych (rozstrzygniecie R-1, plan 05-03) - NIGDY niczyj inwentarz.
+# Kazdy skrot stoi w kazdym podreczniku automatyki albo sieci: PLC
+# (sterownik programowalny), RTU (terminal zdalny), HMI (panel operatorski),
+# IED (urzadzenie elektroniczne inteligentne), MTU (jednostka nadrzedna),
+# DCS (system rozproszony), SCADA (system nadzoru), EWS (stacja
+# inzynierska), OWS (stacja operatorska), VFD (napednik czestotliwosciowy),
+# IPC (komputer przemyslowy), RBC (centrum sterowania radiowego, ETCS),
+# LEU (przytorowa jednostka elektroniczna, sygnalizacja kolejowa), SW
+# (przelacznik), FW (zapora), AP (punkt dostepowy).
+DEVICE_ROLE_PREFIXES: tuple[str, ...] = (
+    "PLC",
+    "RTU",
+    "HMI",
+    "IED",
+    "MTU",
+    "DCS",
+    "SCADA",
+    "EWS",
+    "OWS",
+    "VFD",
+    "IPC",
+    "RBC",
+    "LEU",
+    "SW",
+    "FW",
+    "AP",
+)
+
+# Prefiks z zamknietego zbioru, potem OBOWIAZKOWY separator (dywiz albo
+# podkreslenie), potem od jednej do czterech cyfr, z granica slowa po obu
+# stronach. Separator jest OBOWIAZKOWY, nie kosmetyczny: wariant bez niego
+# dawal (przy planowaniu) jedno trafienie na nazwie katalogu wyjsciowego w
+# artefakcie planowania fazy 3 - falszywy alarm, ktory kupilby wyjatek
+# zamiast detekcji, zamiast po prostu wymagac separatora.
+DEVICE_NAME_PATTERN = re.compile(
+    r"\b(?:" + "|".join(p.casefold() for p in DEVICE_ROLE_PREFIXES) + r")"
+    r"[-_]\d{1,4}\b"
+)
+
 # Nazwa wlasna projektu odgrodzonego granica poufnosci (D-23 fazy publikacji).
 # Dopasowanie idzie na tekscie JUZ znormalizowanym przez `scan_text_identity`
 # (zlozona diakrytyka, zdjeta wielkosc liter), wiec wzorzec ponizej jest
@@ -497,20 +586,51 @@ def _structural_allow_patterns(lines: list[str]) -> list[str]:
     return [line for line in lines if not line.startswith(_IDENTITY_LINE_PREFIX)]
 
 
+def _normalize_identity_value(raw: str) -> str:
+    """Normalizuje wartosc adresowa do postaci porownywalnej: male litery
+    (przez `_strip_diacritics` + `casefold`, jak reszta modulu), i - dla
+    ksztaltu adresu sprzetowego wylacznie - zamiana dywizu na dwukropek.
+
+    Bez tej normalizacji ten sam adres sprzetowy zapisany dwoma separatorami
+    (dywizem i dwukropkiem) trafia na liste zadeklarowanych wartosci jako
+    DWIE rozne wartosci, a test kompletnosci deklaracji nie ma jak tego
+    rozstrzygnac (pomiar z tabeli faktow planu 05-03: ta sama
+    wartosc stoi w drzewie zapisana obydwoma separatorami).
+    """
+    folded = _strip_diacritics(raw).casefold().strip()
+    if MAC_ADDRESS_PATTERN.fullmatch(folded):
+        folded = folded.replace("-", ":")
+    return folded
+
+
 def _identity_declared_values(lines: list[str]) -> frozenset[str]:
     """Wiersze `identity-value:<wartosc>`: deklaracje adresowe warstwy 3,
-    obowiazujace w calym drzewie niezaleznie od pliku (zalozenie Z-93).
+    obowiazujace w calym drzewie niezaleznie od pliku (zalozenie Z-93:
+    deklaracja jest oswiadczeniem o pochodzeniu ADRESU, nigdy nazwy
+    urzadzenia ani nazwy wlasnej).
 
-    W tym zadaniu (05-03/1) wartosc jest wylacznie normalizowana wielkoscia
-    liter (bez walidacji ksztaltu) - walidacja wobec dwoch ksztaltow
-    adresowych (RFC 1918, adres sprzetowy) dochodzi w zadaniu 05-03/2, razem
-    z wzorcami tych ksztaltow.
+    Kazda wartosc jest normalizowana (`_normalize_identity_value`) przed
+    dodaniem do zbioru. Wartosc, ktora po normalizacji nie pasuje do
+    ZADNEGO z dwoch ksztaltow adresowych (RFC 1918, adres sprzetowy),
+    podnosi `AllowListShapeError` - deklaracja jest inwentarzem adresacji,
+    nie dowolnym tekstem (rozstrzygniecie R-5).
     """
     values: set[str] = set()
     for line in lines:
-        if line.startswith(IDENTITY_VALUE_PREFIX):
-            raw_value = line[len(IDENTITY_VALUE_PREFIX) :].strip()
-            values.add(raw_value.casefold())
+        if not line.startswith(IDENTITY_VALUE_PREFIX):
+            continue
+        raw_value = line[len(IDENTITY_VALUE_PREFIX) :].strip()
+        normalized = _normalize_identity_value(raw_value)
+        if not (
+            PRIVATE_IPV4_PATTERN.fullmatch(normalized)
+            or MAC_ADDRESS_PATTERN.fullmatch(normalized)
+        ):
+            raise AllowListShapeError(
+                f"{DEFAULT_ALLOW_FILE}: deklaracja '{raw_value}' nie pasuje "
+                "do zadnego z dwoch ksztaltow adresowych (RFC 1918 albo "
+                "adres sprzetowy)."
+            )
+        values.add(normalized)
     return frozenset(values)
 
 
@@ -586,11 +706,12 @@ def scan_text_identity(
     """Warstwa 3: wzorce tozsamosciowe.
 
     Dziala bez zadnego korpusu - a wiec takze w CI, jak warstwa 2, ktorej
-    jest siostrzana. W tym zadaniu (05-03/1) dziala wylacznie regula nazwy
-    wlasnej projektu odgrodzonego (`RULE_IDENTITY_PROJECT_NAME`); pozostale
-    trzy reguly ksztaltu dochodza w zadaniu 05-03/2, a piata regula
-    literalna, dzialajaca WYLACZNIE lokalnie z pliku gitignorowanego
-    (`local_literals`), w zadaniu 05-03/3.
+    jest siostrzana. Cztery reguly ksztaltu dzialaja zawsze: adresacja
+    prywatna RFC 1918 poza `declared_values`, adres sprzetowy poza
+    `declared_values`, nazwa urzadzenia, i nazwa wlasna projektu odgrodzonego
+    (`RULE_IDENTITY_PROJECT_NAME`). Piata regula, literalna, dziala WYLACZNIE
+    lokalnie z pliku gitignorowanego (`local_literals`) - dochodzi w zadaniu
+    05-03/3.
 
     Naruszenia sa zwracane posortowane po numerze linii, a przy tym samym
     numerze linii po identyfikatorze reguly - kolejnosc stabilna miedzy
@@ -599,6 +720,55 @@ def scan_text_identity(
     violations: list[Violation] = []
     for line_no, raw_line in enumerate(text.splitlines(), start=1):
         normalized = _strip_diacritics(raw_line).casefold()
+
+        for match in PRIVATE_IPV4_PATTERN.finditer(normalized):
+            value = _normalize_identity_value(match.group(0))
+            if value in declared_values:
+                continue
+            violations.append(
+                Violation(
+                    path=path,
+                    line=line_no,
+                    layer="identity",
+                    rule_id=RULE_IDENTITY_PRIVATE_IPV4,
+                    reason=(
+                        "Linia niesie adres o ksztalcie adresacji prywatnej "
+                        "RFC 1918, niezadeklarowany w .confidentiality-allow."
+                    ),
+                )
+            )
+
+        for match in MAC_ADDRESS_PATTERN.finditer(normalized):
+            value = _normalize_identity_value(match.group(0))
+            if value in declared_values:
+                continue
+            violations.append(
+                Violation(
+                    path=path,
+                    line=line_no,
+                    layer="identity",
+                    rule_id=RULE_IDENTITY_MAC_ADDRESS,
+                    reason=(
+                        "Linia niesie ciag o ksztalcie adresu sprzetowego "
+                        "(sygnatura urzadzenia), niezadeklarowany w "
+                        ".confidentiality-allow."
+                    ),
+                )
+            )
+
+        for _match in DEVICE_NAME_PATTERN.finditer(normalized):
+            violations.append(
+                Violation(
+                    path=path,
+                    line=line_no,
+                    layer="identity",
+                    rule_id=RULE_IDENTITY_DEVICE_NAME,
+                    reason=(
+                        "Linia niesie ciag o ksztalcie nazwy urzadzenia "
+                        "(przedrostek roli, separator, cyfry)."
+                    ),
+                )
+            )
 
         if PROJECT_NAME_PATTERN.search(normalized):
             violations.append(

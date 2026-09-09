@@ -22,6 +22,38 @@ kopiuje `.git/hooks/*` przy klonowaniu (hak w cudzym repozytorium moglby
 wykonac dowolny kod przy pierwszym commicie) - bez tego kroku bramka
 poufnosci opisana nizej istnieje jako kod, ale nigdy nie zostaje uruchomiona.
 
+## Intended Use
+
+Narzedzie czyta wylacznie plik ze zrzutem ruchu; pod katalogiem `src/wayside`
+nie ma ani jednego importu modulu sieciowego, co pilnuje test
+`tests/test_oui.py::test_no_network_module_imports_under_src_wayside`. Granica
+tego dowodu jest nazwana wprost w tym samym akapicie: bramka pilnuje importow
+w kodzie zrodlowym, a nie faktycznego braku ruchu w czasie dzialania, wiec
+dowodzi, ze narzedzie nie MA jak wyslac pakietu, a nie tego, ze go nie
+wyslalo.
+
+### Do czego
+
+- Ocena bezpieczenstwa w punkcie czasu z gotowego zrzutu ruchu.
+- Inwentarz zaobserwowanych urzadzen.
+- Macierz komunikacji.
+- Findingi z powolaniem na punkt normy.
+- Material do raportu dla wlasciciela systemu.
+
+### Do czego nie
+
+- Nie jest ciaglym monitoringiem sieci.
+- Nie jest skanerem aktywnym ani narzedziem testu penetracyjnego.
+- Nie wydaje oceny, czy instalacja spelnia albo nie spelnia wymagan normy.
+- Nie podaje liczbowego poziomu bezpieczenstwa.
+
+### Warunek uzycia
+
+Zrzut ruchu z cudzej sieci wolno analizowac wylacznie za zgoda wlasciciela
+tej sieci. Narzedzie tej zgody nie sprawdza ani sprawdzic nie moze -
+pasywnosc narzedzia nie jest odpowiedzia na pytanie o legalnosc posiadania
+zrzutu.
+
 ## Bramka poufnosci
 
 Kazdy `git commit` przechodzi przez `scripts/confidentiality_guard.py`

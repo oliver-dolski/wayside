@@ -1,0 +1,29 @@
+# Katalog obietnic README (PUB-04, D-14, D-15, D-16, D-17).
+#
+# Ten plik jest INWENTARZEM obietnic zlozonych w README razem z dowodem
+# kazdej z nich - NIE jest lista zyczen ani planem. Kazdy wpis niesie test
+# wskazany w polu `evidence`, ktory bramka `tests/test_readme_claims.py`
+# sprawdza wobec kolekcji `pytest --collect-only`. Wpis bez dowodu nie ma
+# prawa tu stac.
+#
+# Dowod reczny (`evidence: manual`) jest dopuszczalny WYLACZNIE z niepustym
+# polem `reason`, sprawdzanym maszynowo. Powod dopuszczenia: czesc prawdziwych
+# zdan README jest twierdzeniem o srodowisku uruchomieniowym, nie o kodzie
+# (np. "Wireshark, tshark ani Npcap nie sa potrzebne") - zakaz dowodu
+# recznego wymusilby albo wyciecie prawdziwego zdania, albo test-atrape.
+entries:
+  - id: passive-no-network-imports
+    claim: >-
+      Narzedzie nigdy nie wysyla pakietu do sieci - pod katalogiem
+      src/wayside nie ma ani jednego importu modulu sieciowego.
+    readme_anchor: Intended Use
+    evidence: "tests/test_oui.py::test_no_network_module_imports_under_src_wayside"
+    status: active
+
+# Naglowki drugiego poziomu README, ktore swiadomie NIE skladaja zadnej
+# obietnicy o kodzie (naglowek niesie polecenie albo odwolanie, nie
+# twierdzenie o zachowaniu narzedzia), wiec katalog powyzej ich nie
+# pokrywa. Kazdy wpis niesie niepuste `reason`, sprawdzane maszynowo
+# (D-16 podpunkt trzeci). Ta lista NIE jest miejscem na obietnice bez
+# pokrycia: naglowek, dla ktorego dowod dalby sie napisac, tu nie stoi.
+excluded_anchors: []

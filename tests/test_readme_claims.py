@@ -238,6 +238,14 @@ def _entry_errors(catalog: dict, collected: frozenset[str]) -> list[str]:
 # --- Bramka ksztaltu sekcji `## Intended Use` (D-10, D-11, D-12) -----------
 
 
+def _normalize_ws(text: str) -> str:
+    """Zwija kazdy ciag bialych znakow (w tym zawijanie linii markdown) do
+    pojedynczej spacji. README zawija akapity na ok. 80 znakach, wiec zdanie
+    graniczne moze przechodzic przez koniec linii - dopasowanie na tekscie
+    surowym zgubiloby je przez sam zapis, nie przez brak tresci."""
+    return re.sub(r"\s+", " ", text)
+
+
 def _intended_use_shape_errors(text: str) -> list[str]:
     """Lista bledow ksztaltu sekcji `## Intended Use` w podanym tekscie.
     Pusta lista znaczy ksztalt poprawny. Dziala na DOWOLNYM tekscie w
@@ -264,17 +272,20 @@ def _intended_use_shape_errors(text: str) -> list[str]:
     first_subsection_pos = min(present_positions) if present_positions else len(body)
     intro = body[:first_subsection_pos]
 
-    if PASSIVITY_EVIDENCE_NODE_ID not in intro:
+    normalized_intro = _normalize_ws(intro)
+    if PASSIVITY_EVIDENCE_NODE_ID not in normalized_intro:
         errors.append(
             "Akapit pasywnosci nie niesie doslownego identyfikatora testu "
             f"{PASSIVITY_EVIDENCE_NODE_ID!r}."
         )
-    if PASSIVITY_BOUNDARY_MARKER not in intro:
+    # Dopasowanie granicy dowodu case-insensitive: zdanie moze rozpoczynac
+    # akapit (wielka litera na starcie) albo stac w srodku zdania.
+    if PASSIVITY_BOUNDARY_MARKER not in normalized_intro.lower():
         errors.append("Akapit pasywnosci nie nazywa granicy dowodu w tym samym akapicie.")
 
     warunek_pos = body.find("### Warunek uzycia")
     if warunek_pos != -1:
-        warunek_body = body[warunek_pos:]
+        warunek_body = _normalize_ws(body[warunek_pos:]).lower()
         if NETWORK_OWNER_CONSENT_MARKER not in warunek_body:
             errors.append(
                 "Podsekcja warunku uzycia nie niesie zdania o zgodzie wlasciciela sieci."

@@ -52,6 +52,19 @@ def test_module_defines_required_symbols():
     assert callable(gate.main)
 
 
+def test_reviewer_is_invalid_public_alias_is_the_same_object_as_private_name():
+    """Zalozenie Z-102 (plan 05-04): `scripts/check_history_audit_gate.py`
+    importuje ta kontrole zamiast ja kopiowac - alias musi wskazywac
+    DOKLADNIE TEN SAM obiekt funkcji, nie kopie o identycznym zachowaniu."""
+    assert gate.reviewer_is_invalid is gate._reviewer_is_invalid
+
+
+def test_all_exports_three_new_public_names():
+    assert "reviewer_is_invalid" in gate.__all__
+    assert "AGENT_REVIEWER_NAMES" in gate.__all__
+    assert "RecordShapeError" in gate.__all__
+
+
 def test_module_imports_only_standard_library():
     import ast
 

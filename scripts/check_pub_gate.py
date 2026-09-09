@@ -30,7 +30,14 @@ import re
 import sys
 from pathlib import Path
 
-__all__ = ["load_record", "validate_record", "main"]
+__all__ = [
+    "load_record",
+    "validate_record",
+    "main",
+    "reviewer_is_invalid",
+    "AGENT_REVIEWER_NAMES",
+    "RecordShapeError",
+]
 
 DEFAULT_RECORD_PATH = "compliance/pre-publication-review.md"
 
@@ -150,6 +157,16 @@ def _reviewer_is_invalid(reviewer: str) -> bool:
     if tokens & AGENT_REVIEWER_NAMES:
         return True
     return False
+
+
+# Alias publiczny (zalozenie Z-102, plan 05-04): `scripts/check_history_audit_gate.py`
+# importuje kontrole pola autora Z TEJ bramki zamiast ja kopiowac - dwie
+# listy nazw agentowych w dwoch plikach rozjechalyby sie, dokladnie ta sama
+# zasada, ktora D-19 stosuje do wzorcow warstwy tozsamosciowej. Nazwa
+# prywatna (`_reviewer_is_invalid`) zostaje NIETKNIETA - to jest zmiana
+# WYLACZNIE dodajaca, zaden istniejacy kod wyjscia ani zachowanie tego
+# modulu sie nie zmienia.
+reviewer_is_invalid = _reviewer_is_invalid
 
 
 def _body_has_blockquote(body: str) -> int | None:

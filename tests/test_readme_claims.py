@@ -311,7 +311,8 @@ def _completeness_errors(catalog: dict, readme_headers: list[str]) -> list[str]:
                 errors.append(
                     f"Wpis wskazuje naglowek {anchor!r}, ktorego w README nie ma."
                 )
-        active_anchors.add(anchor)
+        if entry.get("status") == "active":
+            active_anchors.add(anchor)
 
     for header in readme_headers:
         if header in active_anchors or header in excluded_map:

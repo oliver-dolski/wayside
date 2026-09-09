@@ -1,4 +1,4 @@
-"""Bramka poufnosci: trzy warstwy detekcji doslownego tekstu normatywnego.
+"""Bramka poufnosci: cztery warstwy detekcji tresci normatywnej i tozsamosciowej.
 
 Ten modul jest zaleznosciowo izolowany od reszty pakietu `wayside` i uzywa
 WYLACZNIE biblioteki standardowej Pythona. To jest warunek, nie preferencja:
@@ -7,7 +7,7 @@ odizolowany venv) i w repozytorium tymczasowym testu integracyjnego, bez
 `uv sync` i bez sieci - dowolna zaleznosc zewnetrzna zlamalaby oba te
 scenariusze.
 
-Trzy warstwy, od najbardziej do najmniej precyzyjnej:
+Cztery warstwy, od najbardziej do najmniej precyzyjnej:
 
 - Warstwa 0, sciezkowa (`path-local-corpus`): kazda sciezka pod
   `standards/.local/` jest naruszeniem, niezaleznie od tresci. Dziala takze
@@ -23,9 +23,27 @@ Trzy warstwy, od najbardziej do najmniej precyzyjnej:
   celu bramki (przeniesienia chronionej tresci do sekretow repozytorium).
 - Warstwa 2, strukturalna (`structural-clause-modal`): regex na odcisk
   jezyka normatywnego (kropkowany numer punktu + modalnosc normatywna w tej
-  samej linii), dzialajacy bez zadnego korpusu - a wiec takze w CI. Jedyna
-  warstwa z liscia wyjatkow (`.confidentiality-allow`), bo jest najbardziej
-  podatna na falszywe alarmy na wlasnej dokumentacji projektu.
+  samej linii), dzialajacy bez zadnego korpusu - a wiec takze w CI.
+- Warstwa 3, tozsamosciowa (`identity-*`): piec regul lapiacych tresc z sieci
+  pracodawcy, ktora moglaby przeciec przez zwykly tekst projektu, nie przez
+  cytat normy - adresacja prywatna RFC 1918 poza zadeklarowanymi fixture'ami,
+  adres sprzetowy jako sygnatura urzadzenia, nazwa urzadzenia, i nazwa wlasna
+  projektu odgrodzonego granica poufnosci. Cztery pierwsze reguly sa regulami
+  KSZTALTU, zbudowanymi z publicznie znanych skrotow branzowych i z ksztaltow
+  adresowych, nigdy z niczyjego inwentarza (rozstrzygniecie R-1, plan
+  05-03) - literalna lista nazw urzadzen albo adresow w publicznym pliku
+  ujawnialaby dokladnie te informacje, ktorej ta warstwa ma bronic. Dzialaja
+  bez zadnego korpusu, a wiec takze w CI, dokladnie jak warstwa 2, ktorej sa
+  siostrzane. Piata regula, literalna, dziala WYLACZNIE lokalnie, z pliku
+  gitignorowanego (rozstrzygniecie R-2) - to jest siostra warstwy 1: kontrola,
+  ktora zostaje na jednej maszynie, jest kontrola, nie niedogodnoscia.
+
+Warstwy 2 i 3 dziela JEDNA liste wyjatkow (`.confidentiality-allow`), w trzech
+rozroznialnych postaciach wiersza (wzorzec sciezki bez przedrostka - warstwa
+2; `identity-value:<wartosc>` - deklaracja adresowa warstwy 3; `identity-path:
+<regula albo all>:<wzorzec>` - wyjatek sciezki zawezony do jednej reguly
+warstwy 3, albo do wszystkich). Wyjatki obu warstw sa NIEZALEZNE: dopuszczenie
+jednej reguly nie zdejmuje drugiej z tej samej sciezki.
 
 Zaden obiekt `Violation` ani zaden komunikat wypisany przez ten modul nie
 niesie dopasowanego fragmentu tekstu - to jest wlasnosc typu (`Violation` nie
@@ -50,7 +68,9 @@ __all__ = [
     "scan_paths",
     "scan_text_structural",
     "scan_text_corpus",
+    "scan_text_identity",
     "scan_files",
+    "AllowListShapeError",
     "main",
 ]
 
@@ -59,6 +79,49 @@ __all__ = [
 RULE_PATH_LOCAL_CORPUS = "path-local-corpus"
 RULE_CORPUS_SHINGLE = "corpus-shingle"
 RULE_STRUCTURAL_CLAUSE_MODAL = "structural-clause-modal"
+
+# Warstwa 3, tozsamosciowa (D-19, plan 05-03). Kolejnosc jest stala i
+# zamknieta - klasyfikator wierszy listy wyjatkow (`_identity_path_exceptions`)
+# musi znac caly zbior od pierwszego commita tej warstwy, inaczej wiersz
+# odwolujacy sie do reguly dochodzacej w kolejnym zadaniu bylby dzis bledem
+# ksztaltu.
+RULE_IDENTITY_PRIVATE_IPV4 = "identity-private-ipv4"
+RULE_IDENTITY_MAC_ADDRESS = "identity-mac-address"
+RULE_IDENTITY_DEVICE_NAME = "identity-device-name"
+RULE_IDENTITY_PROJECT_NAME = "identity-project-name"
+RULE_IDENTITY_LOCAL_LITERAL = "identity-local-literal"
+
+IDENTITY_RULE_IDS: tuple[str, ...] = (
+    RULE_IDENTITY_PRIVATE_IPV4,
+    RULE_IDENTITY_MAC_ADDRESS,
+    RULE_IDENTITY_DEVICE_NAME,
+    RULE_IDENTITY_PROJECT_NAME,
+    RULE_IDENTITY_LOCAL_LITERAL,
+)
+
+# Dwie reguly adresowe, jedyne honorujace deklaracje wartosci
+# (`identity-value:`, zalozenie Z-93 z planu 05-03): deklaracja jest
+# oswiadczeniem o pochodzeniu ADRESU, nigdy nazwy urzadzenia ani nazwy
+# wlasnej - deklarowanie tamtych po wartosci byloby literalna lista nazw
+# w publicznym pliku, dokladnie to, czego rozstrzygniecie R-1 zakazuje.
+IDENTITY_ADDRESS_RULE_IDS: tuple[str, ...] = (
+    RULE_IDENTITY_PRIVATE_IPV4,
+    RULE_IDENTITY_MAC_ADDRESS,
+)
+
+# Przedrostki wiersza listy wyjatkow warstwy tozsamosciowej (R-4). Wiersz bez
+# zadnego z tych przedrostkow (i bez przedrostka `identity-` w ogole) jest
+# wzorcem sciezki warstwy strukturalnej, dokladnie jak dzis.
+IDENTITY_VALUE_PREFIX = "identity-value:"
+IDENTITY_PATH_PREFIX = "identity-path:"
+IDENTITY_PATH_ALL = "all"
+
+# Marker wspolny obu przedrostkow powyzej - wiersz zaczynajacy sie od niego,
+# ale niepasujacy do zadnego z dwoch, jest bledem ksztaltu, nie cichym
+# wzorcem sciezki warstwy strukturalnej (R-4).
+_IDENTITY_LINE_PREFIX = "identity-"
+
+DEFAULT_IDENTITY_LOCAL_FILE = ".confidentiality-identity.local"
 
 DEFAULT_CORPUS_DIR = "standards/.local"
 DEFAULT_ALLOW_FILE = ".confidentiality-allow"
@@ -136,6 +199,33 @@ NORMATIVE_MODAL_TERMS: tuple[str, ...] = (
 # T-1-guard-false-positive w PLAN.md). Kropka miedzy cyframi (numer klauzuli)
 # nigdy nie konczy fragmentu - stad negatywne lookaheady/lookbehindy ponizej.
 _SENTENCE_TERMINATOR_RE = re.compile(r"(?<!\d)[.!?](?!\d)")
+
+# Nazwa wlasna projektu odgrodzonego granica poufnosci (D-23 fazy publikacji).
+# Dopasowanie idzie na tekscie JUZ znormalizowanym przez `scan_text_identity`
+# (zlozona diakrytyka, zdjeta wielkosc liter), wiec wzorzec ponizej jest
+# zapisany w formie znormalizowanej (male litery). Miedzy dwoma slowami nazwy
+# dopuszczony jest DOWOLNY ciag bialych znakow, dywizow albo podkreslen,
+# W TYM CIAG PUSTY - zapis zlepiony ("...sentinel" bezposrednio po pierwszym
+# slowie) jest najczestsza forma nazwy wlasnej w identyfikatorach i nazwach
+# plikow, i to wlasnie tam nazwy wlasne przeciekaja najczesciej. Sam wzorzec
+# musi niesc oba slowa nazwy jako literal, zeby w ogole cokolwiek dopasowac -
+# to jest powod, dla ktorego TEN plik (i tylko ten) potrzebuje wlasnego
+# wyjatku na `.confidentiality-allow` (zalozenie Z-96): sklejanie literalu
+# z czesci w czasie wykonania byloby obejsciem bramki bez zmiany zachowania,
+# nie mniejszym wyciekiem.
+PROJECT_NAME_PATTERN = re.compile(r"railguard[\s\-_]*sentinel")
+
+
+class AllowListShapeError(ValueError):
+    """Wiersz `.confidentiality-allow` o nierozpoznanym ksztalcie: przedrostek
+    `identity-` nierozpoznany, albo nazwa reguly w `identity-path:` spoza
+    zamknietego zbioru `IDENTITY_RULE_IDS` (plus `IDENTITY_PATH_ALL`).
+
+    Bez tego wyjatku literowka w nazwie przedrostka albo w nazwie reguly
+    zamienialaby sie po cichu w wzorzec sciezki warstwy strukturalnej nad
+    plikiem o dziwnej nazwie - czyli w wyjatek, ktorego nikt nie zamierzal
+    (R-4, plan 05-03).
+    """
 
 
 @dataclass(frozen=True)
@@ -391,21 +481,177 @@ def _matches_allow_list(path: str, allow_patterns: list[str]) -> bool:
     )
 
 
+# --- Klasyfikatory wierszy `.confidentiality-allow` (R-4, zalozenie Z-91) ---
+#
+# `_load_allow_patterns` powyzej zostaje NIETKNIETA - ani sygnatura, ani
+# zachowanie: istniejacy test regresji nad drzewem sledzonym wola ta funkcje
+# i przekazuje jej wynik dalej, wiec zmiana typu zwracanego zerwalaby tamten
+# test bez zadnego zysku. Trzy funkcje ponizej klasyfikuja jej surowy wynik
+# (liste wierszy bez komentarzy i pustych linii) na trzy rozroznialne
+# postacie, kazda osobno testowalna.
+
+
+def _structural_allow_patterns(lines: list[str]) -> list[str]:
+    """Wiersze BEZ przedrostka tozsamosciowego: wzorce sciezki warstwy
+    strukturalnej (warstwa 2), dokladnie jak dzis."""
+    return [line for line in lines if not line.startswith(_IDENTITY_LINE_PREFIX)]
+
+
+def _identity_declared_values(lines: list[str]) -> frozenset[str]:
+    """Wiersze `identity-value:<wartosc>`: deklaracje adresowe warstwy 3,
+    obowiazujace w calym drzewie niezaleznie od pliku (zalozenie Z-93).
+
+    W tym zadaniu (05-03/1) wartosc jest wylacznie normalizowana wielkoscia
+    liter (bez walidacji ksztaltu) - walidacja wobec dwoch ksztaltow
+    adresowych (RFC 1918, adres sprzetowy) dochodzi w zadaniu 05-03/2, razem
+    z wzorcami tych ksztaltow.
+    """
+    values: set[str] = set()
+    for line in lines:
+        if line.startswith(IDENTITY_VALUE_PREFIX):
+            raw_value = line[len(IDENTITY_VALUE_PREFIX) :].strip()
+            values.add(raw_value.casefold())
+    return frozenset(values)
+
+
+def _identity_path_exceptions(lines: list[str]) -> dict[str, list[str]]:
+    """Wiersze `identity-path:<regula albo all>:<wzorzec>`: wyjatki sciezki
+    zawezone do JEDNEJ reguly warstwy 3, albo - ze slowem `IDENTITY_PATH_ALL`
+    - do wszystkich regul naraz (R-4). Klucz zwroconego slownika jest
+    identyfikatorem reguly (albo `IDENTITY_PATH_ALL`); wartosc jest lista
+    wzorcow sciezki zapisanych dla tego klucza.
+
+    Wiersz zaczynajacy sie od `identity-`, ktory nie pasuje do zadnego z
+    dwoch znanych przedrostkow, oraz wiersz `identity-path:` z nazwa reguly
+    spoza zamknietego zbioru (i rozna od `all`) podnosza
+    `AllowListShapeError` - bez tej galezi literowka w przedrostku albo
+    w nazwie reguly zamienialaby sie po cichu w wzorzec sciezki warstwy
+    strukturalnej nad plikiem o dziwnej nazwie.
+    """
+    known_rule_names = set(IDENTITY_RULE_IDS) | {IDENTITY_PATH_ALL}
+    exceptions: dict[str, list[str]] = {}
+    for line in lines:
+        if line.startswith(IDENTITY_PATH_PREFIX):
+            remainder = line[len(IDENTITY_PATH_PREFIX) :]
+            rule_name, separator, pattern = remainder.partition(":")
+            if not separator:
+                raise AllowListShapeError(
+                    f"{DEFAULT_ALLOW_FILE}: wiersz '{line}' niesie przedrostek "
+                    f"'{IDENTITY_PATH_PREFIX}', ale brakuje separatora miedzy "
+                    "nazwa reguly a wzorcem sciezki."
+                )
+            if rule_name not in known_rule_names:
+                raise AllowListShapeError(
+                    f"{DEFAULT_ALLOW_FILE}: nazwa reguly '{rule_name}' w "
+                    f"wierszu '{line}' spoza zamknietego zbioru "
+                    f"{sorted(known_rule_names)}."
+                )
+            exceptions.setdefault(rule_name, []).append(pattern)
+        elif line.startswith(IDENTITY_VALUE_PREFIX):
+            continue
+        elif line.startswith(_IDENTITY_LINE_PREFIX):
+            raise AllowListShapeError(
+                f"{DEFAULT_ALLOW_FILE}: wiersz '{line}' zaczyna sie od "
+                "czlonu tozsamosciowego, ale nie pasuje do zadnego "
+                f"rozpoznanego przedrostka ('{IDENTITY_VALUE_PREFIX}', "
+                f"'{IDENTITY_PATH_PREFIX}')."
+            )
+    return exceptions
+
+
+def _identity_rule_is_suppressed(
+    path: str, rule_id: str, exceptions: dict[str, list[str]]
+) -> bool:
+    """Sprawdza, czy `rule_id` jest wyjeta dla `path`: wzorce zapisane wprost
+    dla tej reguly ORAZ wzorce zapisane dla wszystkich regul naraz
+    (`IDENTITY_PATH_ALL`). Uzywa tego samego mechanizmu dopasowania sciezki
+    co warstwa 2 (`_matches_allow_list`), zeby bezwrazliwosc na wielkosc
+    liter byla jedna dla calego pliku (zalozenie Z-92) - wyjatki obu warstw
+    pozostaja niezalezne, bo kazda jest stosowana w osobnym miejscu funkcji
+    skanujacej pliki.
+    """
+    patterns = exceptions.get(rule_id, []) + exceptions.get(IDENTITY_PATH_ALL, [])
+    if not patterns:
+        return False
+    return _matches_allow_list(path, patterns)
+
+
+def scan_text_identity(
+    text: str,
+    path: str,
+    *,
+    declared_values: frozenset[str] = frozenset(),
+    local_literals: tuple[str, ...] = (),
+) -> list[Violation]:
+    """Warstwa 3: wzorce tozsamosciowe.
+
+    Dziala bez zadnego korpusu - a wiec takze w CI, jak warstwa 2, ktorej
+    jest siostrzana. W tym zadaniu (05-03/1) dziala wylacznie regula nazwy
+    wlasnej projektu odgrodzonego (`RULE_IDENTITY_PROJECT_NAME`); pozostale
+    trzy reguly ksztaltu dochodza w zadaniu 05-03/2, a piata regula
+    literalna, dzialajaca WYLACZNIE lokalnie z pliku gitignorowanego
+    (`local_literals`), w zadaniu 05-03/3.
+
+    Naruszenia sa zwracane posortowane po numerze linii, a przy tym samym
+    numerze linii po identyfikatorze reguly - kolejnosc stabilna miedzy
+    przebiegami, zeby wyjscie CI dalo sie porownywac (sonda: ordering).
+    """
+    violations: list[Violation] = []
+    for line_no, raw_line in enumerate(text.splitlines(), start=1):
+        normalized = _strip_diacritics(raw_line).casefold()
+
+        if PROJECT_NAME_PATTERN.search(normalized):
+            violations.append(
+                Violation(
+                    path=path,
+                    line=line_no,
+                    layer="identity",
+                    rule_id=RULE_IDENTITY_PROJECT_NAME,
+                    reason=(
+                        "Linia niesie nazwe projektu odgrodzonego granica "
+                        "poufnosci (rekord decyzji D-23, faza publikacji)."
+                    ),
+                )
+            )
+
+    violations.sort(key=lambda v: (v.line, v.rule_id))
+    return violations
+
+
 def scan_files(
     paths: list[str],
     corpus_dir: Path,
     use_corpus: bool,
     allow_patterns: list[str] | None = None,
+    identity_local_file: Path | None = None,
 ) -> list[Violation]:
-    """Uruchamia wszystkie trzy warstwy na liscie sciezek.
+    """Uruchamia wszystkie cztery warstwy na liscie sciezek.
 
     Warstwa 0 dziala na kazdej sciezce z listy, takze plikow, ktorych nie da
     sie odczytac jako tekst (binarne) - to jest jedyny sposob, w jaki
     `standards/.local/plik.bin` dodany przez `git add -f` zostaje zlapany.
-    Warstwy 1 i 2 dzialaja wylacznie na plikach czytelnych jako tekst UTF-8.
-    Lista wyjatkow (`allow_patterns`) dotyczy WYLACZNIE warstwy 2.
+    Warstwy 1, 2 i 3 dzialaja wylacznie na plikach czytelnych jako tekst
+    UTF-8.
+
+    `allow_patterns` niesie SUROWE wiersze `.confidentiality-allow`
+    (`_load_allow_patterns`, niezmieniona) w trzech postaciach: wzorzec
+    sciezki bez przedrostka trafia do warstwy 2 (`_structural_allow_patterns`);
+    `identity-value:` trafia do deklaracji adresowych warstwy 3
+    (`_identity_declared_values`); `identity-path:` trafia do wyjatkow
+    sciezki warstwy 3 (`_identity_path_exceptions`). Wyjatki obu warstw sa
+    NIEZALEZNE - kazdy jest stosowany w osobnym miejscu ponizej (zalozenie
+    Z-92), wiec dopuszczenie jednej reguly nie zdejmuje drugiej z tej samej
+    sciezki.
+
+    `identity_local_file` jest przyjmowany juz teraz (kazde dzisiejsze
+    wywolanie pozostaje poprawne bez zmiany), ale uzywany dopiero od zadania
+    05-03/3, ktore dolozy piata regule, literalna.
     """
     allow_patterns = allow_patterns or []
+    structural_patterns = _structural_allow_patterns(allow_patterns)
+    declared_values = _identity_declared_values(allow_patterns)
+    identity_path_exceptions = _identity_path_exceptions(allow_patterns)
+
     violations: list[Violation] = []
 
     violations.extend(scan_paths(paths))
@@ -417,7 +663,7 @@ def scan_files(
         try:
             text = path_obj.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
-            # Plik binarny albo nieczytelny jako tekst - warstwy 1 i 2 z
+            # Plik binarny albo nieczytelny jako tekst - warstwy 1, 2 i 3 z
             # definicji dzialaja na tresci tekstowej, wiec sa tu pomijane.
             # Warstwa 0 juz go objela wyzej, jesli sciezka na to wskazywala.
             continue
@@ -425,8 +671,17 @@ def scan_files(
         if use_corpus:
             violations.extend(scan_text_corpus(text, raw_path, corpus_dir))
 
-        if not _matches_allow_list(raw_path, allow_patterns):
+        if not _matches_allow_list(raw_path, structural_patterns):
             violations.extend(scan_text_structural(text, raw_path))
+
+        for violation in scan_text_identity(
+            text, raw_path, declared_values=declared_values
+        ):
+            if _identity_rule_is_suppressed(
+                raw_path, violation.rule_id, identity_path_exceptions
+            ):
+                continue
+            violations.append(violation)
 
     return violations
 

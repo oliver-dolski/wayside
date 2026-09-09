@@ -1,6 +1,19 @@
-# Bramka poufnosci - lista wyjatkow WYLACZNIE dla warstwy 2
-# (structural-clause-modal, rozpoznawanie kropkowanego numeru punktu razem
-# z modalnoscia normatywna w tej samej linii).
+# Bramka poufnosci - JEDNA lista wyjatkow dla dwoch warstw: warstwy 2
+# (structural-clause-modal) i warstwy 3, tozsamosciowej (identity-*).
+#
+# Trzy rozroznialne postacie wiersza:
+# 1. Wzorzec sciezki BEZ przedrostka - wyjatek warstwy 2, dokladnie jak dzis.
+# 2. `identity-value:<wartosc>` - deklaracja adresowa warstwy 3, obowiazujaca
+#    w calym drzewie niezaleznie od pliku (adres jest INWENTARZEM, nie
+#    allowlista: musi wystapic co najmniej raz w drzewie, inaczej bramka
+#    kompletnosci sie zaczerwienia).
+# 3. `identity-path:<regula albo all>:<wzorzec>` - wyjatek sciezki zawezony
+#    do JEDNEJ reguly warstwy 3, albo - slowem `all` - do wszystkich regul
+#    naraz. Wyjatek jednej reguly NIE zdejmuje pozostalych z tej samej
+#    sciezki.
+# Wiersz zaczynajacy sie od `identity-`, ktory nie pasuje do zadnego z dwoch
+# powyzszych przedrostkow (albo `identity-path:` z nazwa reguly spoza
+# zamknietego zbioru), jest BLEDEM wczytania - nie cichym wzorcem sciezki.
 #
 # Warstwa 0 (sciezkowa, standards/.local) i warstwa 1 (korpusowa) NIE MAJA
 # tu zadnych wyjatkow i nigdy nie beda ich miec - wpisanie ich tutaj
@@ -58,3 +71,32 @@ tests/test_review_blockers_01.py
 # gitignorowane) - to jest pierwszy i jedyny commitowany artefakt tego
 # ksztaltu.
 examples/4sics/analysis.json
+
+# --- Wyjatki reguly nazwy wlasnej (identity-project-name), D-23 ------------
+#
+# Trzy wpisy ponizej sa jedynymi wyjatkami tej reguly w calym repozytorium.
+# Kazdy jest zawezony do JEDNEJ reguly: adres z sieci pracodawcy albo nazwa
+# urzadzenia w ktoryms z tych plikow dalej zapala pozostale reguly warstwy 3.
+
+# Katalog artefaktow planowania GSD. Ustalony fakt (D-23, sesja 2026-09-09):
+# wszystkie wystapienia nazwy w sledzonym drzewie sa trescia SAMEGO ZAKAZU
+# (tekst wymagania PUB-05, cel i kryterium fazy 5 w ROADMAP.md, prohibicja
+# w 03-02-PLAN.md) - zadnego kodu, schematu, adresacji ani sygnatury stamtad
+# w repozytorium nie ma, a w komunikatach commitow nazwa nie wystepuje ani
+# razu. Fakt wystepowania wylacznie w tresci wlasnego zakazu jest argumentem
+# NA KORZYSC autora, nie furtka (05-CONTEXT.md). Katalog jedzie do publicznego
+# repozytorium (D-20), wiec ten wyjatek NIE zdejmuje z niego regul adresacji
+# ani nazwy urzadzenia - notatka planistyczna z adresem pracodawcy dalej
+# zapala bramke.
+identity-path:identity-project-name:.planning/*
+
+# Sam plik listy wyjatkow: plik, ktory deklaruje wyjatek dla tej reguly (linia
+# wyzej), musi miec prawo nazwac to, co wyjmuje w komentarzu-uzasadnieniu.
+identity-path:identity-project-name:.confidentiality-allow
+
+# Sam plik bramki: wzorzec `PROJECT_NAME_PATTERN` niesie oba slowa nazwy jako
+# literal, bo inaczej nie mialby czego dopasowac. Alternatywa - sklejanie
+# literalu z czesci w czasie wykonania, zeby uniknac zapalenia wlasnej reguly
+# - jest obchodzeniem bramki bez zmiany zachowania, dokladnie ten antywzorzec,
+# ktory ta faza gdzie indziej zakazuje (zalozenie Z-96).
+identity-path:identity-project-name:scripts/confidentiality_guard.py

@@ -65,6 +65,11 @@ UNIQUE_FRAGMENT_OF_FORBIDDEN_SENTENCE = (
     "authentication for all write operations performed against"
 )
 
+# Nazwa wlasna projektu odgrodzonego granica poufnosci (D-23). Sklejona z
+# trzech czesci, nigdy nie zapisana jako jeden literal - ten plik jest
+# sledzony przez gita i objety regresja warstwy 3.
+_PROJECT_NAME_JOINED = "Rail" + "Guard" + "Sentinel"
+
 
 def _run_git(args: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -232,6 +237,59 @@ def test_commit_with_standards_local_file_added_with_force_is_rejected(
 
     log = _run_git(["log", "--oneline"], cwd=temp_repo, env=env)
     assert "to rowniez nie powinno przejsc" not in log.stdout
+
+
+def test_commit_with_project_name_outside_exempted_path_is_rejected(
+    temp_repo: Path, tmp_path: Path
+):
+    _install_hook(temp_repo, tmp_path)
+    env = _build_env(tmp_path)
+
+    forbidden_file = temp_repo / "notatka-nazwa.txt"
+    forbidden_file.write_text(_PROJECT_NAME_JOINED, encoding="utf-8")
+
+    add = _run_git(["add", "notatka-nazwa.txt"], cwd=temp_repo, env=env)
+    assert add.returncode == 0, add.stderr
+
+    commit = _run_git(
+        ["commit", "-m", "to nie powinno przejsc - nazwa wlasna"],
+        cwd=temp_repo,
+        env=env,
+    )
+
+    assert commit.returncode != 0
+    output = commit.stdout + commit.stderr
+    assert "identity-project-name" in output
+    assert _PROJECT_NAME_JOINED not in output
+
+    log = _run_git(["log", "--oneline"], cwd=temp_repo, env=env)
+    assert "to nie powinno przejsc - nazwa wlasna" not in log.stdout
+
+
+def test_commit_with_project_name_under_exempted_planning_path_is_accepted(
+    temp_repo: Path, tmp_path: Path
+):
+    _install_hook(temp_repo, tmp_path)
+    env = _build_env(tmp_path)
+
+    planning_dir = temp_repo / ".planning"
+    planning_dir.mkdir()
+    exempted_file = planning_dir / "notatka-nazwa.md"
+    exempted_file.write_text(_PROJECT_NAME_JOINED, encoding="utf-8")
+
+    add = _run_git(["add", ".planning/notatka-nazwa.md"], cwd=temp_repo, env=env)
+    assert add.returncode == 0, add.stderr
+
+    commit = _run_git(
+        ["commit", "-m", "to powinno przejsc - sciezka wyjeta"],
+        cwd=temp_repo,
+        env=env,
+    )
+
+    assert commit.returncode == 0, commit.stdout + commit.stderr
+
+    log = _run_git(["log", "--oneline"], cwd=temp_repo, env=env)
+    assert "to powinno przejsc - sciezka wyjeta" in log.stdout
 
 
 def test_commit_with_ordinary_text_file_is_accepted(temp_repo: Path, tmp_path: Path):

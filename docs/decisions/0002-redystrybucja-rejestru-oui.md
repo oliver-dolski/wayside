@@ -7,7 +7,7 @@ resolved_option: commit-pelnej-tabeli
 
 ## Kontekst
 
-ASSET-02 (`.planning/REQUIREMENTS.md`) wymaga ustalania producenta urzadzenia
+ASSET-02 (rejestrze wymagan projektu) wymaga ustalania producenta urzadzenia
 z prefiksu adresu MAC wobec tabeli wyprowadzonej z rejestru IEEE OUI. Ta sama
 sekcja `REQUIREMENTS.md`, w bloku "Out of Scope", odrzuca plik `manuf`
 Wiresharka jako zrodlo tych danych z uzasadnieniem: plik `manuf` jest

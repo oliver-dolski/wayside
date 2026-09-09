@@ -58,25 +58,22 @@ VALID_VERDICTS: frozenset[str] = frozenset({"go", "no-go", "pending"})
 # decyzja pozostaje predykatem typu backstop (patrz PLAN.md, must_haves).
 AGENT_REVIEWER_NAMES: frozenset[str] = frozenset(
     {
-        "claude",
         "agent",
-        "automated",
-        "bot",
-        "gsd",
+        "ai",
         "assistant",
         "asystent",
-        "copilot",
-        "gpt",
+        "automated",
+        "bot",
         "llm",
-        "anthropic",
-        "openai",
+        "model",
+        "script",
+        "skrypt",
     }
 )
 
 # Granice tokenow w polu `reviewer`. Dzielenie wylacznie po bialych znakach
-# przepuszczalo `gsd-bot` i `claude_agent`, mimo ze gole `bot` bylo
-# odrzucane (CR-03 z 01-REVIEW.md) - to byl blad tokenizacji, nie slabosc
-# heurystyki.
+# przepuszczalo `jakis-bot` i `pomocniczy_agent`, mimo ze gole `bot` bylo
+# odrzucane - to byl blad tokenizacji, nie slabosc heurystyki.
 _REVIEWER_TOKEN_SPLIT = re.compile(r"[^0-9A-Za-z]+")
 
 EXIT_OK = 0
@@ -140,9 +137,9 @@ def _reviewer_is_invalid(reviewer: str) -> bool:
     automatycznie w zadnym trybie. Tutaj lapiemy pomylke i wartosc
     zastepcza, nie zdeterminowanego falszerza.
 
-    Znana granica tej samej rodziny (IN-01 z 01-REVIEW.md): tokenizacja
-    dzieli po granicy niealfanumerycznej, wiec "gsd-bot" i "gsd_bot" sa
-    lapane, ale zlepek bez separatora ("gsdbot", "GsdAgent") juz nie.
+    Znana granica tej samej rodziny: tokenizacja
+    dzieli po granicy niealfanumerycznej, wiec "jakis-bot" i "jakis_bot" sa
+    lapane, ale zlepek bez separatora ("jakisbot", "JakisAgent") juz nie.
     Swiadomie nie rozszerzamy tego o dopasowanie po podciagu - "agent"
     wystepuje w prawdziwych nazwiskach, a falszywy alarm blokowalby
     rozstrzygniecie czlowieka.

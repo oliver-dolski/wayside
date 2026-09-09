@@ -3,7 +3,7 @@
 ## Kontekst
 
 Trzy rozstrzygniecia Fazy 2, kazde z tego samego powodu: badanie projektowe
-`.planning/research/ARCHITECTURE.md` powstalo przed pierwszym kodem tego projektu i przed
+badaniu projektowym (architektura) powstalo przed pierwszym kodem tego projektu i przed
 decyzja `LOCK-01` z Fazy 1 (`docs/decisions/0001-silnik-dekodowania-v1.md`), wiec celowalo
 w zakres szerszy niz zrealizowany v1. To ta sama klasa rozjazdu, co Pitfall 9 z
 `01-RESEARCH.md` (rekomendacja `tshark` w `STACK.md` dla siedmiu protokolow v2+, zanim
@@ -90,7 +90,7 @@ ktore ten zapis istnieje po to, zeby zamknac.
 
 ## Droga rewizji
 
-W `.planning/research/ARCHITECTURE.md` dopisano note przy rekomendacjach drugiego dekodera
+W badaniu projektowym (architektura) dopisano note przy rekomendacjach drugiego dekodera
 pakietow i silnika szablonow, wskazujaca na ten plik i na
 `docs/decisions/0001-silnik-dekodowania-v1.md` - badanie zostaje nietkniete jako zapis stanu
 wiedzy sprzed kodu, nota jest wskazowka dla przyszlej lektury.

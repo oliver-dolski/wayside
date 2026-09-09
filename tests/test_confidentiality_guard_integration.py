@@ -266,18 +266,22 @@ def test_commit_with_project_name_outside_exempted_path_is_rejected(
     assert "to nie powinno przejsc - nazwa wlasna" not in log.stdout
 
 
-def test_commit_with_project_name_under_exempted_planning_path_is_accepted(
+def test_commit_with_project_name_under_exempted_path_is_accepted(
     temp_repo: Path, tmp_path: Path
 ):
+    # Sciezka wyjeta sprawdzana tutaj to sam plik listy wyjatkow: plik, ktory
+    # deklaruje wyjatek dla reguly nazwy wlasnej, musi miec prawo nazwac to, co
+    # wyjmuje, w komentarzu-uzasadnieniu. To jest prawdziwy przypadek uzycia
+    # tego wyjatku, nie sztuczny - kazdy nowy wpis listy przychodzi razem
+    # z takim komentarzem.
     _install_hook(temp_repo, tmp_path)
     env = _build_env(tmp_path)
 
-    planning_dir = temp_repo / ".planning"
-    planning_dir.mkdir()
-    exempted_file = planning_dir / "notatka-nazwa.md"
-    exempted_file.write_text(_PROJECT_NAME_JOINED, encoding="utf-8")
+    exempted_file = temp_repo / ".confidentiality-allow"
+    with exempted_file.open("a", encoding="utf-8") as handle:
+        handle.write(f"\n# Uzasadnienie wymieniajace nazwe: {_PROJECT_NAME_JOINED}\n")
 
-    add = _run_git(["add", ".planning/notatka-nazwa.md"], cwd=temp_repo, env=env)
+    add = _run_git(["add", ".confidentiality-allow"], cwd=temp_repo, env=env)
     assert add.returncode == 0, add.stderr
 
     commit = _run_git(

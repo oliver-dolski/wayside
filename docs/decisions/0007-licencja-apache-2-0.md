@@ -22,7 +22,7 @@ momencie, w ktorym ktokolwiek probowalby skorzystac z zaproszenia.
 
 ## Rozstrzygniecie
 
-Wybrana opcja (Oliver, `/gsd-discuss-phase 5`, D-02): **Apache License,
+Wybrana opcja (Oliver, ustalenie fazy 5, D-02): **Apache License,
 wersja 2.0**, z naglowkiem praw autorskich `Copyright 2026 Oliver Dolski`
 w bloku koncowym tekstu.
 

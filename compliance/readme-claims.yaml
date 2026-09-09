@@ -33,7 +33,7 @@ entries:
       Twierdzenie o srodowisku uruchomieniowym uzytkownika (brak zaleznosci
       od narzedzi trzecich), nie o kodzie - jedyna uczciwa weryfikacja to
       przebieg na czystej maszynie bez Npcap/Wiresharka/tsharka, otwarty
-      w .planning/WINDOWS.md pod pozycjami 1 i 2.
+      w prywatnym rejestrze niepewnosci autora pod pozycjami 1 i 2.
     status: active
 
   - id: bootstrap-path-refresh

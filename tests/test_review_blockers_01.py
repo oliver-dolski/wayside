@@ -123,16 +123,16 @@ def test_version_exclusion_does_not_swallow_real_clause_numbers():
     )
 
 
-# CR-03. Pole `reviewer` jest slabym kontrolerem z natury, ale odrzucanie
-# golego "bot" przy jednoczesnym przyjmowaniu "gsd-bot" nie jest slaboscia
+# Pole `reviewer` jest slabym kontrolerem z natury, ale odrzucanie
+# golego "bot" przy jednoczesnym przyjmowaniu "jakis-bot" nie jest slaboscia
 # heurystyki, tylko bledem tokenizacji: dzielenie wylacznie po bialych
 # znakach nie rozbija lacznika ani podkreslnika.
 @pytest.mark.parametrize(
     "reviewer",
     [
-        "gsd-bot",
+        "jakis-bot",
         "Automated-Reviewer",
-        "claude_agent",
+        "pomocniczy_agent",
         "AI Assistant",
         "bot",
         "",

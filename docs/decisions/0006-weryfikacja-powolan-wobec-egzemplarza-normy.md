@@ -7,7 +7,7 @@ resolved_option: kupno-tylko-iec62443-3-3
 
 ## Kontekst
 
-STD-03 (`.planning/REQUIREMENTS.md`) wymaga, zeby kazdy finding mial powolanie
+STD-03 (rejestrze wymagan projektu) wymaga, zeby kazdy finding mial powolanie
 na punkt IEC 62443-3-3. STD-05 dorzuca warunek weryfikowalnosci: kazde
 powolanie podaje edycje albo rok normy. Oba wymagania trzymaja sie tylko
 wtedy, gdy numeracja i tresc cytowanych punktow zostaly sprawdzone wobec

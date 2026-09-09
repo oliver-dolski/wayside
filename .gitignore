@@ -1,4 +1,3 @@
-.planning/research/.cache/
 __pycache__/
 *.pyc
 .venv/
@@ -13,12 +12,9 @@ standards/.local/
 # repozytorium ani do konfiguracji CI.
 .confidentiality-identity.local
 
-# Stan runtime GSD zwiazany z maszyna i sesja, nie z projektem:
-# sentinel izolacji dispatchu oraz blokada milestone z PID i identyfikatorem
-# sesji. Oba sa odtwarzane przy kazdym uruchomieniu i w historii tylko
-# generowalyby konflikty miedzy maszynami.
-.gsd/
-.planning/milestone.lock
+# Stan runtime narzedzi pomocniczych autora, zwiazany z maszyna i sesja,
+# nie z projektem. Odtwarzany przy kazdym uruchomieniu, w historii
+# generowalby wylacznie konflikty miedzy maszynami.
 
 # Katalog wyjsciowy domyslnego uruchomienia `wayside analyze`.
 wayside-out/
@@ -28,3 +24,14 @@ wayside-out/
 # repozytorium wchodzi skrypt pobierajacy i wygenerowany raport, nigdy sam
 # plik zrzutu (rekord decyzji `0005`).
 datasets/
+
+# Prywatne artefakty planowania autora (notatki, mapa prac, zapisy przegladow).
+# Nie sa czescia dostarczanego narzedzia i nie maja wartosci dla nikogo poza
+# autorem, wiec zostaja na jego maszynie zamiast puchnac publiczne repozytorium.
+.planning/
+
+# Katalogi stanu lokalnych narzedzi autora: zwiazane z maszyna i sesja,
+# odtwarzane przy kazdym uruchomieniu, w historii generowalyby wylacznie
+# konflikty miedzy maszynami.
+.claude/
+.gsd/

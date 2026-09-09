@@ -140,7 +140,7 @@ def test_placeholder_reviewer_exits_4():
 
 
 def test_agent_name_reviewer_exits_4():
-    fields = _valid_fields(reviewer="claude")
+    fields = _valid_fields(reviewer="assistant")
     code, _message = gate.validate_record(fields, VALID_BODY)
     assert code == 4
 

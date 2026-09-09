@@ -78,20 +78,8 @@ examples/4sics/analysis.json
 # Kazdy jest zawezony do JEDNEJ reguly: adres z sieci pracodawcy albo nazwa
 # urzadzenia w ktoryms z tych plikow dalej zapala pozostale reguly warstwy 3.
 
-# Katalog artefaktow planowania GSD. Ustalony fakt (D-23, sesja 2026-09-09):
-# wszystkie wystapienia nazwy w sledzonym drzewie sa trescia SAMEGO ZAKAZU
-# (tekst wymagania PUB-05, cel i kryterium fazy 5 w ROADMAP.md, prohibicja
-# w 03-02-PLAN.md) - zadnego kodu, schematu, adresacji ani sygnatury stamtad
-# w repozytorium nie ma, a w komunikatach commitow nazwa nie wystepuje ani
-# razu. Fakt wystepowania wylacznie w tresci wlasnego zakazu jest argumentem
-# NA KORZYSC autora, nie furtka (05-CONTEXT.md). Katalog jedzie do publicznego
-# repozytorium (D-20), wiec ten wyjatek NIE zdejmuje z niego regul adresacji
-# ani nazwy urzadzenia - notatka planistyczna z adresem pracodawcy dalej
-# zapala bramke.
-identity-path:identity-project-name:.planning/*
-
-# Sam plik listy wyjatkow: plik, ktory deklaruje wyjatek dla tej reguly (linia
-# wyzej), musi miec prawo nazwac to, co wyjmuje w komentarzu-uzasadnieniu.
+# Sam plik listy wyjatkow: plik, ktory deklaruje wyjatek dla tej reguly, musi
+# miec prawo nazwac to, co wyjmuje w komentarzu-uzasadnieniu.
 identity-path:identity-project-name:.confidentiality-allow
 
 # Sam plik bramki: wzorzec `PROJECT_NAME_PATTERN` niesie oba slowa nazwy jako

@@ -7,7 +7,7 @@ resolved_option: clc-ts-50701-2023
 
 ## Kontekst
 
-STD-04 (`.planning/REQUIREMENTS.md`) stawia dowod wyroznika projektu: dodanie
+STD-04 (rejestrze wymagan projektu) stawia dowod wyroznika projektu: dodanie
 drugiej normy do katalogu ma byc dopisaniem pliku danych, bez zmiany ani jednej
 linii kodu. STD-05 dorzuca warunek, ktory czyni to powolanie weryfikowalnym:
 kazde powolanie podaje edycje albo rok normy. Oba wymagania nazywaly ten
@@ -16,7 +16,7 @@ i PROJECT.
 
 Ta nazwa byla przyjeta przy tworzeniu wymagan (2026-09-01) i nigdy nie zostala
 sprawdzona wobec zrodla. Wlasne badanie projektu widzialo problem juz wczesniej:
-`.planning/research/FEATURES.md` opisuje ten dokument jako "EN 50701 (formally
+badaniu projektowym (funkcje) opisuje ten dokument jako "EN 50701 (formally
 CLC/TS 50701, a CENELEC Technical Specification)", a `PITFALLS.md` prowadzi
 osobna pulapke numer 13 o mylnym traktowaniu go jako zastepujacego IEC 62443.
 Warstwa wymagan tej korekty nie przejela, wiec projekt szedl do fazy 4
@@ -79,7 +79,7 @@ Kazde powolanie na dokument kolejowy w wygenerowanym raporcie brzmi
 sygnature razem z edycja, wiec kupuje albo otwiera dokladnie ten dokument,
 o ktory chodzi. Katalog norm dostaje osobny katalog danych dla tego dokumentu;
 jego nazwa idzie od sygnatury, nie od nazwy `en50701` proponowanej wczesniej
-w `.planning/research/ARCHITECTURE.md`.
+w badaniu projektowym (architektura).
 
 ## Sposob egzekwowania
 

@@ -7,7 +7,7 @@ resolved_option: 4sics-skrypt-pobierajacy
 
 ## Kontekst
 
-REPORT-05 (`.planning/REQUIREMENTS.md`) wymaga, zeby w repozytorium lezal
+REPORT-05 (rejestrze wymagan projektu) wymaga, zeby w repozytorium lezal
 przykladowy raport wygenerowany z publicznego zbioru danych, odtwarzalny
 z tego zbioru bajtowo identycznie. To nie jest wymaganie kosmetyczne:
 notatki projektu nazywaja ten raport glownym artefaktem promocyjnym,

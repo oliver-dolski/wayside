@@ -130,7 +130,7 @@ w warstwie tekstowej PDF kazdy z osiemnastu polskich znakow diakrytycznych
 wystepuje jako pojedynczy, zlozony punkt kodowy, niezaleznie od fontow
 zainstalowanych w systemie. Granica tego twierdzenia: to, jak dokument
 wyglada w konkretnym czytniku PDF, nie zostalo potwierdzone wzrokowo na
-wielu maszynach (`.planning/WINDOWS.md`, pozycje 12 i 13). Flaga jest
+wielu maszynach (prywatnym rejestrze niepewnosci autora, pozycje 12 i 13). Flaga jest
 domyslnie wylaczona: domyslna sciezka narzedzia nie zyskuje przez to nowej
 zaleznosci uruchomieniowej.
 

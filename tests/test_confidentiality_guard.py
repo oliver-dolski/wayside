@@ -414,9 +414,13 @@ def test_confidentiality_allow_file_declares_identity_project_name_exceptions():
     lines = guard._load_allow_patterns(REPO_ROOT / ".confidentiality-allow")
     exceptions = guard._identity_path_exceptions(lines)
     patterns = exceptions.get(guard.RULE_IDENTITY_PROJECT_NAME, [])
-    assert ".planning/*" in patterns
-    assert ".confidentiality-allow" in patterns
-    assert "scripts/confidentiality_guard.py" in patterns
+    # Dwie sciezki, obie niosace tresc samego zakazu: plik listy wyjatkow musi
+    # miec prawo nazwac to, co wyjmuje, a plik bramki niesie literal we wzorcu,
+    # bo inaczej nie mialby czego dopasowac. Nic poza tymi dwiema.
+    assert sorted(patterns) == [
+        ".confidentiality-allow",
+        "scripts/confidentiality_guard.py",
+    ]
 
 
 # --- Warstwa 3: tozsamosciowa - trzy reguly ksztaltu (05-03/2) --------------
@@ -556,7 +560,7 @@ def test_identity_layer_orders_multiple_rules_on_same_line_by_rule_id():
 # sledzony przez gita i jedzie do publicznego repozytorium (D-20), wiec adres
 # pracodawcy w notatce planistycznej jest dokladnie tak publiczny, jak w
 # pliku zrodlowym. Pominiecie uzasadnione dla odcisku jezyka normatywnego
-# (dokumentacja procesu planowania GSD cytuje wlasne przyklady ilustracyjne)
+# (dokumentacja procesu planowania cytuje wlasne przyklady ilustracyjne)
 # nie przenosi sie na wzorce tozsamosciowe.
 
 
@@ -773,7 +777,7 @@ def test_guard_is_clean_over_tracked_tree(monkeypatch):
 
     text_paths: list[str] = []
     for rel_path in all_paths:
-        # `.planning/` to badania i notatki planistyczne GSD, nie tresc
+        # `.planning/` to badania i notatki planistyczne autora, nie tresc
         # projektu, ktora ta bramka ma chronic. Zawiera m.in.
         # `01-RESEARCH.md`, ktory cytuje - jako przyklad ilustracyjny we
         # wlasnym Pattern 2 - dokladnie ten sam wymyslony ksztalt zdania

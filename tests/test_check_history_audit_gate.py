@@ -209,13 +209,13 @@ def test_empty_author_is_not_a_shape_error():
 
 
 def test_agent_name_author_is_a_shape_error():
-    fields = _valid_fields(author="claude", confirmed_on="2026-09-09")
+    fields = _valid_fields(author="assistant", confirmed_on="2026-09-09")
     errors = gate.validate_record(fields, VALID_BODY)
     assert errors != []
 
 
 def test_agent_name_author_via_main_exits_4(tmp_path):
-    fields = _valid_fields(author="claude", confirmed_on="2026-09-09")
+    fields = _valid_fields(author="assistant", confirmed_on="2026-09-09")
     record = tmp_path / "record.md"
     _write_record(record, fields, VALID_BODY)
     exit_code = gate.main(["--record", str(record)])

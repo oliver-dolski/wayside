@@ -2,7 +2,7 @@
 
 ## Kontekst
 
-`.planning/research/STACK.md` (badanie projektowe z 2026-09-01, sekcja "Core Technologies")
+badaniu projektowym (warstwa technologiczna) (badanie projektowe z 2026-09-01, sekcja "Core Technologies")
 rekomenduje `tshark` (Wireshark CLI, wywoływany jako subprocess) jako główny silnik
 dekodowania dla siedmiu protokołów przemysłowych docelowych dla v2+: Modbus, S7comm, DNP3,
 EtherNet/IP+CIP, PROFINET, OPC UA i IEC 60870-5-104/101. Rekomendacja jest uzasadniona
@@ -54,14 +54,14 @@ oznaczałoby złamanie `FOUND-01` wprost.
 
 ## Droga rewizji
 
-`V2-03` (`.planning/REQUIREMENTS.md`, sekcja "v2 Requirements") dopuszcza wprost zewnętrzny
+`V2-03` (rejestrze wymagan projektu, sekcja "v2 Requirements") dopuszcza wprost zewnętrzny
 dekoder (tshark) dla kolejnych protokołów przemysłowych (S7comm, DNP3, IEC 60870-5-104) jako
 udokumentowany wymóg wstępny. Rewizja tej decyzji należy do v2 i wymaga zmiany wymagania
 w `REQUIREMENTS.md`, nie samej zmiany kodu - `tests/test_no_external_dissector.py` musi
 zostać świadomie zawężony albo zdjęty razem z tą zmianą wymagania, inaczej bramka i
 wymaganie zaczną sobie przeczyć.
 
-Przy okazji Fazy 2 warto dopisać notę do `.planning/research/STACK.md`, że rekomendacja
+Przy okazji Fazy 2 warto dopisać notę do badaniu projektowym (warstwa technologiczna), że rekomendacja
 tshark w tamtym badaniu dotyczy zakresu szerszego (siedem protokołów, v2+) niż zrealizowany
 zakres v1 (jeden protokół, Modbus/TCP przez scapy) - żeby przyszła lektura tamtego dokumentu
 nie odczytała rekomendacji jako wciąż aktualnej dla v1.

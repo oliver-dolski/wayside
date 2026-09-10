@@ -3,35 +3,36 @@ __pycache__/
 .venv/
 standards/.local/
 
-# Plik literalow lokalnych warstwy tozsamosciowej bramki poufnosci (piata
-# regula, identity-local-literal). Niesie literalne nazwy urzadzen i
-# sygnatury z sieci pracodawcy, ktorych zaden wzorzec ksztaltu nie wyraza -
-# jego trafienie do repozytorium bylby dokladnie tym wyciekiem, ktoremu ta
-# warstwa ma zapobiegac. Ta sama koniecznosc architektoniczna, co przy
-# lokalnym korpusie norm powyzej: nie wolno go wgrywac do sekretow
-# repozytorium ani do konfiguracji CI.
+# Local literal file of the identity layer of the confidentiality gate
+# (fifth rule, identity-local-literal). It carries literal device names and
+# signatures from the employer's network, which no shape pattern expresses -
+# it landing in the repository would be exactly the leak this layer is meant
+# to prevent. The same architectural necessity as the local corpus of
+# standards above: it must never be uploaded to the repository secrets nor
+# to the CI configuration.
 .confidentiality-identity.local
 
-# Stan runtime narzedzi pomocniczych autora, zwiazany z maszyna i sesja,
-# nie z projektem. Odtwarzany przy kazdym uruchomieniu, w historii
-# generowalby wylacznie konflikty miedzy maszynami.
+# Runtime state of the author's helper tooling, tied to a machine and a
+# session rather than to the project. Rebuilt on every run, in the history
+# it would generate nothing but conflicts between machines.
 
-# Katalog wyjsciowy domyslnego uruchomienia `wayside analyze`.
+# Output directory of a default `wayside analyze` run.
 wayside-out/
 
-# Zbior zewnetrzny (4SICS, REPORT-05) pobierany przez
-# scripts/fetch_4sics_sample.py - wazy rzad setek megabajtow, do
-# repozytorium wchodzi skrypt pobierajacy i wygenerowany raport, nigdy sam
-# plik zrzutu (rekord decyzji `0005`).
+# External capture set (4SICS, REPORT-05) downloaded by
+# scripts/fetch_4sics_sample.py - it weighs hundreds of megabytes; what
+# enters the repository is the download script and the generated report,
+# never the capture file itself (decision record `0005`).
 datasets/
 
-# Prywatne artefakty planowania autora (notatki, mapa prac, zapisy przegladow).
-# Nie sa czescia dostarczanego narzedzia i nie maja wartosci dla nikogo poza
-# autorem, wiec zostaja na jego maszynie zamiast puchnac publiczne repozytorium.
+# The author's private planning artifacts (notes, work map, review records).
+# They are not part of the delivered tool and hold no value for anybody but
+# the author, so they stay on his machine instead of swelling the public
+# repository.
 .planning/
 
-# Katalogi stanu lokalnych narzedzi autora: zwiazane z maszyna i sesja,
-# odtwarzane przy kazdym uruchomieniu, w historii generowalyby wylacznie
-# konflikty miedzy maszynami.
+# State directories of the author's local tooling: tied to a machine and a
+# session, rebuilt on every run, in the history they would generate nothing
+# but conflicts between machines.
 .claude/
 .gsd/

@@ -1,7 +1,7 @@
 [project]
 name = "wayside"
 version = "0.1.0"
-description = "Pasywne narzedzie do oceny bezpieczenstwa sieci OT/ICS na podstawie zrzutow pcap"
+description = "Passive OT/ICS network security assessment tool driven by pcap captures"
 requires-python = ">=3.12"
 dependencies = [
     "scapy>=2.7.0",
@@ -30,14 +30,14 @@ packages = ["src/wayside"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# UWAGA (D-22, Pitfall 1 badania fazy 5): rejestracja znacznika "slow" w liscie
-# `markers` ponizej NIE POMIJA zadnego testu - odpowiada wylacznie za walidacje
-# nazwy znacznika i wyciszenie ostrzezenia "unknown marker". Faktyczne pominiecie
-# robi WYLACZNIE filtr `-m 'not slow'` w `addopts` ponizej - to jest druga, rownie
-# konieczna polowa tego samego rozstrzygniecia; sama rejestracja bez tego filtra
-# zostawia znacznik zarejestrowany, ale nieskuteczny.
+# NOTE (D-22, Pitfall 1 of the phase 5 research): registering the "slow" marker
+# in the `markers` list below SKIPS NOTHING - it only validates the marker name
+# and silences the "unknown marker" warning. The actual skipping is done SOLELY
+# by the `-m 'not slow'` filter in `addopts` below - that is the second, equally
+# necessary half of the same decision; registration without that filter leaves
+# the marker registered but ineffective.
 addopts = "-q -m 'not slow'"
 markers = [
-    "integration: testy integracyjne (m.in. prawdziwy subprocess git)",
-    "slow: skan pelnej historii repozytorium (trzy powierzchnie razy caly zbior commitow) - pomijany domyslnie lokalnie, wlaczany jawnie wylacznie w jobie CI confidentiality-backstop",
+    "integration: integration tests (among others a real git subprocess)",
+    "slow: a scan of the full repository history (three surfaces times the whole set of commits) - skipped by default locally, enabled explicitly only in the confidentiality-backstop CI job",
 ]

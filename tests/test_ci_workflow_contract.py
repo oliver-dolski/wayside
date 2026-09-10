@@ -1,18 +1,18 @@
-"""Kontrakt na ksztalt `.github/workflows/ci.yml`, sprawdzany lokalnie.
+"""Contract for the shape of `.github/workflows/ci.yml`, checked locally.
 
-Bez tego testu rozjazd miedzy tym, co plan 01-05 obiecuje, a tym, co workflow
-faktycznie robi, wychodzi dopiero przy pierwszym pushu - i tylko wtedy, gdy
-ktos przeczyta log. Plik jest parsowany wylacznie przez `yaml.safe_load`,
-sciezka wyznaczona wzgledem `__file__`, zeby test dzialal identycznie
-niezaleznie od miejsca uruchomienia `pytest`.
+Without this test, a drift between what plan 01-05 promises and what the
+workflow actually does only surfaces at the first push - and only if someone
+reads the log. The file is parsed solely by `yaml.safe_load`, with the path
+derived relative to `__file__`, so that the test behaves identically no
+matter where `pytest` was started from.
 
-`steps_of()` splaszcza liste krokow joba, zeby asercje ponizej czytaly sie
-jako zdania o zawartosci ("krok X zawiera Y"), nie jako zagniezdzone
-indeksowanie slownikow YAML.
+`steps_of()` flattens a job's step list so that the assertions below read as
+sentences about content ("step X contains Y"), not as nested indexing into
+YAML dictionaries.
 
-Klucz `on:` w pliku workflow jest CELOWO cudzyslowiony jako `"on":` - bez
-tego PyYAML (YAML 1.1) parsuje ten bareword jako bool `True`, nie string
-"on" (znany gotcha; sprawdzone bezposrednio w tej sesji).
+The `on:` key in the workflow file is DELIBERATELY quoted as `"on":` -
+without that PyYAML (YAML 1.1) parses the bareword as the bool `True`, not
+the string "on" (a known gotcha, checked directly at the time).
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ import yaml
 
 WORKFLOW_PATH = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
 
-# Piatka modulow krytycznych fazy 1. Dodanie szostej w kolejnej fazie ma byc
-# jedna zmiana w tej stalej, nie polowanie po calym pliku testowym.
+# The five critical phase 1 modules. Adding a sixth one in a later phase is
+# meant to be one change to this constant, not a hunt across the whole test file.
 CRITICAL_TEST_MODULES: tuple[str, ...] = (
     "test_confidentiality_guard_integration",
     "test_no_history_leak",
@@ -40,25 +40,25 @@ def load_workflow() -> dict[str, Any]:
 
 
 def steps_of(workflow: dict[str, Any], job_name: str) -> list[dict[str, Any]]:
-    """Zwraca plaska liste krokow joba `job_name`."""
+    """Returns the flat list of steps of the job `job_name`."""
     return workflow["jobs"][job_name]["steps"]
 
 
 def step_commands(steps: list[dict[str, Any]]) -> list[str]:
-    """Zwraca tresc `run:` dla kazdego kroku, ktory ja ma (pomija kroki `uses:`)."""
+    """Returns the `run:` content of every step that has one (skips `uses:` steps)."""
     return [step["run"] for step in steps if "run" in step]
 
 
 def find_missing_critical_modules(
     collection_gate_command: str, required_modules: tuple[str, ...]
 ) -> list[str]:
-    """Zwraca podzbior `required_modules`, ktorego nazwa NIE wystepuje w
-    `collection_gate_command`. Pusta lista znaczy: wszystkie obecne.
+    """Returns the subset of `required_modules` whose name does NOT appear in
+    `collection_gate_command`. An empty list means: all of them are present.
     """
     return [name for name in required_modules if name not in collection_gate_command]
 
 
-# --- Ksztalt globalny --------------------------------------------------------
+# --- Global shape ------------------------------------------------------------
 
 
 def test_workflow_parses_as_yaml():
@@ -69,7 +69,7 @@ def test_workflow_parses_as_yaml():
 def test_every_job_runs_on_windows_latest():
     workflow = load_workflow()
     for job_name, job in workflow["jobs"].items():
-        assert job["runs-on"] == "windows-latest", f"job {job_name} nie jest na windows-latest"
+        assert job["runs-on"] == "windows-latest", f"job {job_name} does not run on windows-latest"
 
 
 # --- Job `test` ---------------------------------------------------------------
@@ -78,8 +78,8 @@ def test_every_job_runs_on_windows_latest():
 def test_job_test_syncs_locked_and_runs_pytest():
     workflow = load_workflow()
     commands = step_commands(steps_of(workflow, "test"))
-    assert any("uv sync --locked" in cmd for cmd in commands), "brak `uv sync --locked`"
-    assert any(cmd.strip() == "uv run pytest" for cmd in commands), "brak `uv run pytest`"
+    assert any("uv sync --locked" in cmd for cmd in commands), "no `uv sync --locked`"
+    assert any(cmd.strip() == "uv run pytest" for cmd in commands), "no `uv run pytest`"
 
 
 def test_job_test_collection_gate_lists_all_critical_modules():
@@ -87,7 +87,7 @@ def test_job_test_collection_gate_lists_all_critical_modules():
     commands = step_commands(steps_of(workflow, "test"))
     collection_gate = next(cmd for cmd in commands if "collect-only" in cmd)
     missing = find_missing_critical_modules(collection_gate, CRITICAL_TEST_MODULES)
-    assert missing == [], f"modul(y) brakujace w kroku bramki kolekcji: {missing}"
+    assert missing == [], f"module(s) missing from the collection gate step: {missing}"
 
 
 # --- Job `confidentiality-backstop` -------------------------------------------
@@ -98,7 +98,7 @@ def test_backstop_checkout_has_full_history():
     steps = steps_of(workflow, "confidentiality-backstop")
     checkout_step = next(s for s in steps if s.get("uses", "").startswith("actions/checkout"))
     assert checkout_step.get("with", {}).get("fetch-depth") == 0, (
-        "checkout w jobie backstopu nie ma fetch-depth: 0"
+        "the checkout of the backstop job lacks fetch-depth: 0"
     )
 
 
@@ -107,7 +107,7 @@ def test_backstop_runs_confidentiality_guard_without_corpus():
     commands = step_commands(steps_of(workflow, "confidentiality-backstop"))
     assert any(
         "confidentiality_guard.py" in cmd and "--no-corpus" in cmd for cmd in commands
-    ), "brak wywolania confidentiality_guard.py z flaga --no-corpus"
+    ), "no call of confidentiality_guard.py with the --no-corpus flag"
 
 
 def test_backstop_checks_empty_history_for_local_corpus_path():
@@ -115,43 +115,44 @@ def test_backstop_checks_empty_history_for_local_corpus_path():
     commands = step_commands(steps_of(workflow, "confidentiality-backstop"))
     assert any(
         "git log --all" in cmd and "standards/.local" in cmd for cmd in commands
-    ), "brak kroku `git log --all -- standards/.local`"
+    ), "no `git log --all -- standards/.local` step"
 
 
 def test_backstop_runs_history_audit_scan_with_slow_marker_enabled():
-    """PUB-05/D-22: job backstopu niesie krok wolajacy modul skanu trzech
-    powierzchni calej historii z jawnym wlaczeniem znacznika `slow` - bez
-    tego jawnego wlaczenia domyslny filtr znacznika (pyproject.toml)
-    pomijalby ten modul takze w CI, i skan wygladalby na zielony, w ogole
-    sie nie wykonujac."""
+    """PUB-05/D-22: the backstop job carries a step calling the module that
+    scans the three surfaces of the whole history, with the `slow` marker
+    explicitly enabled - without that explicit enabling the default marker
+    filter (pyproject.toml) would skip the module in CI as well, and the scan
+    would look green without ever executing."""
     workflow = load_workflow()
     commands = step_commands(steps_of(workflow, "confidentiality-backstop"))
     assert any(
         "-m slow" in cmd and "test_history_audit" in cmd for cmd in commands
-    ), "brak kroku uruchamiajacego skan historii z jawnym wlaczeniem znacznika slow"
+    ), "no step running the history scan with the slow marker explicitly enabled"
 
 
 def test_job_test_collection_gate_does_not_list_history_audit_module():
-    """Z-101: modul skanu historii NIE ma prawa stac na liscie modulow
-    krytycznych kroku kolekcji jobu `test` - po wprowadzeniu domyslnego
-    filtra znacznika `slow` ten modul nie pojawia sie w tamtej kolekcji,
-    wiec dopisanie go zaczerwienilo by krok natychmiast."""
+    """Z-101: the history scan module has no business on the critical module
+    list of the `test` job's collection step - once the default `slow` marker
+    filter was introduced, that module no longer shows up in that collection,
+    so adding it there would turn the step red immediately."""
     workflow = load_workflow()
     commands = step_commands(steps_of(workflow, "test"))
     collection_gate = next(cmd for cmd in commands if "collect-only" in cmd)
     assert "test_history_audit" not in collection_gate
 
 
-# --- Zadny krok nie uzywa lokalnego korpusu jako zrodla danych ---------------
+# --- No step uses the local corpus as a data source --------------------------
 
 
 def test_confidentiality_guard_invocations_always_use_no_corpus_flag():
-    """Kazde wywolanie `confidentiality_guard.py` w ci.yml niesie `--no-corpus`.
+    """Every call of `confidentiality_guard.py` in ci.yml carries `--no-corpus`.
 
-    To jest wprost test na uzycie lokalnego korpusu jako zrodla danych: bez tej
-    flagi krok probowalby czytac warstwe korpusowa, ktora w CI nigdy nie
-    istnieje (katalog jest gitignorowany) i nie moze istniec, nie zniweczajac
-    celu bramki poufnosci - patrz komentarz na gorze ci.yml.
+    This is outright a test for the use of the local corpus as a data source:
+    without that flag the step would try to read the corpus layer, which in CI
+    never exists (the directory is gitignored) and cannot exist without
+    defeating the purpose of the confidentiality gate - see the comment at the
+    top of ci.yml.
     """
     workflow = load_workflow()
     for job_name, job in workflow["jobs"].items():
@@ -159,24 +160,24 @@ def test_confidentiality_guard_invocations_always_use_no_corpus_flag():
             run_content = step.get("run", "")
             if "confidentiality_guard.py" in run_content:
                 assert "--no-corpus" in run_content, (
-                    f"job {job_name} wola confidentiality_guard.py bez --no-corpus"
+                    f"job {job_name} calls confidentiality_guard.py without --no-corpus"
                 )
 
 
 def test_no_step_references_secrets_context():
     raw_text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "secrets." not in raw_text, "krok odwoluje sie do sekretow repozytorium"
+    assert "secrets." not in raw_text, "a step references the repository secrets"
 
 
-# --- Dowod skutecznosci bramki kompletnosci kolekcji --------------------------
+# --- Proof that the collection completeness gate works -----------------------
 
 
 def test_missing_critical_module_is_detected_via_mutated_copy():
-    """Dowod skutecznosci: bez tego testu asercja o piatce modulow moglaby byc
-    zielona dlatego, ze `find_missing_critical_modules` szuka czegos, czego
-    nigdzie nie ma. Usuwa jedna nazwe z tresci kroku bramki kolekcji (kopia w
-    pamieci, nie modyfikacja pliku na dysku) i sprawdza, ze funkcja
-    sprawdzajaca zglasza brak.
+    """Proof of effectiveness: without this test the assertion about the five
+    modules could be green because `find_missing_critical_modules` looks for
+    something that is nowhere to be found. It removes one name from the content
+    of the collection gate step (an in-memory copy, not a modification of the
+    file on disk) and checks that the checking function reports the absence.
     """
     workflow = load_workflow()
     commands = step_commands(steps_of(workflow, "test"))
@@ -188,6 +189,6 @@ def test_missing_critical_module_is_detected_via_mutated_copy():
     missing = find_missing_critical_modules(mutated_gate, CRITICAL_TEST_MODULES)
 
     assert removed_module in missing, (
-        "find_missing_critical_modules nie wykryla brakujacego modulu "
-        f"'{removed_module}' po jego usunieciu z kopii w pamieci"
+        "find_missing_critical_modules did not detect the missing module "
+        f"'{removed_module}' after its removal from the in-memory copy"
     )

@@ -1,81 +1,84 @@
-# CI dla Wayside.
+# CI for Wayside.
 #
-# Platforma docelowa projektu to Windows 11 z Windows PowerShell 5.1, wiec oba joby
-# ponizej dzialaja na `windows-latest` - nie z preferencji, tylko dlatego, ze pakiet
-# testow zielony wylacznie na Linuksie nie dowodzilby FOUND-02 ("przechodza na
-# czystym klonie", a nie "przechodza u autora"). Kroki uzywaja jawnie `shell: pwsh`
-# (PowerShell Core), bo to domyslna powloka runnera `windows-latest` i GitHub Actions
-# automatycznie dopisuje do niej `$ErrorActionPreference = 'stop'` oraz propagacje
-# `$LASTEXITCODE` jako status kroku - jeden wybor powloki w calym pliku, zeby uniknac
-# przebiegow, ktore "dzialaja lokalnie" pod inna powloka niz ta uzywana w CI.
+# The project's target platform is Windows 11 with Windows PowerShell 5.1, so both jobs
+# below run on `windows-latest` - not out of preference, but because a test suite green
+# only on Linux would not prove FOUND-02 ("they pass on a clean clone", not "they pass on
+# the author's machine"). The steps use an explicit `shell: pwsh` (PowerShell Core),
+# because that is the default shell of the `windows-latest` runner and GitHub Actions
+# automatically adds `$ErrorActionPreference = 'stop'` to it along with propagation of
+# `$LASTEXITCODE` as the step status - one shell choice across the whole file, to avoid
+# runs that "work locally" under a shell other than the one used in CI.
 #
-# GRANICA ARCHITEKTONICZNA, NIE NIEDOPATRZENIE: job `confidentiality-backstop` NIE MA
-# i NIE MOZE MIEC dostepu do lokalnego korpusu norm `standards/.local/` - katalog jest
-# gitignorowany i nigdy nie trafia do zdalnego repozytorium (patrz FOUND-04). Backstop
-# uruchamia wylacznie warstwe strukturalna (`--no-corpus`) bramki poufnosci oraz kontrole
-# sciezki w calej historii. Proba "naprawienia" tego przez wgranie korpusu do sekretow
-# repozytorium zniweczylaby cel calej bramki: korpus zostajacy na jednej maszynie jest
-# kontrola, nie niedogodnoscia. Ten backstop jest z natury DETEKCYJNY, nie PREWENCYJNY -
-# GitHub.com nie daje kontom osobistym server-side pre-receive hookow, wiec czerwony
-# status potwierdza naruszenie PO fakcie (po `git push`), a nie zapobiega samemu
-# wyslaniu tresci. Szczegoly granic opisane w README.md sekcja "## Weryfikacja w CI".
+# AN ARCHITECTURAL BOUNDARY, NOT AN OVERSIGHT: the `confidentiality-backstop` job DOES
+# NOT and MUST NOT have access to the local corpus of standards `standards/.local/` - the
+# directory is gitignored and never reaches the remote repository (see FOUND-04). The
+# backstop runs only the structural layer (`--no-corpus`) of the confidentiality gate plus
+# the path check across the whole history. Trying to "fix" that by uploading the corpus to
+# the repository secrets would defeat the purpose of the entire gate: a corpus that stays
+# on one machine is a control, not an inconvenience. This backstop is DETECTIVE by nature,
+# not PREVENTIVE - GitHub.com gives personal accounts no server-side pre-receive hooks, so
+# a red status confirms a violation AFTER the fact (after `git push`) rather than
+# preventing the content from being sent at all. The boundaries are described in README.md
+# under "## Verification in CI".
 
 name: ci
 
-# Cudzyslow wokol "on" jest celowy: bez niego PyYAML (YAML 1.1) parsuje ten bareword
-# jako bool `True`, nie string "on" - `tests/test_ci_workflow_contract.py` czytalby
-# wtedy klucz `True` zamiast "on". GitHub Actions akceptuje obie formy identycznie.
+# The quotes around "on" are deliberate: without them PyYAML (YAML 1.1) parses this
+# bareword as the bool `True`, not the string "on" - `tests/test_ci_workflow_contract.py`
+# would then read the key `True` instead of "on". GitHub Actions accepts both forms
+# identically.
 "on":
   push:
   pull_request:
 
 jobs:
   test:
-    name: Pelny pakiet testow (swiezy checkout)
+    name: Full test suite (fresh checkout)
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Instalacja uv
-        # Dokladny tag latki, NIE `@v10`. `astral-sh/setup-uv` przestalo
-        # publikowac ruchomy tag glownej wersji od v8: repozytorium ma `v7.4`,
-        # `v7.5`, `v7.6`, ale dla v8, v9 i v10 istnieja wylacznie dokladne tagi
-        # latek. `@v10` nie istnieje jako ref (API zwraca 404), wiec `Set up job`
-        # przewraca sie po trzech sekundach z `Unable to resolve action`.
-        # Potwierdzone pierwszym realnym przebiegiem CI (run 33621915010,
-        # 2026-09-02). `actions/checkout@v7` zostaje na tagu glownym, bo tam
-        # ruchomy tag jest publikowany - to nie jest niespojnosc, to dwie rozne
-        # polityki tagowania u dwoch dostawcow.
+      - name: Install uv
+        # An exact patch tag, NOT `@v10`. `astral-sh/setup-uv` stopped publishing
+        # a moving major-version tag as of v8: the repository has `v7.4`, `v7.5`,
+        # `v7.6`, but for v8, v9 and v10 only exact patch tags exist. `@v10` does
+        # not exist as a ref (the API returns 404), so `Set up job` falls over
+        # after three seconds with `Unable to resolve action`. Confirmed by the
+        # first real CI run (run 33621915010, 2026-09-02). `actions/checkout@v7`
+        # stays on the major tag, because there the moving tag is published - this
+        # is not an inconsistency, it is two different tagging policies at two
+        # different vendors.
         uses: astral-sh/setup-uv@v10.0.1
 
-      - name: Synchronizacja srodowiska (--locked)
+      - name: Sync the environment (--locked)
         shell: pwsh
         run: uv sync --locked
 
-      - name: Bramka kompletnosci kolekcji testow
+      - name: Test collection completeness gate
         shell: pwsh
         run: |
-          # `uv run pytest` sam konczy sie niezerowym kodem przy zerowej liczbie
-          # zebranych testow, ale nie zauwaza sytuacji, w ktorej jeden konkretny
-          # modul bramkujacy wypadl z kolekcji (np. przez blad importu wyciszony
-          # konfiguracja albo zmiane `testpaths`) podczas gdy reszta pakietu nadal
-          # rosnie. Ten krok sprawdza obecnosc piatki modulow krytycznych fazy 1
-          # wprost, zamiast polegac na progu liczbowym testow (ktory prog albo
-          # bylby zanizony do nieuzytecznosci, albo falszowalby przebiegi w miare
-          # jak pakiet rosnie w kolejnych fazach).
+          # `uv run pytest` already exits with a non-zero code when zero tests are
+          # collected, but it does not notice the case where one particular gating
+          # module dropped out of the collection (say through an import error
+          # silenced by the configuration, or a change to `testpaths`) while the
+          # rest of the suite keeps growing. This step checks the presence of the
+          # five critical phase 1 modules outright, instead of relying on a
+          # numeric test-count threshold (which would either be set so low as to
+          # be useless, or would falsify runs as the suite grows through later
+          # phases).
           $collected = uv run pytest --collect-only -q 2>&1 | Out-String
           Write-Host $collected
 
-          # UWAGA (Z-101, plan 05-04): modul testu audytu trzech powierzchni
-          # calej historii (znacznik `slow`, pomijany domyslnie przez filtr w
-          # pyproject.toml) swiadomie NIE WCHODZI na te liste. Po wprowadzeniu
-          # domyslnego filtra znacznika ten modul nie pojawia sie w ponizszej
-          # kolekcji (ktora dziedziczy opcje domyslne), wiec dopisanie go tu
-          # zaczerwienilo by ten krok natychmiast. Jego obecnosc w CI pilnuje
-          # OSOBNY test kontraktu workflow (plik testowy audytu historii w
-          # katalogu tests/), ktory sprawdza, ze job confidentiality-backstop
-          # wola go z jawnym wlaczeniem znacznika `slow`.
+          # NOTE (Z-101, plan 05-04): the module testing the three-surface audit of
+          # the whole history (the `slow` marker, skipped by default through the
+          # filter in pyproject.toml) is deliberately NOT on this list. Once the
+          # default marker filter was introduced, that module no longer appears in
+          # the collection below (which inherits the default options), so adding it
+          # here would turn this step red immediately. Its presence in CI is guarded
+          # by a SEPARATE workflow contract test (the history audit test file in the
+          # tests/ directory), which checks that the confidentiality-backstop job
+          # calls it with the `slow` marker explicitly enabled.
           $criticalModules = @(
             'test_confidentiality_guard_integration',
             'test_no_history_leak',
@@ -92,87 +95,86 @@ jobs:
           }
 
           if ($missing.Count -gt 0) {
-            Write-Error "Modul(y) bramkujace zniknely z kolekcji testow: $($missing -join ', ')"
+            Write-Error "Gating module(s) vanished from the test collection: $($missing -join ', ')"
             exit 1
           }
 
-          Write-Host "Wszystkie piec modulow krytycznych fazy 1 obecne w kolekcji."
+          Write-Host "All five critical phase 1 modules present in the collection."
 
-      - name: Uruchomienie pakietu testow
+      - name: Run the test suite
         shell: pwsh
         run: uv run pytest
 
   confidentiality-backstop:
-    name: Backstop poufnosci (detekcyjny)
+    name: Confidentiality backstop (detective)
     runs-on: windows-latest
     steps:
-      - name: Checkout (pelna historia)
+      - name: Checkout (full history)
         uses: actions/checkout@v7
         with:
-          # Bez tego `git log --all` w kroku ponizej widzi wylacznie plytka
-          # historie (domyslnie 1 commit) i bramka historii wygladalaby na
-          # zielona, mimo ze w ogole nie sprawdzila historii repozytorium.
+          # Without this, `git log --all` in the step below sees only a shallow
+          # history (1 commit by default) and the history gate would look green
+          # despite never having checked the repository history at all.
           fetch-depth: 0
 
-      - name: Instalacja uv
-        # Dokladny tag latki, NIE `@v10`. `astral-sh/setup-uv` przestalo
-        # publikowac ruchomy tag glownej wersji od v8: repozytorium ma `v7.4`,
-        # `v7.5`, `v7.6`, ale dla v8, v9 i v10 istnieja wylacznie dokladne tagi
-        # latek. `@v10` nie istnieje jako ref (API zwraca 404), wiec `Set up job`
-        # przewraca sie po trzech sekundach z `Unable to resolve action`.
-        # Potwierdzone pierwszym realnym przebiegiem CI (run 33621915010,
-        # 2026-09-02). `actions/checkout@v7` zostaje na tagu glownym, bo tam
-        # ruchomy tag jest publikowany - to nie jest niespojnosc, to dwie rozne
-        # polityki tagowania u dwoch dostawcow.
+      - name: Install uv
+        # An exact patch tag, NOT `@v10`. `astral-sh/setup-uv` stopped publishing
+        # a moving major-version tag as of v8: the repository has `v7.4`, `v7.5`,
+        # `v7.6`, but for v8, v9 and v10 only exact patch tags exist. `@v10` does
+        # not exist as a ref (the API returns 404), so `Set up job` falls over
+        # after three seconds with `Unable to resolve action`. Confirmed by the
+        # first real CI run (run 33621915010, 2026-09-02). `actions/checkout@v7`
+        # stays on the major tag, because there the moving tag is published - this
+        # is not an inconsistency, it is two different tagging policies at two
+        # different vendors.
         uses: astral-sh/setup-uv@v10.0.1
 
-      - name: Synchronizacja srodowiska (--locked)
+      - name: Sync the environment (--locked)
         shell: pwsh
         run: uv sync --locked
 
-      - name: Bramka poufnosci - warstwa strukturalna (bez korpusu)
+      - name: Confidentiality gate - structural layer (no corpus)
         shell: pwsh
         run: |
-          # `scripts/confidentiality_guard.py` uzywa wylacznie biblioteki
-          # standardowej, wiec dziala tu bez dodatkowych zaleznosci. Flaga
-          # `--no-corpus` jest obowiazkowa w CI - patrz komentarz na gorze
-          # pliku o granicy architektonicznej.
+          # `scripts/confidentiality_guard.py` uses the standard library only, so
+          # it runs here without extra dependencies. The `--no-corpus` flag is
+          # mandatory in CI - see the comment at the top of this file about the
+          # architectural boundary.
           $trackedFiles = git ls-files
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "git ls-files zakonczylo sie kodem $LASTEXITCODE"
+            Write-Error "git ls-files exited with code $LASTEXITCODE"
             exit $LASTEXITCODE
           }
 
           uv run python scripts/confidentiality_guard.py --no-corpus @trackedFiles
 
-      - name: Bramka poufnosci - pusta historia standards/.local
+      - name: Confidentiality gate - empty standards/.local history
         shell: pwsh
         run: |
-          # Wyrocznia z Pattern 3 badania fazy 1: jesli ta komenda kiedykolwiek
-          # zwroci commit, to nie jest scenariusz do naprawienia kolejnym
-          # commitem - tresc juz jest w historii i wymaga `git filter-repo`
-          # (albo BFG Repo-Cleaner) plus force-push przed jakimkolwiek
-          # publicznym pushem.
+          # The oracle from Pattern 3 of the phase 1 research: if this command ever
+          # returns a commit, it is not a scenario to be fixed by another commit -
+          # the content is already in the history and requires `git filter-repo`
+          # (or BFG Repo-Cleaner) plus a force push before any public push.
           $history = git log --all -- standards/.local
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "git log --all zakonczylo sie kodem $LASTEXITCODE"
+            Write-Error "git log --all exited with code $LASTEXITCODE"
             exit $LASTEXITCODE
           }
 
           if ($history) {
-            Write-Error "Katalog standards/.local ma wpisy w historii gita - wymagane git filter-repo przed publicznym pushem."
+            Write-Error "The standards/.local directory has entries in the git history - git filter-repo is required before a public push."
             exit 1
           }
 
-          Write-Host "Historia standards/.local jest pusta."
+          Write-Host "The standards/.local history is empty."
 
-      - name: Audyt trzech powierzchni calej historii (PUB-05, znacznik wolny)
+      - name: Three-surface audit of the whole history (PUB-05, slow marker)
         shell: pwsh
         run: |
-          # JEDYNE miejsce w calym repozytorium, w ktorym znacznik `slow` jest
-          # jawnie wlaczany - patrz komentarz przy `addopts` w pyproject.toml
-          # (D-22: sama rejestracja znacznika niczego nie pomija, filtr w
-          # addopts pomija domyslnie, ta linia go jawnie nadpisuje). Ten job
-          # ma checkout z pelna historia (`fetch-depth: 0` wyzej) - bez tego
-          # ten skan wygladalby na zielony, w ogole nie sprawdziwszy historii.
+          # The ONLY place in the whole repository where the `slow` marker is
+          # explicitly enabled - see the comment next to `addopts` in pyproject.toml
+          # (D-22: registering the marker skips nothing, the filter in addopts skips
+          # by default, this line explicitly overrides it). This job has a checkout
+          # with the full history (`fetch-depth: 0` above) - without it this scan
+          # would look green without having checked the history at all.
           uv run pytest -o addopts="-q" -m slow tests/test_history_audit.py

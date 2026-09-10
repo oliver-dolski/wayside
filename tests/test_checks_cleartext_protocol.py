@@ -263,7 +263,7 @@ def test_rendered_report_carries_check_id_and_unverified_marker(tmp_path):
     _, report_text = _analyze(FIXTURE_CLEARTEXT, tmp_path)
 
     assert "cleartext-protocol" in report_text
-    assert "PROWIZORYCZNE, NIEZWERYFIKOWANE" in report_text
+    assert "PROVISIONAL, UNVERIFIED" in report_text
 
 
 def test_discover_checks_includes_cleartext_protocol():

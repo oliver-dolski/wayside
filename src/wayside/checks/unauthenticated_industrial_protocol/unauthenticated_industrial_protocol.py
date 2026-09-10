@@ -1,52 +1,54 @@
-"""Evaluator checka `unauthenticated-industrial-protocol` (CHECK-05).
+"""Evaluator of the `unauthenticated-industrial-protocol` check
+(CHECK-05).
 
-Cztery rzeczy, ktore ten modul robi wprost:
+Four things this module does outright:
 
-1. Czyta WYLACZNIE zserializowany model (`analysis["protocol_events"]`),
-   nigdy pakietow, zadnego modulu dekodowania ani zadnego modulu
-   dissectora - checki widza wylacznie model, nigdy wewnetrzne szczegoly
-   dekodowania (02-RESEARCH.md, Anti-Pattern 1).
-2. Emituje jeden finding na SESJE, nie na zdarzenie (zalozenie Z-57):
-   sesja z jednym zapisem i dziesiecioma odczytami dalaby jedenascie
-   identycznych findingow, czyli szum, ktory badanie fazy nazywa wprost
-   w sekcji Anti-Patterns.
-3. NIE filtruje po klasyfikacji zdarzenia (`kind`) - warunkiem jest sama
-   OBECNOSC ruchu protokolu z listy `UNAUTHENTICATED_INDUSTRIAL_PROTOCOLS`,
-   nie rodzaj operacji. To jest cala roznica wobec checka za zapis
-   (`modbus-unauthenticated-write`): tamten check odpala sie na operacji
-   zapisu, ten check odpala sie na samym uzyciu protokolu, niezaleznie od
-   tego, czy w danej sesji doszlo do zapisu (04-RESEARCH.md, Pitfall 9).
-4. Zbior protokolow objetych checkiem zyje TUTAJ, a nie w manifescie
-   dissectora (zalozenie Z-60) - rozpoznanie protokolu i ocena jego
-   wlasnosci sa dwiema odpowiedzialnosciami.
+1. It reads ONLY the serialised model (`analysis["protocol_events"]`),
+   never packets, no decoding module and no dissector module - checks see
+   the model only, never the internal details of decoding (02-RESEARCH.md,
+   Anti-Pattern 1).
+2. It emits one finding per SESSION, not per event (assumption Z-57): a
+   session with one write and ten reads would give eleven identical
+   findings, that is the noise the phase research names outright in its
+   Anti-Patterns section.
+3. It does NOT filter by event classification (`kind`) - the condition is
+   the mere PRESENCE of traffic of a protocol from the
+   `UNAUTHENTICATED_INDUSTRIAL_PROTOCOLS` list, not the kind of operation.
+   That is the whole difference against the write check
+   (`modbus-unauthenticated-write`): that check fires on a write operation,
+   this check fires on the use of the protocol itself, regardless of whether
+   a write occurred in the session (04-RESEARCH.md, Pitfall 9).
+4. The set of protocols covered by the check lives HERE, not in the
+   dissector manifest (assumption Z-60) - recognising a protocol and
+   judging its properties are two responsibilities.
 """
 
 from __future__ import annotations
 
 __all__ = ["evaluate", "UNAUTHENTICATED_INDUSTRIAL_PROTOCOLS"]
 
-# Kryterium przynaleznosci: protokol przemyslowy, ktory nie ma w swojej
-# specyfikacji zadnego mechanizmu uwierzytelnienia nadawcy. To jest to, co
-# przyszly protokol ma spelnic, zeby tu wejsc - bez zapisania tego kryterium
-# stala staje sie lista bez reguly.
+# The membership criterion: an industrial protocol whose specification
+# carries no mechanism for authenticating the sender. That is what a future
+# protocol has to meet to enter here - without recording the criterion the
+# constant becomes a list with no rule.
 UNAUTHENTICATED_INDUSTRIAL_PROTOCOLS: frozenset[str] = frozenset({"modbus-tcp"})
 
 
 def evaluate(analysis: dict) -> list[dict]:
-    """Dla kazdej sesji niosacej co najmniej jedno zdarzenie protokolu z
-    `UNAUTHENTICATED_INDUSTRIAL_PROTOCOLS` zapamietuje PIERWSZE napotkane
-    zdarzenie tej sesji w kolejnosci wejscia (zalozenie Z-58) i zwraca dla
-    niej jeden finding z dowodem (numer pakietu, identyfikator sesji) tego
-    pierwszego zdarzenia.
+    """For every session carrying at least one protocol event from
+    `UNAUTHENTICATED_INDUSTRIAL_PROTOCOLS` it remembers the FIRST event of
+    that session in input order (assumption Z-58) and returns for it one
+    finding with the evidence (packet number, session identifier) of that
+    first event.
 
-    Indeksowanie `analysis["protocol_events"]` jest CELOWO wymagajace: model
-    bez tego klucza jest modelem o niepoprawnym ksztalcie, a `KeyError`
-    jawnie to sygnalizuje, zamiast cicho zwrocic liste pusta, ktora
-    wygladalaby jak legalny brak zdarzen.
+    Indexing `analysis["protocol_events"]` is DELIBERATELY demanding: a
+    model without that key is a model of invalid shape, and `KeyError`
+    signals it outright instead of quietly returning an empty list, which
+    would look like a legal absence of events.
 
-    Slownik plus osobna lista kolejnosci, nigdy zbior na sciezce do
-    serializacji (wzorzec wspolny tego repozytorium od Fazy 3) - kolejnosc
-    wynikow wchodzi do artefaktu, a zbior jej nie ma."""
+    A dictionary plus a separate order list, never a set on the path to
+    serialisation (the shared pattern of this repository since Phase 3) -
+    result order goes into the artifact, and a set does not have it."""
     first_seen: dict[int, dict] = {}
     order: list[int] = []
 

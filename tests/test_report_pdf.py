@@ -81,7 +81,7 @@ def _finding(**overrides) -> dict:
         "check_id": "modbus-unauthenticated-write",
         "title": "Operacja zapisu do sterownika przez Modbus/TCP bez uwierzytelnienia",
         "severity": "high",
-        "risk": "wysokie",
+        "risk": "serious",
         "rationale": f"Wlasna analiza zaobserwowanego ruchu. {PANGRAM}.",
         "standard_refs": [
             {
@@ -89,7 +89,7 @@ def _finding(**overrides) -> dict:
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
-                "clause_title_source": "egzemplarz",
+                "clause_title_source": "copy",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": False,
                 "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
@@ -141,11 +141,11 @@ def test_render_pdf_without_findings_is_nonzero_length_with_same_sentence_as_mar
     # Zdanie o braku findingow (sekcja Streszczenie) jest DOKLADNIE tym samym
     # lancuchem w obu formatach - krawedz empty z must_haves planu.
     empty_sentence = (
-        "Analiza zrzutu `test.pcap` nie wykazała żadnego findingu w tym przebiegu."
+        "Analysis of capture `test.pcap` raised no finding in this run."
     )
     assert empty_sentence in markdown_text
     assert empty_sentence in pdf_text
-    assert "Brak findingów w tym przebiegu." in pdf_text
+    assert "No findings in this run." in pdf_text
 
 
 def test_render_pdf_with_one_finding_carries_expected_fields():
@@ -155,14 +155,14 @@ def test_render_pdf_with_one_finding_carries_expected_fields():
 
     assert "modbus-unauthenticated-write" in pdf_text
     assert "high" in pdf_text
-    assert "wysokie" in pdf_text
-    assert "pakiet nr 1" in pdf_text
-    assert "sesja nr 0" in pdf_text
+    assert "serious" in pdf_text
+    assert "packet no. 1" in pdf_text
+    assert "session no. 0" in pdf_text
     assert "SR 1.1" in pdf_text
     assert "Human user identification and authentication" in pdf_text
     assert "Parafraza punktu normy" in pdf_text
     assert "Ograniczyc mozliwosc wysylania kodow zapisu" in pdf_text
-    assert "Uczestnicy sesji: 10.0.0.1:502 -> 10.0.0.2:50210" in pdf_text
+    assert "Session parties: 10.0.0.1:502 -> 10.0.0.2:50210" in pdf_text
 
 
 def test_pdf_finding_block_uses_session_parties_line_not_own_copy():
@@ -179,9 +179,9 @@ def test_render_pdf_unverified_reference_carries_same_status_text_as_markdown():
     pdf_text = _extract_text(render_pdf(analysis, generated_at=GENERATED_AT))
     markdown_text = render_markdown(analysis, generated_at=GENERATED_AT)
 
-    assert "PROWIZORYCZNE" in markdown_text and "NIEZWERYFIKOWANE" in markdown_text
-    assert "PROWIZORYCZNE" in pdf_text
-    assert "NIEZWERYFIKOWANE" in pdf_text
+    assert "PROVISIONAL" in markdown_text and "UNVERIFIED" in markdown_text
+    assert "PROVISIONAL" in pdf_text
+    assert "UNVERIFIED" in pdf_text
     assert "Numeracja prowizoryczna, czeka na zestawienie" in pdf_text
 
 
@@ -193,7 +193,7 @@ def test_render_pdf_verified_reference_carries_verified_status_text():
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
-                "clause_title_source": "egzemplarz",
+                "clause_title_source": "copy",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": True,
                 "verification_note": "",
@@ -205,8 +205,8 @@ def test_render_pdf_verified_reference_carries_verified_status_text():
         render_pdf(_analysis(findings=[verified_finding]), generated_at=GENERATED_AT)
     )
 
-    assert "zweryfikowane" in pdf_text
-    assert "PROWIZORYCZNE" not in pdf_text
+    assert "verified" in pdf_text
+    assert "PROVISIONAL" not in pdf_text
 
 
 def test_text_layer_carries_all_nine_polish_diacritics_as_single_codepoints():
@@ -270,7 +270,7 @@ def test_pdf_finding_block_uses_shared_citation_functions_not_own_copy():
     assert "citation_scope_line" in src
 
 
-def test_pdf_wlasny_provenance_finding_carries_scope_label_not_title_inline():
+def test_pdf_own_provenance_finding_carries_scope_label_not_title_inline():
     finding = _finding(
         standard_refs=[
             {
@@ -278,7 +278,7 @@ def test_pdf_wlasny_provenance_finding_carries_scope_label_not_title_inline():
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Tytul opisu wlasnego",
-                "clause_title_source": "wlasny",
+                "clause_title_source": "own",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": False,
                 "verification_note": "Numeracja prowizoryczna.",
@@ -313,10 +313,10 @@ def test_remediation_list_order_and_content_matches_between_markdown_and_pdf():
     collapsed_pdf_text = re.sub(r"\s+", " ", pdf_text)
 
     expected_rows = [
-        f"{remediation} (dotyczy {finding_genitive_phrase(count)})"
+        f"{remediation} (applies to {finding_genitive_phrase(count)})"
         for remediation, count in aggregated_remediations(findings)
     ]
-    assert expected_rows == ["X (dotyczy 2 findingów)", "Y (dotyczy 1 findingu)"]
+    assert expected_rows == ["X (applies to 2 findings)", "Y (applies to 1 finding)"]
 
     for row in expected_rows:
         assert row in markdown_text, row
@@ -332,18 +332,18 @@ def test_citation_line_and_scope_line_match_report_module_contract():
     """Sanity: `report_pdf` uzywa DOKLADNIE tych samych funkcji, ktore
     importuje z `wayside.report` - zaimportowana funkcja i wywolanie w tym
     module daja identyczny wynik."""
-    ref_egzemplarz = {
+    ref_copy = {
         "standard": "IEC-62443-3-3",
         "clause": "SR 1.1",
         "clause_title": "Tytul",
-        "clause_title_source": "egzemplarz",
+        "clause_title_source": "copy",
     }
-    ref_wlasny = dict(ref_egzemplarz, clause_title_source="wlasny")
+    ref_own = dict(ref_copy, clause_title_source="own")
 
-    assert "Tytul" in citation_line(ref_egzemplarz)
-    assert "Tytul" not in citation_line(ref_wlasny)
-    assert citation_scope_line(ref_egzemplarz) is None
-    assert citation_scope_line(ref_wlasny) is not None
+    assert "Tytul" in citation_line(ref_copy)
+    assert "Tytul" not in citation_line(ref_own)
+    assert citation_scope_line(ref_copy) is None
+    assert citation_scope_line(ref_own) is not None
 
 
 def test_render_pdf_signature_is_identical_to_render_markdown():
@@ -551,10 +551,10 @@ def _analyze_or_skip(fixture: Path, out_dir: Path):
 
 
 # Etykieta identyfikatora checka jest ZAKOTWICZONA na tej samej fladze w obu
-# formatach ("Identyfikator checka: "), z opcjonalnymi cudzyslowami wstecznymi
+# formatach ("Check identifier: "), z opcjonalnymi cudzyslowami wstecznymi
 # (markdown niesie je, PDF nie) - jeden wzorzec dla obu wyciagniety wprost z
 # TEKSTU artefaktu, nigdy z kodu renderujacego.
-_CHECK_ID_PATTERN = re.compile(r"Identyfikator checka: `?([a-z0-9-]+)`?")
+_CHECK_ID_PATTERN = re.compile(r"Check identifier: `?([a-z0-9-]+)`?")
 
 
 def _check_ids_in_text(text: str) -> list[str]:

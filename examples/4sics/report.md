@@ -1,120 +1,120 @@
-# Raport Wayside
+# Wayside report
 
-Wygenerowano: 2026-09-04T00:00:00+00:00
+Generated: 2026-09-04T00:00:00+00:00
 
-## Streszczenie
+## Summary
 
-Analiza zrzutu `4sics-slice.pcap` wykazała 5 findingów wymagających uwagi.
+Analysis of capture `4sics-slice.pcap` raised 5 findings requiring attention.
 
-## Zakres
+## Scope
 
-Zrzut niesie 40 pakietów. W tym zrzucie rozpoznano protokół(y): modbus-tcp, rozpoznawane po kształcie zawartości segmentu, nigdy po numerze portu. Ruch, którego protokołu nie rozpoznano, ma wiersz w macierzy komunikacji z etykietą `tcp` i nie jest podstawą żadnego findingu.
-Okno czasowe zrzutu: od 1445499126.04817 do 1445499126.8009 (znaczniki czasu epoki Unix). Snaplen odczytany z nagłówka zrzutu: 65535 bajtów. Ramek uciętych przez snaplen: 0. Zdarzeń rozpoznanych z niską pewnością: 0.
+The capture carries 40 packets. Protocol(s) recognised in this capture: modbus-tcp, recognised by the shape of the segment payload, never by port number. Traffic whose protocol was not recognised has a row in the communication matrix labelled `tcp` and is not the basis of any finding.
+Capture time window: from 1445499126.04817 to 1445499126.8009 (Unix epoch timestamps). Snaplen read from the capture header: 65535 bytes. Frames truncated by snaplen: 0. Events recognised with low confidence: 0.
 
-## Metodyka
+## Methodology
 
-Każdy finding niesie wskaźnik zaobserwowanego zachowania w ruchu sieciowym, nigdy ocenę, czy instalacja spełnia albo nie spełnia wymagań normy. Waga findingu wynika z poniższych, udokumentowanych kryteriów rubryki (wersja 1.0), nie z wymyślonej skali:
+Every finding carries an indicator of behaviour observed in network traffic, never a judgement on whether an installation does or does not meet the requirements of a standard. Finding severity follows the documented rubric criteria below (version 1.0), not an invented scale:
 
-- **low**: Obserwacja o niewielkim wpływie na bezpieczeństwo, bez bezpośredniej ścieżki do zakłócenia działania procesu.
-- **medium**: Odstępstwo od dobrej praktyki, które w połączeniu z innym warunkiem może prowadzić do zakłócenia działania procesu.
-- **high**: Operacja, która sama w sobie pozwala wpłynąć na stan procesu bez uwierzytelnienia ani autoryzacji nadawcy.
-- **critical**: Warunek umożliwiający natychmiastową i bezpośrednią ingerencję w bezpieczeństwo procesu, bez żadnych dodatkowych warunków.
+- **low**: An observation with limited security impact and no direct path to disrupting the operation of the process.
+- **medium**: A departure from good practice which, combined with another condition, may lead to disrupting the operation of the process.
+- **high**: An operation that by itself allows the state of the process to be influenced without authentication or authorisation of the sender.
+- **critical**: A condition enabling immediate and direct interference with the safety of the process, with no further conditions required.
 
-## Inwentarz
+## Asset inventory
 
 ### 10.10.10.20
 
 - ip: 10.10.10.20 (observed)
 - mac: 00:1c:06:27:64:11 (observed)
-- Producent: Siemens Numerical Control Ltd., Nanjing (inferred:oui-lookup)
-- Podadresy Unit ID: nieustalone (not-derivable-passively)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: nieustalona (not-derivable-passively)
-- Dowód roli: Zero zdarzeń Modbus powiązanych z tym adresem w tym zrzucie (zadania wysłane: 0, zadania odebrane: 0). (observed)
-- Pewność roli: niska (inferred:event-count-and-direction)
+- Vendor: Siemens Numerical Control Ltd., Nanjing (inferred:oui-lookup)
+- Unit ID sub-addresses: not determined (not-derivable-passively)
+- Gateway: not determined (not-derivable-passively)
+- Role: undetermined (not-derivable-passively)
+- Role evidence: Zero Modbus events associated with this address in this capture (requests sent: 0, requests received: 0). (observed)
+- Role confidence: low (inferred:event-count-and-direction)
 
 ### 10.10.10.10
 
 - ip: 10.10.10.10 (observed)
 - mac: 28:63:36:89:59:82 (observed)
-- Producent: Siemens AG (inferred:oui-lookup)
-- Podadresy Unit ID: nieustalone (not-derivable-passively)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: nieustalona (not-derivable-passively)
-- Dowód roli: Zero zdarzeń Modbus powiązanych z tym adresem w tym zrzucie (zadania wysłane: 0, zadania odebrane: 0). (observed)
-- Pewność roli: niska (inferred:event-count-and-direction)
+- Vendor: Siemens AG (inferred:oui-lookup)
+- Unit ID sub-addresses: not determined (not-derivable-passively)
+- Gateway: not determined (not-derivable-passively)
+- Role: undetermined (not-derivable-passively)
+- Role evidence: Zero Modbus events associated with this address in this capture (requests sent: 0, requests received: 0). (observed)
+- Role confidence: low (inferred:event-count-and-direction)
 
 ### 192.168.88.50
 
 - ip: 192.168.88.50 (observed)
 - mac: 00:05:e4:01:24:d3 (observed)
-- Producent: Red Lion Controls Inc. (inferred:oui-lookup)
-- Podadresy Unit ID: 1 (observed)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: serwer Modbus (inferred:modbus-traffic-direction)
-- Dowód roli: Zadania Modbus wysłane przez ten adres: 0; zadania Modbus odebrane przez ten adres: 1. (observed)
-- Pewność roli: niska (inferred:event-count-and-direction)
+- Vendor: Red Lion Controls Inc. (inferred:oui-lookup)
+- Unit ID sub-addresses: 1 (observed)
+- Gateway: not determined (not-derivable-passively)
+- Role: Modbus server (inferred:modbus-traffic-direction)
+- Role evidence: Modbus requests sent by this address: 0; Modbus requests received by this address: 1. (observed)
+- Role confidence: low (inferred:event-count-and-direction)
 
 ### 192.168.2.44
 
 - ip: 192.168.2.44 (observed)
 - mac: 00:07:7c:1a:61:83 (observed)
-- Producent: Westermo Network Technologies AB (inferred:oui-lookup)
-- Podadresy Unit ID: nieustalone (not-derivable-passively)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: klient Modbus (inferred:modbus-traffic-direction)
-- Dowód roli: Zadania Modbus wysłane przez ten adres: 5; zadania Modbus odebrane przez ten adres: 0. (observed)
-- Pewność roli: średnia (inferred:event-count-and-direction)
+- Vendor: Westermo Network Technologies AB (inferred:oui-lookup)
+- Unit ID sub-addresses: not determined (not-derivable-passively)
+- Gateway: not determined (not-derivable-passively)
+- Role: Modbus client (inferred:modbus-traffic-direction)
+- Role evidence: Modbus requests sent by this address: 5; Modbus requests received by this address: 0. (observed)
+- Role confidence: medium (inferred:event-count-and-direction)
 
 ### 192.168.88.100
 
 - ip: 192.168.88.100 (observed)
 - mac: 00:e0:62:40:57:66 (observed)
-- Producent: HOST ENGINEERING (inferred:oui-lookup)
-- Podadresy Unit ID: 1 (observed)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: serwer Modbus (inferred:modbus-traffic-direction)
-- Dowód roli: Zadania Modbus wysłane przez ten adres: 0; zadania Modbus odebrane przez ten adres: 1. (observed)
-- Pewność roli: niska (inferred:event-count-and-direction)
+- Vendor: HOST ENGINEERING (inferred:oui-lookup)
+- Unit ID sub-addresses: 1 (observed)
+- Gateway: not determined (not-derivable-passively)
+- Role: Modbus server (inferred:modbus-traffic-direction)
+- Role evidence: Modbus requests sent by this address: 0; Modbus requests received by this address: 1. (observed)
+- Role confidence: low (inferred:event-count-and-direction)
 
 ### 192.168.88.20
 
 - ip: 192.168.88.20 (observed)
 - mac: 00:a0:45:6f:4b:83 (observed)
-- Producent: Phoenix Contact GmbH & Co. KG (inferred:oui-lookup)
-- Podadresy Unit ID: 1 (observed)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: serwer Modbus (inferred:modbus-traffic-direction)
-- Dowód roli: Zadania Modbus wysłane przez ten adres: 0; zadania Modbus odebrane przez ten adres: 1. (observed)
-- Pewność roli: niska (inferred:event-count-and-direction)
+- Vendor: Phoenix Contact GmbH & Co. KG (inferred:oui-lookup)
+- Unit ID sub-addresses: 1 (observed)
+- Gateway: not determined (not-derivable-passively)
+- Role: Modbus server (inferred:modbus-traffic-direction)
+- Role evidence: Modbus requests sent by this address: 0; Modbus requests received by this address: 1. (observed)
+- Role confidence: low (inferred:event-count-and-direction)
 
 ### 192.168.88.60
 
 - ip: 192.168.88.60 (observed)
 - mac: 00:90:e8:26:40:23 (observed)
-- Producent: MOXA TECHNOLOGIES CORP., LTD. (inferred:oui-lookup)
-- Podadresy Unit ID: 1 (observed)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: serwer Modbus (inferred:modbus-traffic-direction)
-- Dowód roli: Zadania Modbus wysłane przez ten adres: 0; zadania Modbus odebrane przez ten adres: 1. (observed)
-- Pewność roli: niska (inferred:event-count-and-direction)
+- Vendor: MOXA TECHNOLOGIES CORP., LTD. (inferred:oui-lookup)
+- Unit ID sub-addresses: 1 (observed)
+- Gateway: not determined (not-derivable-passively)
+- Role: Modbus server (inferred:modbus-traffic-direction)
+- Role evidence: Modbus requests sent by this address: 0; Modbus requests received by this address: 1. (observed)
+- Role confidence: low (inferred:event-count-and-direction)
 
 ### 192.168.88.61
 
 - ip: 192.168.88.61 (observed)
 - mac: 00:90:e8:27:8c:37 (observed)
-- Producent: MOXA TECHNOLOGIES CORP., LTD. (inferred:oui-lookup)
-- Podadresy Unit ID: 1 (observed)
-- Brama: nieustalone (not-derivable-passively)
-- Rola: serwer Modbus (inferred:modbus-traffic-direction)
-- Dowód roli: Zadania Modbus wysłane przez ten adres: 0; zadania Modbus odebrane przez ten adres: 1. (observed)
-- Pewność roli: niska (inferred:event-count-and-direction)
+- Vendor: MOXA TECHNOLOGIES CORP., LTD. (inferred:oui-lookup)
+- Unit ID sub-addresses: 1 (observed)
+- Gateway: not determined (not-derivable-passively)
+- Role: Modbus server (inferred:modbus-traffic-direction)
+- Role evidence: Modbus requests sent by this address: 0; Modbus requests received by this address: 1. (observed)
+- Role confidence: low (inferred:event-count-and-direction)
 
-## Macierz komunikacji
+## Communication matrix
 
-| Sesja | Źródło | Cel | Kierunek | Protokół | Wolumen (B) | Pakietów | Strona inicjująca |
+| Session | Source | Target | Direction | Protocol | Volume (B) | Packets | Initiating party |
 |---|---|---|---|---|---|---|---|
-| 0 | 10.10.10.20:49156 | 10.10.10.10:102 | 10.10.10.20:49156 -> 10.10.10.10:102 (inferred:first-observed-sender) | tcp | 634 | 6 | nieustalona (not-derivable-passively) |
+| 0 | 10.10.10.20:49156 | 10.10.10.10:102 | 10.10.10.20:49156 -> 10.10.10.10:102 (inferred:first-observed-sender) | tcp | 634 | 6 | not determined (not-derivable-passively) |
 | 1 | 192.168.2.44:58597 | 192.168.88.50:502 | 192.168.2.44:58597 -> 192.168.88.50:502 (observed) | modbus-tcp | 260 | 4 | 192.168.2.44:58597 (observed) |
 | 2 | 192.168.2.44:58601 | 192.168.88.100:502 | 192.168.2.44:58601 -> 192.168.88.100:502 (observed) | modbus-tcp | 320 | 5 | 192.168.2.44:58601 (observed) |
 | 3 | 192.168.2.44:58599 | 192.168.88.20:502 | 192.168.2.44:58599 -> 192.168.88.20:502 (observed) | modbus-tcp | 260 | 4 | 192.168.2.44:58599 (observed) |
@@ -122,111 +122,111 @@ Każdy finding niesie wskaźnik zaobserwowanego zachowania w ruchu sieciowym, ni
 | 5 | 192.168.2.44:58600 | 192.168.88.60:502 | 192.168.2.44:58600 -> 192.168.88.60:502 (observed) | modbus-tcp | 367 | 5 | 192.168.2.44:58600 (observed) |
 | 6 | 192.168.2.44:58602 | 192.168.88.61:502 | 192.168.2.44:58602 -> 192.168.88.61:502 (observed) | modbus-tcp | 433 | 6 | 192.168.2.44:58602 (observed) |
 
-## Ograniczenia
+## Limitations
 
-- Zakres tego przebiegu: adresów zaobserwowanych 8, sesji z ładunkiem 7, sesji bez ani jednego segmentu z ładunkiem 2, okno czasowe zrzutu ma długość 0.75273 s.
-- Ten raport opisuje wyłącznie ruch, który dotarł do punktu przechwytywania. Urządzenie nieobecne w wyniku nie jest urządzeniem nieobecnym w sieci - jest urządzeniem, którego ruch tego punktu nie minął.
-- Urządzenie stojące za bramą protokołu jest widoczne wyłącznie pod adresem tej bramy. Adres sieciowy w tym raporcie może więc odpowiadać więcej niż jednemu urządzeniu fizycznemu.
-- Wiele hostów ukrytych za jednym adresem po translacji adresów jest z tego punktu nieodróżnialnych. Jeden wiersz inwentarza może odpowiadać więcej niż jednemu urządzeniu.
-- Sesji TCP złożonych wyłącznie z pakietów bez ładunku: 2. Nie mają wiersza w macierzy komunikacji, bo nie niosą ani jednego segmentu do rozpoznania - są policzone tutaj, żeby nie zniknęły bez śladu.
+- Scope of this run: addresses observed 8, sessions with payload 7, sessions without a single segment carrying payload 2, the capture time window is 0.75273 s long.
+- This report describes only traffic that reached the capture point. A device absent from the result is not a device absent from the network - it is a device whose traffic did not pass this point.
+- A device sitting behind a protocol gateway is visible only under the address of that gateway. A network address in this report may therefore correspond to more than one physical device.
+- Multiple hosts hidden behind a single address after address translation are indistinguishable from this point. One inventory row may correspond to more than one device.
+- TCP sessions made up exclusively of packets without payload: 2. They have no row in the communication matrix, because they carry no segment to recognise - they are counted here so they do not vanish without a trace.
 
-Ten raport pochodzi z pionowego przekroju: jeden zrzut, jeden check, jeden punkt normy. Model strefy i kanału jest placeholderem jednostrefowym wyprowadzonym automatycznie z tego zrzutu, nie zaprojektowaną topologią sieci. Numeracja punktu normy jest prowizoryczna i czeka na zestawienie z legalnym egzemplarzem normy.
+This report comes from a vertical slice: one capture, one check, one standard clause. The zone and conduit model is a single-zone placeholder derived automatically from this capture, not a designed network topology. Standard clause numbering is provisional and awaits collation against a legal copy of the standard.
 
-Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:
+Fields that cannot be established from this capture, grouped by field name:
 
-- sekcja `assets`, pole `gateway`: 8 z 8 wpisów
-- sekcja `assets`, pole `role`: 2 z 8 wpisów
-- sekcja `assets`, pole `unit_ids`: 3 z 8 wpisów
-- sekcja `comm_matrix`, pole `initiator`: 1 z 7 wpisów
+- section `assets`, field `gateway`: 8 of 8 entries
+- section `assets`, field `role`: 2 of 8 entries
+- section `assets`, field `unit_ids`: 3 of 8 entries
+- section `comm_matrix`, field `initiator`: 1 of 7 entries
 
-## Findingi
+## Findings
 
-### Użycie protokołu przemysłowego bez mechanizmu uwierzytelnienia w zaobserwowanej komunikacji
+### Use of an industrial protocol without an authentication mechanism in the observed communication
 
-- Identyfikator checka: `unauthenticated-industrial-protocol`
-- Waga: high (ryzyko: wysokie)
-- Uczestnicy sesji: 192.168.2.44:58597 -> 192.168.88.50:502
-- Dowód: pakiet nr 29, sesja nr 1
-- Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
-- Powołanie na normę: IEC-62443-3-3 SR 1.2
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Identyfikacja i uwierzytelnienie procesów programowych i urządzeń
-  - Parafraza: Punkt dotyczy zapewnienia, że każdy proces programowy i każde urządzenie łączące się z systemem sterowania jest jednoznacznie zidentyfikowane i uwierzytelnione - w odróżnieniu od użytkowników ludzkich, których dotyczy odrębny punkt tego katalogu.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest prowizoryczny i nie stanowi potwierdzonego powołania.)
-- Powołanie na normę: CLC/TS 50701 nieustalony-1
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej
-  - Parafraza: Dokument dotyczy wymagań cyberbezpieczeństwa stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym ochrony ich prawidłowego działania przed celowym i przypadkowym naruszeniem bezpieczeństwa.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Dokument ma status specyfikacji technicznej CENELEC, nie normy europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje; wpis jest z tego powodu prowizoryczny (decyzja 0006).)
-- Zalecenie: Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
+- Check identifier: `unauthenticated-industrial-protocol`
+- Severity: high (risk: serious)
+- Session parties: 192.168.2.44:58597 -> 192.168.88.50:502
+- Evidence: packet no. 29, session no. 1
+- Rationale: This finding concerns the mere use of a protocol that has no mechanism for authenticating the sender, regardless of whether a write operation occurred in this capture. Any host that can see this network segment may send a command the device will execute, and a read observed in the capture proves only that the communication path exists and is open. This is a property of the protocol, not a decision or an omission of the installation operator - in an older industrial installation there is often no alternative.
+- Standard citation: IEC-62443-3-3 SR 1.2
+  - Clause scope (own description, not a title from the copy): Software process and device identification and authentication
+  - Paraphrase: The clause concerns ensuring that every software process and every device connecting to the control system is uniquely identified and authenticated - as distinct from human users, who are covered by a separate clause of this catalogue.
+  - Status: **PROVISIONAL, UNVERIFIED** (The clause numbering and the paraphrase text await collation against a legal copy of IEC 62443-3-3 in phase 4. Until then the entry is provisional and does not constitute a confirmed citation.)
+- Standard citation: CLC/TS 50701 undetermined-1
+  - Clause scope (own description, not a title from the copy): Security requirements for railway signalling and control systems
+  - Paraphrase: The document concerns cybersecurity requirements placed on railway traffic control and signalling systems, including protection of their correct operation against deliberate and accidental compromise.
+  - Status: **PROVISIONAL, UNVERIFIED** (The document has the status of a CENELEC technical specification, not a European standard, so it is applied voluntarily - the report does not present it as a mandatory basis (decision 0004). The clause numbering has not been collated against a copy, because the project does not buy that copy; the entry is provisional for that reason (decision 0006).)
+- Remediation: Restrict at the network level the set of hosts that may open a session to the controller at all, through segmentation and access control lists. The protocol itself cannot be authenticated without replacing devices or without an intermediary layer.
 
-### Użycie protokołu przemysłowego bez mechanizmu uwierzytelnienia w zaobserwowanej komunikacji
+### Use of an industrial protocol without an authentication mechanism in the observed communication
 
-- Identyfikator checka: `unauthenticated-industrial-protocol`
-- Waga: high (ryzyko: wysokie)
-- Uczestnicy sesji: 192.168.2.44:58601 -> 192.168.88.100:502
-- Dowód: pakiet nr 34, sesja nr 2
-- Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
-- Powołanie na normę: IEC-62443-3-3 SR 1.2
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Identyfikacja i uwierzytelnienie procesów programowych i urządzeń
-  - Parafraza: Punkt dotyczy zapewnienia, że każdy proces programowy i każde urządzenie łączące się z systemem sterowania jest jednoznacznie zidentyfikowane i uwierzytelnione - w odróżnieniu od użytkowników ludzkich, których dotyczy odrębny punkt tego katalogu.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest prowizoryczny i nie stanowi potwierdzonego powołania.)
-- Powołanie na normę: CLC/TS 50701 nieustalony-1
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej
-  - Parafraza: Dokument dotyczy wymagań cyberbezpieczeństwa stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym ochrony ich prawidłowego działania przed celowym i przypadkowym naruszeniem bezpieczeństwa.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Dokument ma status specyfikacji technicznej CENELEC, nie normy europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje; wpis jest z tego powodu prowizoryczny (decyzja 0006).)
-- Zalecenie: Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
+- Check identifier: `unauthenticated-industrial-protocol`
+- Severity: high (risk: serious)
+- Session parties: 192.168.2.44:58601 -> 192.168.88.100:502
+- Evidence: packet no. 34, session no. 2
+- Rationale: This finding concerns the mere use of a protocol that has no mechanism for authenticating the sender, regardless of whether a write operation occurred in this capture. Any host that can see this network segment may send a command the device will execute, and a read observed in the capture proves only that the communication path exists and is open. This is a property of the protocol, not a decision or an omission of the installation operator - in an older industrial installation there is often no alternative.
+- Standard citation: IEC-62443-3-3 SR 1.2
+  - Clause scope (own description, not a title from the copy): Software process and device identification and authentication
+  - Paraphrase: The clause concerns ensuring that every software process and every device connecting to the control system is uniquely identified and authenticated - as distinct from human users, who are covered by a separate clause of this catalogue.
+  - Status: **PROVISIONAL, UNVERIFIED** (The clause numbering and the paraphrase text await collation against a legal copy of IEC 62443-3-3 in phase 4. Until then the entry is provisional and does not constitute a confirmed citation.)
+- Standard citation: CLC/TS 50701 undetermined-1
+  - Clause scope (own description, not a title from the copy): Security requirements for railway signalling and control systems
+  - Paraphrase: The document concerns cybersecurity requirements placed on railway traffic control and signalling systems, including protection of their correct operation against deliberate and accidental compromise.
+  - Status: **PROVISIONAL, UNVERIFIED** (The document has the status of a CENELEC technical specification, not a European standard, so it is applied voluntarily - the report does not present it as a mandatory basis (decision 0004). The clause numbering has not been collated against a copy, because the project does not buy that copy; the entry is provisional for that reason (decision 0006).)
+- Remediation: Restrict at the network level the set of hosts that may open a session to the controller at all, through segmentation and access control lists. The protocol itself cannot be authenticated without replacing devices or without an intermediary layer.
 
-### Użycie protokołu przemysłowego bez mechanizmu uwierzytelnienia w zaobserwowanej komunikacji
+### Use of an industrial protocol without an authentication mechanism in the observed communication
 
-- Identyfikator checka: `unauthenticated-industrial-protocol`
-- Waga: high (ryzyko: wysokie)
-- Uczestnicy sesji: 192.168.2.44:58599 -> 192.168.88.20:502
-- Dowód: pakiet nr 32, sesja nr 3
-- Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
-- Powołanie na normę: IEC-62443-3-3 SR 1.2
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Identyfikacja i uwierzytelnienie procesów programowych i urządzeń
-  - Parafraza: Punkt dotyczy zapewnienia, że każdy proces programowy i każde urządzenie łączące się z systemem sterowania jest jednoznacznie zidentyfikowane i uwierzytelnione - w odróżnieniu od użytkowników ludzkich, których dotyczy odrębny punkt tego katalogu.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest prowizoryczny i nie stanowi potwierdzonego powołania.)
-- Powołanie na normę: CLC/TS 50701 nieustalony-1
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej
-  - Parafraza: Dokument dotyczy wymagań cyberbezpieczeństwa stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym ochrony ich prawidłowego działania przed celowym i przypadkowym naruszeniem bezpieczeństwa.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Dokument ma status specyfikacji technicznej CENELEC, nie normy europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje; wpis jest z tego powodu prowizoryczny (decyzja 0006).)
-- Zalecenie: Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
+- Check identifier: `unauthenticated-industrial-protocol`
+- Severity: high (risk: serious)
+- Session parties: 192.168.2.44:58599 -> 192.168.88.20:502
+- Evidence: packet no. 32, session no. 3
+- Rationale: This finding concerns the mere use of a protocol that has no mechanism for authenticating the sender, regardless of whether a write operation occurred in this capture. Any host that can see this network segment may send a command the device will execute, and a read observed in the capture proves only that the communication path exists and is open. This is a property of the protocol, not a decision or an omission of the installation operator - in an older industrial installation there is often no alternative.
+- Standard citation: IEC-62443-3-3 SR 1.2
+  - Clause scope (own description, not a title from the copy): Software process and device identification and authentication
+  - Paraphrase: The clause concerns ensuring that every software process and every device connecting to the control system is uniquely identified and authenticated - as distinct from human users, who are covered by a separate clause of this catalogue.
+  - Status: **PROVISIONAL, UNVERIFIED** (The clause numbering and the paraphrase text await collation against a legal copy of IEC 62443-3-3 in phase 4. Until then the entry is provisional and does not constitute a confirmed citation.)
+- Standard citation: CLC/TS 50701 undetermined-1
+  - Clause scope (own description, not a title from the copy): Security requirements for railway signalling and control systems
+  - Paraphrase: The document concerns cybersecurity requirements placed on railway traffic control and signalling systems, including protection of their correct operation against deliberate and accidental compromise.
+  - Status: **PROVISIONAL, UNVERIFIED** (The document has the status of a CENELEC technical specification, not a European standard, so it is applied voluntarily - the report does not present it as a mandatory basis (decision 0004). The clause numbering has not been collated against a copy, because the project does not buy that copy; the entry is provisional for that reason (decision 0006).)
+- Remediation: Restrict at the network level the set of hosts that may open a session to the controller at all, through segmentation and access control lists. The protocol itself cannot be authenticated without replacing devices or without an intermediary layer.
 
-### Użycie protokołu przemysłowego bez mechanizmu uwierzytelnienia w zaobserwowanej komunikacji
+### Use of an industrial protocol without an authentication mechanism in the observed communication
 
-- Identyfikator checka: `unauthenticated-industrial-protocol`
-- Waga: high (ryzyko: wysokie)
-- Uczestnicy sesji: 192.168.2.44:58600 -> 192.168.88.60:502
-- Dowód: pakiet nr 33, sesja nr 5
-- Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
-- Powołanie na normę: IEC-62443-3-3 SR 1.2
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Identyfikacja i uwierzytelnienie procesów programowych i urządzeń
-  - Parafraza: Punkt dotyczy zapewnienia, że każdy proces programowy i każde urządzenie łączące się z systemem sterowania jest jednoznacznie zidentyfikowane i uwierzytelnione - w odróżnieniu od użytkowników ludzkich, których dotyczy odrębny punkt tego katalogu.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest prowizoryczny i nie stanowi potwierdzonego powołania.)
-- Powołanie na normę: CLC/TS 50701 nieustalony-1
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej
-  - Parafraza: Dokument dotyczy wymagań cyberbezpieczeństwa stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym ochrony ich prawidłowego działania przed celowym i przypadkowym naruszeniem bezpieczeństwa.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Dokument ma status specyfikacji technicznej CENELEC, nie normy europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje; wpis jest z tego powodu prowizoryczny (decyzja 0006).)
-- Zalecenie: Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
+- Check identifier: `unauthenticated-industrial-protocol`
+- Severity: high (risk: serious)
+- Session parties: 192.168.2.44:58600 -> 192.168.88.60:502
+- Evidence: packet no. 33, session no. 5
+- Rationale: This finding concerns the mere use of a protocol that has no mechanism for authenticating the sender, regardless of whether a write operation occurred in this capture. Any host that can see this network segment may send a command the device will execute, and a read observed in the capture proves only that the communication path exists and is open. This is a property of the protocol, not a decision or an omission of the installation operator - in an older industrial installation there is often no alternative.
+- Standard citation: IEC-62443-3-3 SR 1.2
+  - Clause scope (own description, not a title from the copy): Software process and device identification and authentication
+  - Paraphrase: The clause concerns ensuring that every software process and every device connecting to the control system is uniquely identified and authenticated - as distinct from human users, who are covered by a separate clause of this catalogue.
+  - Status: **PROVISIONAL, UNVERIFIED** (The clause numbering and the paraphrase text await collation against a legal copy of IEC 62443-3-3 in phase 4. Until then the entry is provisional and does not constitute a confirmed citation.)
+- Standard citation: CLC/TS 50701 undetermined-1
+  - Clause scope (own description, not a title from the copy): Security requirements for railway signalling and control systems
+  - Paraphrase: The document concerns cybersecurity requirements placed on railway traffic control and signalling systems, including protection of their correct operation against deliberate and accidental compromise.
+  - Status: **PROVISIONAL, UNVERIFIED** (The document has the status of a CENELEC technical specification, not a European standard, so it is applied voluntarily - the report does not present it as a mandatory basis (decision 0004). The clause numbering has not been collated against a copy, because the project does not buy that copy; the entry is provisional for that reason (decision 0006).)
+- Remediation: Restrict at the network level the set of hosts that may open a session to the controller at all, through segmentation and access control lists. The protocol itself cannot be authenticated without replacing devices or without an intermediary layer.
 
-### Użycie protokołu przemysłowego bez mechanizmu uwierzytelnienia w zaobserwowanej komunikacji
+### Use of an industrial protocol without an authentication mechanism in the observed communication
 
-- Identyfikator checka: `unauthenticated-industrial-protocol`
-- Waga: high (ryzyko: wysokie)
-- Uczestnicy sesji: 192.168.2.44:58602 -> 192.168.88.61:502
-- Dowód: pakiet nr 35, sesja nr 6
-- Uzasadnienie: Finding dotyczy samego użycia protokołu, który nie ma mechanizmu uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do operacji zapisu. Każdy host widzący ten segment sieci może wysłać polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta. Jest to własność protokołu, nie decyzja ani zaniedbanie operatora instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
-- Powołanie na normę: IEC-62443-3-3 SR 1.2
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Identyfikacja i uwierzytelnienie procesów programowych i urządzeń
-  - Parafraza: Punkt dotyczy zapewnienia, że każdy proces programowy i każde urządzenie łączące się z systemem sterowania jest jednoznacznie zidentyfikowane i uwierzytelnione - w odróżnieniu od użytkowników ludzkich, których dotyczy odrębny punkt tego katalogu.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest prowizoryczny i nie stanowi potwierdzonego powołania.)
-- Powołanie na normę: CLC/TS 50701 nieustalony-1
-  - Zakres punktu (opis własny, nie tytuł z egzemplarza): Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej
-  - Parafraza: Dokument dotyczy wymagań cyberbezpieczeństwa stawianych systemom sterowania ruchem kolejowym i sygnalizacji, w tym ochrony ich prawidłowego działania przed celowym i przypadkowym naruszeniem bezpieczeństwa.
-  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** (Dokument ma status specyfikacji technicznej CENELEC, nie normy europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje; wpis jest z tego powodu prowizoryczny (decyzja 0006).)
-- Zalecenie: Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej.
+- Check identifier: `unauthenticated-industrial-protocol`
+- Severity: high (risk: serious)
+- Session parties: 192.168.2.44:58602 -> 192.168.88.61:502
+- Evidence: packet no. 35, session no. 6
+- Rationale: This finding concerns the mere use of a protocol that has no mechanism for authenticating the sender, regardless of whether a write operation occurred in this capture. Any host that can see this network segment may send a command the device will execute, and a read observed in the capture proves only that the communication path exists and is open. This is a property of the protocol, not a decision or an omission of the installation operator - in an older industrial installation there is often no alternative.
+- Standard citation: IEC-62443-3-3 SR 1.2
+  - Clause scope (own description, not a title from the copy): Software process and device identification and authentication
+  - Paraphrase: The clause concerns ensuring that every software process and every device connecting to the control system is uniquely identified and authenticated - as distinct from human users, who are covered by a separate clause of this catalogue.
+  - Status: **PROVISIONAL, UNVERIFIED** (The clause numbering and the paraphrase text await collation against a legal copy of IEC 62443-3-3 in phase 4. Until then the entry is provisional and does not constitute a confirmed citation.)
+- Standard citation: CLC/TS 50701 undetermined-1
+  - Clause scope (own description, not a title from the copy): Security requirements for railway signalling and control systems
+  - Paraphrase: The document concerns cybersecurity requirements placed on railway traffic control and signalling systems, including protection of their correct operation against deliberate and accidental compromise.
+  - Status: **PROVISIONAL, UNVERIFIED** (The document has the status of a CENELEC technical specification, not a European standard, so it is applied voluntarily - the report does not present it as a mandatory basis (decision 0004). The clause numbering has not been collated against a copy, because the project does not buy that copy; the entry is provisional for that reason (decision 0006).)
+- Remediation: Restrict at the network level the set of hosts that may open a session to the controller at all, through segmentation and access control lists. The protocol itself cannot be authenticated without replacing devices or without an intermediary layer.
 
-## Zalecenia
+## Recommendations
 
-- Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy pośredniczącej. (dotyczy 5 findingów)
+- Restrict at the network level the set of hosts that may open a session to the controller at all, through segmentation and access control lists. The protocol itself cannot be authenticated without replacing devices or without an intermediary layer. (applies to 5 findings)
 

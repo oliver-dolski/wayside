@@ -1,23 +1,25 @@
 id: cleartext-protocol
-title: "Obecność protokołu jawnotekstowego w zaobserwowanej komunikacji"
+title: "Presence of a cleartext protocol in the observed communication"
 applies_to:
   protocol: ["telnet", "ftp", "http"]
 severity: medium
 rationale: >-
-  Protokół bez szyfrowania transmisji wystawia treść sesji, w tym dane
-  uwierzytelniające, każdemu, kto widzi ten segment sieci. Własna analiza
-  zaobserwowanej właściwości ruchu, nie ocena pracy operatora instalacji -
-  starsze instalacje przemysłowe często nie mają dostępnej alternatywy.
+  A protocol without transmission encryption exposes the content of the
+  session, credentials included, to anyone who can see this network segment.
+  This is our own analysis of an observed property of the traffic, not a
+  judgement on the work of the installation operator - older industrial
+  installations often have no alternative available.
 standards:
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 4.1"
   - standard: "CLC/TS 50701"
     edition: "2023"
-    clause: "nieustalony-2"
+    clause: "undetermined-2"
 evaluator: "cleartext_protocol:evaluate"
 remediation: >-
-  Przenieść zarządzanie tym ruchem na kanał szyfrowany tam, gdzie protokół
-  ma wariant szyfrowany. Gdy wariantu szyfrowanego brak, odseparować ten
-  ruch na poziomie sieci - np. przez segmentację i ograniczenie dostępu do
-  tego segmentu do niezbędnych hostów.
+  Move management of this traffic onto an encrypted channel wherever the
+  protocol has an encrypted variant. Where no encrypted variant exists,
+  separate this traffic at the network level - for example through
+  segmentation and by limiting access to that segment to the hosts that
+  need it.

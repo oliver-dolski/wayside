@@ -1,10 +1,12 @@
-"""Adapter miedzy rejestrem dissectorow i dyskryminatorem RTU po TCP.
+"""An adapter between the dissector registry and the RTU-over-TCP
+discriminator.
 
-Logika rozpoznania zyje w `wayside.protocols.modbus_rtu_tunnel` - ten plik
-dowozi wylacznie serializacje wyniku do slownikow, bo rejestr nie zna zadnej
-dataclassy protokolu. Zero innej logiki: kazde rozstrzygniecie o rozpoznaniu
-zostaje w warstwie protokolu, wiec `tests/test_modbus_rtu_tunnel.py` zostaje
-bez zmiany i nadal pilnuje tego, co pilnowal.
+The recognition logic lives in `wayside.protocols.modbus_rtu_tunnel` - this
+file delivers only the serialisation of the result into dictionaries,
+because the registry knows no protocol dataclass. No other logic: every
+ruling about recognition stays in the protocol layer, so
+`tests/test_modbus_rtu_tunnel.py` stays unchanged and still guards what it
+guarded.
 """
 
 from __future__ import annotations

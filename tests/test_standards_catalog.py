@@ -55,7 +55,7 @@ DEFAULT_ENTRY: dict = {
     "edition": "2020",
     "clause": "T 1.1",
     "clause_title": "Tytul testowy",
-    "clause_title_source": "wlasny",
+    "clause_title_source": "own",
     "paraphrase": "Testowa parafraza, nigdy cytat normy.",
     "verified": False,
     "verification_note": "Uwaga testowa, wpis prowizoryczny.",
@@ -198,11 +198,11 @@ def test_load_catalog_rejects_verified_as_int(tmp_path):
 
 
 def test_load_catalog_accepts_verified_true_without_raising(tmp_path):
-    # clause_title_source musi byc "egzemplarz" tutaj - regula miedzypolowa
+    # clause_title_source musi byc "copy" tutaj - regula miedzypolowa
     # z G-04-3c odrzuca podniesione `verified` przy prowieniencji `wlasny`.
     sub = tmp_path / "verified_true"
     _write_catalog(
-        sub, overrides={"verified": True, "clause_title_source": "egzemplarz"}
+        sub, overrides={"verified": True, "clause_title_source": "copy"}
     )
     catalog = mapper.load_catalog(catalog_root=sub)
     assert catalog[("TEST-STANDARD", "T 1.1")]["verified"] is True
@@ -289,13 +289,13 @@ def test_load_catalog_rejects_clause_title_source_outside_closed_set(tmp_path):
 
     message = str(excinfo.value)
     assert "zmyslony" in message
-    assert "egzemplarz" in message
-    assert "wlasny" in message
+    assert "copy" in message
+    assert "own" in message
 
 
-def test_load_catalog_rejects_verified_true_with_clause_title_source_wlasny(tmp_path):
-    sub = tmp_path / "verified_true_wlasny"
-    _write_catalog(sub, overrides={"verified": True, "clause_title_source": "wlasny"})
+def test_load_catalog_rejects_verified_true_with_clause_title_source_own(tmp_path):
+    sub = tmp_path / "verified_true_own"
+    _write_catalog(sub, overrides={"verified": True, "clause_title_source": "own"})
 
     with pytest.raises(mapper.StandardsError) as excinfo:
         mapper.load_catalog(catalog_root=sub)
@@ -305,15 +305,15 @@ def test_load_catalog_rejects_verified_true_with_clause_title_source_wlasny(tmp_
     assert "clause_title_source" in message
 
 
-def test_load_catalog_accepts_verified_true_with_clause_title_source_egzemplarz(tmp_path):
-    sub = tmp_path / "verified_true_egzemplarz"
+def test_load_catalog_accepts_verified_true_with_clause_title_source_copy(tmp_path):
+    sub = tmp_path / "verified_true_copy"
     _write_catalog(
-        sub, overrides={"verified": True, "clause_title_source": "egzemplarz"}
+        sub, overrides={"verified": True, "clause_title_source": "copy"}
     )
 
     catalog = mapper.load_catalog(catalog_root=sub)
 
-    assert catalog[("TEST-STANDARD", "T 1.1")]["clause_title_source"] == "egzemplarz"
+    assert catalog[("TEST-STANDARD", "T 1.1")]["clause_title_source"] == "copy"
 
 
 @pytest.mark.parametrize("clause_title_source", sorted(mapper.CLAUSE_TITLE_SOURCES))
@@ -407,7 +407,7 @@ def test_untouched_catalog_report_carries_provisional_status_for_every_reference
     assert total_refs > 0
 
     provisional_marker_count = result.report_markdown.count(
-        "PROWIZORYCZNE, NIEZWERYFIKOWANE"
+        "PROVISIONAL, UNVERIFIED"
     )
     assert provisional_marker_count == total_refs
 
@@ -433,10 +433,13 @@ def test_analysis_json_carries_polish_diacritics_without_escaping(tmp_path):
     assert result.returncode == 0, result.stderr
 
     raw_text = (tmp_path / "analysis.json").read_text(encoding="utf-8")
-    assert "\\u" not in raw_text, "analysis.json niesie escapowana sekwencje \\uXXXX"
-    assert any(ch in raw_text for ch in POLISH_DIACRITICS), (
-        "analysis.json nie niesie ani jednego polskiego znaku diakrytycznego "
-        "z parafrazy katalogu norm"
+    assert "\\u" not in raw_text, "analysis.json carries an escaped \\uXXXX sequence"
+
+    catalog = mapper.load_catalog()
+    paraphrases = [entry["paraphrase"] for entry in catalog.values()]
+    assert any(paraphrase in raw_text for paraphrase in paraphrases), (
+        "analysis.json carries no paraphrase from the standards catalogue - "
+        "the citation resolution path does not reach the artifact"
     )
 
 
@@ -825,7 +828,7 @@ PROBE_CATALOG_ENTRY: dict = {
     "edition": "9999",
     "clause": PROBE_CLAUSE,
     "clause_title": "Tytul probny bramki rozszerzalnosci katalogu norm",
-    "clause_title_source": "wlasny",
+    "clause_title_source": "own",
     "paraphrase": "Testowa parafraza bramki rozszerzalnosci katalogu norm, nigdy cytat normy.",
     "verified": False,
     "verification_note": "Wpis probny, uzywany wylacznie przez test bramki rozszerzalnosci.",

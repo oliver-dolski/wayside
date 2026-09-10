@@ -1,1 +1,1 @@
-"""Pakiet dysektorow protokolow przemyslowych warstwy aplikacji."""
+"""The package of application layer industrial protocol dissectors."""

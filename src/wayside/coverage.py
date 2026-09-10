@@ -1,22 +1,22 @@
-"""Ocena pokrycia okna zrzutu wobec zmierzonego odstepu odpytywania Modbus
-(INGEST-04): czysta funkcja bez stanu i bez wejscia-wyjscia, stylem jak
-`src/wayside/risk.py`.
+"""Assessment of capture window coverage against the measured Modbus
+polling interval (INGEST-04): a pure function with no state and no I/O, in
+the same style as `src/wayside/risk.py`.
 
-Kryterium 1 fazy 3 z `ROADMAP.md` mowi doslownie o zrzucie "krotszym niz
-zaobserwowany cykl odpytywania". Wziete doslownie jest to warunek, ktory
-nigdy nie jest prawdziwy: okno zrzutu z definicji obejmuje kazdy odstep
-zmierzony wewnatrz niego, wiec nigdy nie jest od niego krotsze. Implementacja
-doslowna dawalaby warunek martwy i test, ktory nigdy nie zapala sie na
-zadnych danych.
+Criterion 1 of phase 3 in `ROADMAP.md` speaks literally of a capture
+"shorter than the observed polling cycle". Taken literally that is a
+condition which is never true: the capture window by definition spans every
+interval measured inside it, so it is never shorter than one. A literal
+implementation would give a dead condition and a test that never fires on
+any data.
 
-Operacjonalizacja przyjeta w tym module: ostrzezenie zapala sie, gdy okno
-zrzutu jest krotsze niz `POLL_CYCLE_WINDOW_MULTIPLIER` razy najdluzszy
-zmierzony odstep miedzy kolejnymi zadaniami w tej samej sesji. Wartosc
-mnoznika zostala wybrana na checkpoincie decyzyjnym Task 2 planu
-03-03-PLAN.md (2026-09-04, rozstrzygniecie czlowieka: opcja `mnoznik-2`,
-wartosc 2.0) - dwa powtorzenia sa najmniejsza obserwacja, ktora odroznia
-cykl od zbiegu okolicznosci, a nizszy prog rzadziej zapala ostrzezenie na
-zrzutach, ktore realnie wystarczaja.
+The operationalisation adopted in this module: the warning fires when the
+capture window is shorter than `POLL_CYCLE_WINDOW_MULTIPLIER` times the
+longest measured interval between consecutive requests in the same session.
+The multiplier value was chosen at the Task 2 decision checkpoint of
+03-03-PLAN.md (2026-09-04, human ruling: option `multiplier-2`, value 2.0) -
+two repetitions are the smallest observation that tells a cycle from a
+coincidence, and a lower threshold fires the warning less often on captures
+that genuinely suffice.
 """
 
 from __future__ import annotations
@@ -33,20 +33,22 @@ __all__ = [
     "build_coverage_section",
 ]
 
-# Prog operacyjny wybrany na checkpoincie decyzyjnym Task 2, 03-03-PLAN.md.
+# Operational threshold chosen at the Task 2 decision checkpoint,
+# 03-03-PLAN.md.
 POLL_CYCLE_WINDOW_MULTIPLIER: float = 2.0
 
-# Jeden punkt nie wyznacza odstepu.
+# One point does not define an interval.
 MIN_REQUESTS_FOR_CYCLE: int = 2
 
 
 @dataclass(frozen=True)
 class PollingCycle:
-    """Zmierzony odstep miedzy kolejnymi zadaniami Modbus w jednej sesji.
+    """A measured interval between consecutive Modbus requests in one
+    session.
 
-    `measured_cycle_s` jest OBSERWACJA z tego zrzutu, nie deklarowanym
-    okresem odpytywania urzadzenia - pojedynczy zmierzony odstep nigdy nie
-    jest prezentowany jako potwierdzony cykl odpytywania.
+    `measured_cycle_s` is an OBSERVATION from this capture, not a declared
+    polling period of the device - a single measured interval is never
+    presented as a confirmed polling cycle.
     """
 
     session_id: int
@@ -55,16 +57,17 @@ class PollingCycle:
 
 
 def measure_polling_cycles(events: list[dict]) -> list[PollingCycle]:
-    """Mierzy najdluzszy odstep miedzy kolejnymi zadaniami w kazdej sesji.
+    """Measures the longest interval between consecutive requests in each
+    session.
 
-    Przyjmuje `events` w ksztalcie `analysis["protocol_events"]`. Zdarzenia
-    o kierunku innym niz `request` sa ignorowane. Grupowanie idzie po
-    `session_id` w `dict`, nigdy w `set` - determinizm kolejnosci pliku jest
-    tu kontraktem odziedziczonym z Fazy 2. Sesje o mniej niz
-    `MIN_REQUESTS_FOR_CYCLE` zadaniach sa pomijane bez wpisu: jeden punkt nie
-    wyznacza odstepu, a zgadywanie odstepu z jednego zdarzenia bylby
-    wymyslona liczba. Zwracana lista jest uporzadkowana rosnaco po
-    identyfikatorze sesji.
+    Takes `events` in the shape of `analysis["protocol_events"]`. Events with
+    a direction other than `request` are ignored. Grouping goes by
+    `session_id` in a `dict`, never in a `set` - determinism of file order is
+    a contract inherited from Phase 2 here. Sessions with fewer than
+    `MIN_REQUESTS_FOR_CYCLE` requests are skipped with no entry: one point
+    does not define an interval, and guessing one from a single event would
+    be an invented number. The returned list is ordered ascending by session
+    identifier.
     """
     sessions: dict[int, list[float]] = {}
     for event in events:
@@ -78,9 +81,9 @@ def measure_polling_cycles(events: list[dict]) -> list[PollingCycle]:
         timestamps = sessions[session_id]
         if len(timestamps) < MIN_REQUESTS_FOR_CYCLE:
             continue
-        # Odstepy miedzy kolejnymi znacznikami czasu W KOLEJNOSCI PLIKU
-        # (nie posortowanymi wartosciami) - najdluzszy z nich jest wartoscia
-        # najostrozniejsza (zalozenie Z-15 z 03-03-PLAN.md).
+        # Intervals between consecutive timestamps IN FILE ORDER (not sorted
+        # values) - the longest of them is the most conservative value
+        # (assumption Z-15 from 03-03-PLAN.md).
         longest = max(
             second - first for first, second in zip(timestamps, timestamps[1:])
         )
@@ -97,16 +100,16 @@ def measure_polling_cycles(events: list[dict]) -> list[PollingCycle]:
 def coverage_warnings(
     *, cycles: list[PollingCycle], window_duration_s: float | None
 ) -> list[str]:
-    """Buduje ostrzezenia o oknie zrzutu zbyt krotkim wobec zmierzonego
-    odstepu odpytywania.
+    """Builds warnings about a capture window too short against the measured
+    polling interval.
 
-    Okno rowne `None` (zrzut bez pakietow) daje pusta liste - nie ma
-    czego mierzyc. Zmierzony odstep rowny zero daje pusta liste dla tej
-    sesji: warunek progowy przy zerze jest trywialnie falszywy, a wpisanie
-    tam dzielenia byloby dzieleniem przez zero. Dla kazdej pozostalej sesji
-    warunek jest OSTRY - ostrzezenie powstaje, gdy okno jest MNIEJSZE niz
-    `POLL_CYCLE_WINDOW_MULTIPLIER` razy zmierzony odstep; rownosc nie
-    zapala ostrzezenia.
+    A window equal to `None` (a capture with no packets) gives an empty list
+    - there is nothing to measure. A measured interval equal to zero gives an
+    empty list for that session: the threshold condition at zero is trivially
+    false, and putting a division there would be a division by zero. For
+    every remaining session the condition is STRICT - the warning is raised
+    when the window is SMALLER than `POLL_CYCLE_WINDOW_MULTIPLIER` times the
+    measured interval; equality does not fire it.
     """
     if window_duration_s is None:
         return []
@@ -119,12 +122,13 @@ def coverage_warnings(
         if window_duration_s >= threshold:
             continue
         warnings.append(
-            f"Okno zrzutu trwa {window_duration_s} sekundy, sesja "
-            f"{cycle.session_id} niesie najdłuższy zmierzony odstęp między "
-            f"kolejnymi zadaniami równy {cycle.measured_cycle_s} sekundy "
-            f"wobec przyjętego progu (mnożnik {POLL_CYCLE_WINDOW_MULTIPLIER}). "
-            "Zaobserwowana wartość jest pojedynczym odstępem między "
-            "zadaniami w tej sesji, nie potwierdzonym cyklem odpytywania."
+            f"The capture window lasts {window_duration_s} seconds, session "
+            f"{cycle.session_id} carries a longest measured interval between "
+            f"consecutive requests of {cycle.measured_cycle_s} seconds "
+            f"against the adopted threshold (multiplier "
+            f"{POLL_CYCLE_WINDOW_MULTIPLIER}). The observed value is a single "
+            "interval between requests in this session, not a confirmed "
+            "polling cycle."
         )
     return warnings
 
@@ -132,7 +136,7 @@ def coverage_warnings(
 def build_coverage_section(
     *, cycles: list[PollingCycle], window_duration_s: float | None
 ) -> dict:
-    """Skleja sekcje `coverage` slownika `analysis.json`."""
+    """Assembles the `coverage` section of the `analysis.json` dictionary."""
     return {
         "window_duration_s": (
             round(window_duration_s, 6) if window_duration_s is not None else None

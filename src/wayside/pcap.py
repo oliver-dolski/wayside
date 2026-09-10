@@ -1,24 +1,26 @@
-"""Odczyt pliku pcap i podsumowanie zrzutu bez zaleznosci od libpcap/Npcap.
+"""Reading a pcap file and summarising a capture with no dependency on
+libpcap/Npcap.
 
-Ten modul importuje `rdpcap`/`wrpcap` WYLACZNIE z `scapy.utils`, nigdy z
-`scapy.all` ani z modulow warstwy `scapy.layers.*` (np. `Ether`, `IP`). To
-drugie ograniczenie nie jest kosmetyczne: `scapy.layers.l2` importuje
-`scapy.arch`, ktory na Windows bezwarunkowo inicjalizuje `scapy.arch.libpcap`
-(patrz Pitfall 3 w 01-RESEARCH.md) - zweryfikowane empirycznie w tej fazie,
-ze samo `from scapy.utils import rdpcap` NIE pociaga za soba tego importu,
-a `from scapy.layers.l2 import Ether` JUZ tak. Konsekwencja dla przyszlych faz:
-dekodowanie protokolow (Ether/IP/TCP/Modbus) bedzie musialo albo zaakceptowac
-zaleznosc od `scapy.arch.libpcap` przy imporcie, albo znalezc inna sciezke
-dekodowania bez warstw `scapy.layers.*`. Odczyt i zapis plikow pcap same w
-sobie sa operacjami czysto plikowymi i nie wymagaja libpcap/Npcap - to jest
-granica, ktorej ten modul pilnuje.
+This module imports `rdpcap`/`wrpcap` EXCLUSIVELY from `scapy.utils`, never
+from `scapy.all` and never from `scapy.layers.*` modules (e.g. `Ether`,
+`IP`). The second restriction is not cosmetic: `scapy.layers.l2` imports
+`scapy.arch`, which on Windows unconditionally initialises
+`scapy.arch.libpcap` (see Pitfall 3 in 01-RESEARCH.md) - verified
+empirically in this phase that `from scapy.utils import rdpcap` alone does
+NOT pull in that import, while `from scapy.layers.l2 import Ether` already
+does. The consequence for later phases: protocol decoding
+(Ether/IP/TCP/Modbus) will have to either accept a dependency on
+`scapy.arch.libpcap` at import time, or find another decoding path without
+the `scapy.layers.*` layers. Reading and writing pcap files are in
+themselves purely file operations and need no libpcap/Npcap - that is the
+boundary this module guards.
 
-`PcapReader` bez zarejestrowanej klasy `Ether` (bo jej import jest tu
-zabroniony) nie rozpoznaje typu linku i wypisuje ostrzezenie "unknown LL
-type - Using Raw packets" na `stderr` przez logger `scapy.runtime`. To
-ostrzezenie jest nieszkodliwe dla tego modulu (liczba pakietow i znaczniki
-czasu pochodza z ramki, nie z dekodowanej tresci), wiec jest wyciszane
-analogicznie do zalecenia z Pitfall 3.
+`PcapReader` without a registered `Ether` class (because importing it is
+forbidden here) does not recognise the link type and prints an "unknown LL
+type - Using Raw packets" warning on `stderr` through the `scapy.runtime`
+logger. That warning is harmless for this module (the packet count and
+timestamps come from the frame, not from decoded content), so it is
+silenced in line with the recommendation in Pitfall 3.
 """
 
 from __future__ import annotations
@@ -33,27 +35,29 @@ from pathlib import Path
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
-# scapy przy imporcie buduje cache slownikow danych (`services.pickle` i
-# pokrewne) w katalogu wyliczanym raz, w `scapy.main`, z `XDG_CACHE_HOME`
-# albo z `~/.cache`. Zapis do tego cache'u scapy obsluguje lagodnie, ale
-# sprawdzenie `cachepath.exists()` w `scapy.data.scapy_data_cache` NIE jest
-# oslonione - a `pathlib.Path.exists()` na katalogu, ktorego ACL zabrania
-# nawet przejscia, podnosi `PermissionError`, zamiast zwrocic `False`. Dosc
-# jednego `~/.cache/scapy` z restrykcyjnym ACL (typowo: zostawionego przez
-# wczesniejsze uruchomienie scapy z podniesionymi uprawnieniami), zeby kazdy
-# import tego modulu konczyl sie wyjatkiem.
+# At import time scapy builds a cache of data dictionaries
+# (`services.pickle` and relatives) in a directory computed once, in
+# `scapy.main`, from `XDG_CACHE_HOME` or from `~/.cache`. scapy handles
+# writing to that cache gracefully, but the `cachepath.exists()` check in
+# `scapy.data.scapy_data_cache` is NOT guarded - and `pathlib.Path.exists()`
+# on a directory whose ACL forbids even traversal raises `PermissionError`
+# instead of returning `False`. One `~/.cache/scapy` with a restrictive ACL
+# (typically left behind by an earlier scapy run with elevated privileges)
+# is enough to make every import of this module end in an exception.
 #
-# FOUND-02 obiecuje pakiet testow przechodzacy na czystym klonie, a nie na
-# maszynie o wlasciwym stanie katalogu domowego, wiec cache scapy dostaje
-# deterministyczna lokalizacje w katalogu tymczasowym. Cache jest wylacznie
-# optymalizacja czasu startu - jego utrata nie zmienia wyniku odczytu.
+# FOUND-02 promises a test suite that passes on a fresh clone, not on a
+# machine whose home directory happens to be in the right state, so the
+# scapy cache gets a deterministic location in a temporary directory. The
+# cache is purely a start-up time optimisation - losing it does not change
+# the result of a read.
 #
-# Nadpisanie obowiazuje TYLKO na czas importu scapy: `XDG_CACHE_HOME` jest
-# zmienna procesu, a scapy czyta ja raz, wiec po imporcie wracamy do
-# poprzedniej wartosci i nie przekierowujemy cache'u innym bibliotekom.
-# Jawnie ustawiony `XDG_CACHE_HOME` (np. w CI) ma pierwszenstwo i nie jest
-# ruszany. Warunek dziala, dopoki ten modul jest jedynym miejscem w pakiecie
-# importujacym scapy - patrz `tests/test_no_external_dissector.py`.
+# The override applies ONLY for the duration of the scapy import:
+# `XDG_CACHE_HOME` is a process variable and scapy reads it once, so after
+# the import we restore the previous value and do not redirect the cache of
+# other libraries. An explicitly set `XDG_CACHE_HOME` (e.g. in CI) takes
+# precedence and is left alone. The condition holds as long as this module
+# is the only place in the package importing scapy - see
+# `tests/test_no_external_dissector.py`.
 _SCAPY_CACHE_FALLBACK = str(Path(tempfile.gettempdir()) / "wayside-scapy-cache")
 _XDG_CACHE_HOME_BEFORE_IMPORT = os.environ.get("XDG_CACHE_HOME")
 
@@ -61,23 +65,22 @@ if _XDG_CACHE_HOME_BEFORE_IMPORT is None:
     os.environ["XDG_CACHE_HOME"] = _SCAPY_CACHE_FALLBACK
 
 try:
-    # `scapy.route` przy imporcie modulu wykonuje `conf.route = Route()`,
-    # a `Route.__init__` przy `conf.route_autoload` prawdziwym odpytuje
-    # system o tablice routingu. Na Windows idzie to przez `GetIpForwardTable2`
-    # w `scapy.arch.windows._read_routes_c` i konczy sie NIEDETERMINISTYCZNIE
-    # naruszeniem ochrony pamieci (kod wyjscia 0xC0000005) w `_extract_ip`,
-    # ktory czyta struktury zwrocone przez to wywolanie. Objaw: mniej wiecej
-    # co trzeci pelny przebieg pakietu testow mial jeden podproces
-    # `wayside.cli analyze` ubity bez zadnego wyjscia, za kazdym razem w innym
-    # tescie. Zdiagnozowane sladem z `PYTHONFAULTHANDLER=1`.
+    # At module import `scapy.route` executes `conf.route = Route()`, and
+    # `Route.__init__` with `conf.route_autoload` true queries the system for
+    # the routing table. On Windows that goes through `GetIpForwardTable2` in
+    # `scapy.arch.windows._read_routes_c` and ends NON-DETERMINISTICALLY in a
+    # memory access violation (exit code 0xC0000005) inside `_extract_ip`,
+    # which reads the structures returned by that call. Symptom: roughly
+    # every third full run of the test suite had one `wayside.cli analyze`
+    # subprocess killed with no output at all, in a different test each time.
+    # Diagnosed from a `PYTHONFAULTHANDLER=1` trace.
     #
-    # Ta sciezka nie jest tu potrzebna do niczego: narzedzie jest pasywne
-    # i nie wysyla ani jednego pakietu, wiec tablica routingu i tak nigdy
-    # nie zostanie uzyta. `scapy.route` wjezdza tranzytywnie razem
-    # z `scapy.layers.l2` (przez `scapy.ansmachine` i `scapy.sendrecv`),
-    # wiec flagi musza byc ustawione TUTAJ, przed pierwszym importem
-    # jakiejkolwiek warstwy - to jest jedyne miejsce w pakiecie, ktore
-    # importuje scapy jako pierwsze.
+    # This path is needed for nothing here: the tool is passive and sends not
+    # a single packet, so the routing table would never be used anyway.
+    # `scapy.route` arrives transitively together with `scapy.layers.l2`
+    # (through `scapy.ansmachine` and `scapy.sendrecv`), so the flags have to
+    # be set HERE, before the first import of any layer - this is the only
+    # place in the package that imports scapy first.
     from scapy.config import conf as _scapy_conf  # noqa: E402
 
     _scapy_conf.route_autoload = False
@@ -109,7 +112,7 @@ __all__ = [
 
 @dataclass(frozen=True)
 class CaptureSummary:
-    """Podsumowanie jednego zrzutu pcap."""
+    """A summary of one pcap capture."""
 
     path: Path
     packet_count: int
@@ -119,18 +122,18 @@ class CaptureSummary:
 
 
 def read_capture(path: Path):
-    """Wczytuje zrzut pcap z podanej sciezki.
+    """Reads a pcap capture from the given path.
 
-    Podnosi `FileNotFoundError`, gdy pliku nie ma - nigdy nie zwraca cichej
-    pustej listy dla brakujacego pliku.
+    Raises `FileNotFoundError` when the file is absent - it never returns a
+    silent empty list for a missing file.
     """
     if not Path(path).exists():
-        raise FileNotFoundError(f"Plik zrzutu nie istnieje: {path}")
+        raise FileNotFoundError(f"The capture file does not exist: {path}")
     return rdpcap(str(path))
 
 
 def summarize(path: Path) -> CaptureSummary:
-    """Zwraca `CaptureSummary` dla zrzutu pod podana sciezka."""
+    """Returns a `CaptureSummary` for the capture at the given path."""
     packets = read_capture(path)
     packet_count = len(packets)
 
@@ -157,34 +160,35 @@ def summarize(path: Path) -> CaptureSummary:
     )
 
 
-# --- Audyt strukturalny (D-01) -----------------------------------------------
+# --- Structural audit (D-01) -------------------------------------------------
 #
-# Wszystko ponizej stoi wylacznie na bibliotece standardowej (struct, pathlib) -
-# audyt strukturalny nie dociaga zadnej warstwy scapy (D-04). `rdpcap` odczytuje
-# naglowek pliku poprawnie i po prostu przestaje czytac rekordy, gdy strumien
-# konczy sie w srodku rekordu - nie traktuje tego jako blad formatu (Pitfall 3,
-# 02-RESEARCH.md). Ten audyt wykrywa dokladnie ten przypadek, przez porownanie
-# pol dlugosci z faktyczna liczba bajtow pozostajacych w pliku, ZANIM
-# `read_capture`/`rdpcap` w ogole dostanie plik do rak (brama w `pipeline.py`).
+# Everything below stands on the standard library alone (struct, pathlib) -
+# the structural audit pulls in no scapy layer (D-04). `rdpcap` reads the file
+# header correctly and simply stops reading records when the stream ends in
+# the middle of a record - it does not treat that as a format error (Pitfall
+# 3, 02-RESEARCH.md). This audit detects exactly that case, by comparing the
+# length fields against the number of bytes actually left in the file, BEFORE
+# `read_capture`/`rdpcap` gets the file at all (the gate in `pipeline.py`).
 
 PCAP_GLOBAL_HEADER_LEN = 24
 PCAP_RECORD_HEADER_LEN = 16
-PCAPNG_BLOCK_HEADER_LEN = 8  # typ bloku (4) + calkowita dlugosc (4)
+PCAPNG_BLOCK_HEADER_LEN = 8  # block type (4) + total length (4)
 
-# Bajty magic klasycznego pcapa (4 warianty: mikrosekundowy/nanosekundowy,
-# kazdy w porzadku little/big-endian) -> (format, porzadek bajtow). Wartosci
-# zweryfikowane przez `struct.pack` w tej sesji, nie z pamieci.
+# Magic bytes of classic pcap (4 variants: microsecond/nanosecond, each in
+# little/big-endian order) -> (format, byte order). The values were verified
+# with `struct.pack` in that session, not recalled from memory.
 PCAP_MAGICS: dict[bytes, tuple[str, str]] = {
-    b"\xd4\xc3\xb2\xa1": ("pcap", "little"),  # mikrosekundowy, little-endian
-    b"\xa1\xb2\xc3\xd4": ("pcap", "big"),  # mikrosekundowy, big-endian
-    b"\x4d\x3c\xb2\xa1": ("pcap", "little"),  # nanosekundowy, little-endian
-    b"\xa1\xb2\x3c\x4d": ("pcap", "big"),  # nanosekundowy, big-endian
+    b"\xd4\xc3\xb2\xa1": ("pcap", "little"),  # microsecond, little-endian
+    b"\xa1\xb2\xc3\xd4": ("pcap", "big"),  # microsecond, big-endian
+    b"\x4d\x3c\xb2\xa1": ("pcap", "little"),  # nanosecond, little-endian
+    b"\xa1\xb2\x3c\x4d": ("pcap", "big"),  # nanosecond, big-endian
 }
 
-# Typ bloku Section Header Block pcapng - palindrom bajtowy, wiec ta sama
-# sekwencja niezaleznie od porzadku bajtow pliku (RFC 9-tcpdump/libpcap
-# "pcapng"). To jest jedyny sposob rozpoznania formatu PRZED ustaleniem
-# porzadku bajtow, ktory pcapng niesie w kolejnym polu (byte order magic).
+# The pcapng Section Header Block type - a byte palindrome, hence the same
+# sequence regardless of the file's byte order (RFC 9-tcpdump/libpcap
+# "pcapng"). This is the only way to recognise the format BEFORE establishing
+# the byte order, which pcapng carries in the following field (byte order
+# magic).
 PCAPNG_MAGIC = b"\x0a\x0d\x0d\x0a"
 
 _PCAPNG_BYTE_ORDER_MAGIC: dict[bytes, str] = {
@@ -192,41 +196,43 @@ _PCAPNG_BYTE_ORDER_MAGIC: dict[bytes, str] = {
     b"\x1a\x2b\x3c\x4d": "big",
 }
 
-_PCAPNG_EPB_TYPE = 0x00000006  # Enhanced Packet Block - rekord z pakietem
-_PCAPNG_IDB_TYPE = 0x00000001  # Interface Description Block - niesie snaplen
-_PCAPNG_IDB_MIN_LEN = 20  # naglowek(8) + linktype(2) + rezerwa(2) + snaplen(4) + trailer(4)
+_PCAPNG_EPB_TYPE = 0x00000006  # Enhanced Packet Block - a record with a packet
+_PCAPNG_IDB_TYPE = 0x00000001  # Interface Description Block - carries snaplen
+_PCAPNG_IDB_MIN_LEN = 20  # header(8) + linktype(2) + reserved(2) + snaplen(4) + trailer(4)
 
 
 class CaptureTruncatedError(Exception):
-    """Zrzut ma poprawny magic formatu, ale strumien konczy sie w srodku
-    rekordu/bloku - obciecie wykryte strukturalnie (D-01), nie przez liczbe
-    pakietow zwrocona przez `rdpcap`."""
+    """The capture has a valid format magic, but the stream ends in the
+    middle of a record/block - truncation detected structurally (D-01), not
+    through the packet count returned by `rdpcap`."""
 
 
 class CaptureCorruptError(CaptureTruncatedError):
-    """Struktura zrzutu jest niespojna sama ze soba, przy pelnej i spojnej
-    dlugosci pliku - rozne od `CaptureTruncatedError`, ktory oznacza strumien
-    konczacy sie przedwczesnie w srodku rekordu albo bloku (Z-11). Podklasa
-    istniejacego wyjatku, zeby kazdy dotychczasowy blok `except
-    CaptureTruncatedError` z Faz 1-2 nadal lapal ten przypadek."""
+    """The capture structure is inconsistent with itself at a full and
+    consistent file length - distinct from `CaptureTruncatedError`, which
+    means a stream ending prematurely in the middle of a record or block
+    (Z-11). A subclass of the existing exception, so that every `except
+    CaptureTruncatedError` block from Phases 1-2 still catches this
+    case."""
 
 
 class CaptureFormatError(Exception):
-    """Plik ma magic nierozpoznany przez zaden obslugiwany format (klasyczny
-    pcap albo pcapng)."""
+    """The file has a magic not recognised by any supported format (classic
+    pcap or pcapng)."""
 
 
 @dataclass(frozen=True)
 class CaptureStructure:
-    """Wynik audytu strukturalnego zrzutu, bez interpretacji tresci pakietow."""
+    """The result of a structural capture audit, with no interpretation of
+    packet content."""
 
     capture_format: str  # "pcap" | "pcapng"
     endianness: str  # "little" | "big"
-    record_count: int  # rekordy pcap albo bloki EPB pcapng
-    is_structurally_empty: bool  # naglowek poprawny, zero rekordow z pakietem
-    snaplen: int | None  # None, gdy niejednoznaczny (patrz snaplen_note)
-    snaplen_note: str | None  # niepuste WYLACZNIE gdy snaplen jest None
-    snaplen_truncated_packet_numbers: tuple[int, ...]  # 1-bazowe, przypadek legalny
+    record_count: int  # pcap records or pcapng EPB blocks
+    is_structurally_empty: bool  # valid header, zero records with a packet
+    snaplen: int | None  # None when ambiguous (see snaplen_note)
+    snaplen_note: str | None  # non-empty ONLY when snaplen is None
+    snaplen_truncated_packet_numbers: tuple[int, ...]  # 1-based, a legal case
 
 
 def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> CaptureStructure:
@@ -235,7 +241,7 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
         global_header = handle.read(PCAP_GLOBAL_HEADER_LEN)
         if len(global_header) < PCAP_GLOBAL_HEADER_LEN:
             raise CaptureTruncatedError(
-                f"{path}: naglowek globalny pcap obciety na {len(global_header)} bajtach"
+                f"{path}: pcap global header truncated at {len(global_header)} bytes"
             )
         (_magic, _ver_major, _ver_minor, _thiszone, _sigfigs, snaplen, _network) = (
             struct.unpack(order + "IHHiIII", global_header)
@@ -248,8 +254,8 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
             remaining = total_size - pos
             if remaining < PCAP_RECORD_HEADER_LEN:
                 raise CaptureTruncatedError(
-                    f"{path}: naglowek rekordu obciety na przesunieciu {pos} bajtow "
-                    f"({remaining} z {PCAP_RECORD_HEADER_LEN} bajtow dostepnych)"
+                    f"{path}: record header truncated at offset {pos} bytes "
+                    f"({remaining} of {PCAP_RECORD_HEADER_LEN} bytes available)"
                 )
             handle.seek(pos)
             record_header = handle.read(PCAP_RECORD_HEADER_LEN)
@@ -257,31 +263,32 @@ def _audit_pcap_classic(path: Path, total_size: int, endianness: str) -> Capture
                 order + "IIII", record_header
             )
 
-            # Wartosc z pliku niezaufanego nie jest indeksem, dopoki nie
-            # przejdzie kontroli zakresu (T-2-02) - snaplen PRZED skokiem.
-            # Dlugosc przechwycona wieksza od snaplenu jest strukturalna
-            # niespojnoscia pola dlugosci, nie obcieciem strumienia (Z-11) -
-            # plik ma pelna, spojna dlugosc, ale sam sobie przeczy.
+            # A value from an untrusted file is not an index until it passes
+            # a range check (T-2-02) - snaplen BEFORE the seek. A captured
+            # length greater than the snaplen is a structural inconsistency of
+            # the length field, not a truncated stream (Z-11) - the file has a
+            # full, consistent length but contradicts itself.
             if incl_len > snaplen:
                 raise CaptureCorruptError(
-                    f"{path}: dlugosc przechwycona {incl_len} na przesunieciu {pos} "
-                    f"bajtow przekracza snaplen {snaplen} z naglowka globalnego"
+                    f"{path}: captured length {incl_len} at offset {pos} bytes "
+                    f"exceeds the snaplen {snaplen} from the global header"
                 )
 
             pos += PCAP_RECORD_HEADER_LEN
             data_remaining = total_size - pos
             if incl_len > data_remaining:
                 raise CaptureTruncatedError(
-                    f"{path}: dane rekordu obciete na przesunieciu {pos} bajtow "
-                    f"(oczekiwano {incl_len}, dostepne {data_remaining})"
+                    f"{path}: record data truncated at offset {pos} bytes "
+                    f"(expected {incl_len}, available {data_remaining})"
                 )
 
-            # Uciecie przez snaplen jest przypadkiem LEGALNYM (Z-14), rozny od
-            # warunku powyzej: rekord o dlugosci przechwyconej mniejszej od
-            # dlugosci oryginalnej zostal obciety przez snaplen podczas
-            # przechwytywania, a nie uszkodzony. Numeracja 1-bazowa, zgodna z
-            # konwencja `packet_number` w `decode.py` - `record_count` przed
-            # inkrementacja jest indeksem 0-bazowym biezacego rekordu.
+            # Truncation by snaplen is a LEGAL case (Z-14), distinct from the
+            # condition above: a record whose captured length is smaller than
+            # its original length was cut by the snaplen during capture, not
+            # damaged. The numbering is 1-based, consistent with the
+            # `packet_number` convention in `decode.py` - `record_count`
+            # before the increment is the 0-based index of the current
+            # record.
             if incl_len < _orig_len:
                 snaplen_truncated_packet_numbers.append(record_count + 1)
 
@@ -304,15 +311,15 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
         first_block_probe = handle.read(12)
         if len(first_block_probe) < 12:
             raise CaptureTruncatedError(
-                f"{path}: Section Header Block obciety na {len(first_block_probe)} bajtach"
+                f"{path}: Section Header Block truncated at {len(first_block_probe)} bytes"
             )
 
         byte_order_magic = first_block_probe[8:12]
         endianness = _PCAPNG_BYTE_ORDER_MAGIC.get(byte_order_magic)
         if endianness is None:
             raise CaptureFormatError(
-                f"{path}: nierozpoznany bajt porzadku {byte_order_magic!r} w "
-                "Section Header Block"
+                f"{path}: unrecognised byte order magic {byte_order_magic!r} in "
+                "the Section Header Block"
             )
         order = "<" if endianness == "little" else ">"
 
@@ -324,27 +331,27 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
             remaining = total_size - pos
             if remaining < PCAPNG_BLOCK_HEADER_LEN:
                 raise CaptureTruncatedError(
-                    f"{path}: naglowek bloku pcapng obciety na przesunieciu {pos} "
-                    f"bajtow ({remaining} z {PCAPNG_BLOCK_HEADER_LEN} bajtow dostepnych)"
+                    f"{path}: pcapng block header truncated at offset {pos} "
+                    f"bytes ({remaining} of {PCAPNG_BLOCK_HEADER_LEN} bytes available)"
                 )
             handle.seek(pos)
             block_header = handle.read(PCAPNG_BLOCK_HEADER_LEN)
             block_type, total_length = struct.unpack(order + "II", block_header)
 
-            # Dlugosc bloku niespojna sama ze soba (za krotka albo nie
-            # wielokrotnosc czterech) jest korupcja strukturalna, nie
-            # obcieciem strumienia (Z-11) - plik moze miec pelna, spojna
-            # dlugosc i nadal niesc to naruszenie.
+            # A block length inconsistent with itself (too short or not a
+            # multiple of four) is structural corruption, not a truncated
+            # stream (Z-11) - the file may have a full, consistent length and
+            # still carry this violation.
             if total_length < 12 or total_length % 4 != 0:
                 raise CaptureCorruptError(
-                    f"{path}: dlugosc bloku {total_length} na przesunieciu {pos} "
-                    "bajtow nie jest wielokrotnoscia czterech albo jest mniejsza niz 12"
+                    f"{path}: block length {total_length} at offset {pos} "
+                    "bytes is not a multiple of four or is smaller than 12"
                 )
             if total_length > remaining:
                 raise CaptureTruncatedError(
-                    f"{path}: blok na przesunieciu {pos} bajtow (dlugosc "
-                    f"{total_length}) wykracza poza koniec pliku ({remaining} "
-                    "bajtow dostepnych)"
+                    f"{path}: the block at offset {pos} bytes (length "
+                    f"{total_length}) extends past the end of the file "
+                    f"({remaining} bytes available)"
                 )
 
             handle.seek(pos + total_length - 4)
@@ -352,42 +359,43 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
             (trailing_length,) = struct.unpack(order + "I", trailing_raw)
             if trailing_length != total_length:
                 raise CaptureCorruptError(
-                    f"{path}: niezgodnosc dlugosci bloku na przesunieciu {pos} "
-                    f"bajtow (poczatek {total_length}, koniec {trailing_length})"
+                    f"{path}: block length mismatch at offset {pos} bytes "
+                    f"(start {total_length}, end {trailing_length})"
                 )
 
             if block_type == _PCAPNG_EPB_TYPE:
-                # Kontrola zakresu PRZED odczytem (T-3-09): blok krotszy niz
-                # 32 bajty nie ma miejsca na pola dlugosci przechwyconej
-                # (przesuniecie 20:24) i oryginalnej (przesuniecie 24:28) plus
-                # naglowek i koncowke - niepoprawny blok tego typu, korupcja
-                # strukturalna, nie obciecie.
+                # A range check BEFORE the read (T-3-09): a block shorter
+                # than 32 bytes has no room for the captured length field
+                # (offset 20:24) and the original length field (offset 24:28)
+                # plus header and trailer - an invalid block of this type,
+                # structural corruption, not truncation.
                 if total_length < 32:
                     raise CaptureCorruptError(
-                        f"{path}: blok Enhanced Packet Block na przesunieciu "
-                        f"{pos} bajtow (dlugosc {total_length}) jest za krotki, "
-                        "zeby zawierac pola dlugosci pakietu"
+                        f"{path}: the Enhanced Packet Block at offset {pos} "
+                        f"bytes (length {total_length}) is too short to "
+                        "contain the packet length fields"
                     )
                 handle.seek(pos + 20)
                 (captured_len, orig_len) = struct.unpack(order + "II", handle.read(8))
-                # Uciecie przez snaplen jest przypadkiem LEGALNYM (Z-14), ten
-                # sam warunek co w galezi klasycznego pcapa. Numeracja liczy
-                # WYLACZNIE bloki EPB, zgodnie z dzisiejszym `record_count` -
-                # bloki opisu interfejsu nie przesuwaja numeracji.
+                # Truncation by snaplen is a LEGAL case (Z-14), the same
+                # condition as in the classic pcap branch. The numbering
+                # counts EPB blocks ONLY, consistent with today's
+                # `record_count` - interface description blocks do not shift
+                # the numbering.
                 if captured_len < orig_len:
                     snaplen_truncated_packet_numbers.append(record_count + 1)
                 record_count += 1
             elif block_type == _PCAPNG_IDB_TYPE:
-                # Kontrola zakresu PRZED odczytem (T-3-01): blok krotszy niz
-                # dwadziescia bajtow nie ma miejsca na pole snaplen na
-                # przesunieciu od 12 do 16, wiec konczy sie tu, nie przy
-                # sprobie odczytu spoza bloku. Komunikat niesie wylacznie
-                # przesuniecie w bajtach, nigdy zawartosc bloku.
+                # A range check BEFORE the read (T-3-01): a block shorter
+                # than twenty bytes has no room for the snaplen field at
+                # offset 12 to 16, so it ends here rather than at an attempt
+                # to read past the block. The message carries the byte offset
+                # only, never the block's content.
                 if total_length < _PCAPNG_IDB_MIN_LEN:
                     raise CaptureTruncatedError(
-                        f"{path}: blok Interface Description Block na "
-                        f"przesunieciu {pos} bajtow (dlugosc {total_length}) "
-                        "jest za krotki, zeby zawierac pole snaplen"
+                        f"{path}: the Interface Description Block at offset "
+                        f"{pos} bytes (length {total_length}) is too short to "
+                        "contain the snaplen field"
                     )
                 handle.seek(pos + 12)
                 (idb_snaplen,) = struct.unpack(order + "I", handle.read(4))
@@ -397,8 +405,8 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
         if not idb_snaplens:
             snaplen: int | None = None
             snaplen_note: str | None = (
-                f"{path}: brak bloku Interface Description Block w pliku "
-                "pcapng - snaplen nie zostal ustalony"
+                f"{path}: no Interface Description Block in the pcapng file "
+                "- the snaplen was not established"
             )
         else:
             unique_snaplens = set(idb_snaplens)
@@ -408,9 +416,9 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
             else:
                 snaplen = None
                 snaplen_note = (
-                    f"{path}: {len(unique_snaplens)} blokow Interface "
-                    "Description Block niosa rozny snaplen - wartosc nie "
-                    "jest jednoznaczna"
+                    f"{path}: {len(unique_snaplens)} Interface Description "
+                    "Blocks carry different snaplens - the value is not "
+                    "unambiguous"
                 )
 
         return CaptureStructure(
@@ -425,22 +433,23 @@ def _audit_pcapng(path: Path, total_size: int) -> CaptureStructure:
 
 
 def audit_capture_structure(path: Path) -> CaptureStructure:
-    """Audytuje strukture zrzutu bez interpretacji tresci pakietow.
+    """Audits the structure of a capture with no interpretation of packet
+    content.
 
-    Kolejnosc: brak pliku daje `FileNotFoundError` z tym samym komunikatem
-    co `read_capture`; plik krotszy niz magic formatu (4 bajty) daje
-    `CaptureTruncatedError`; magic nierozpoznany przez zaden obslugiwany
-    format daje `CaptureFormatError`; magic rozpoznany, ale naglowek albo
-    ktorykolwiek rekord/blok obciety, daje `CaptureTruncatedError`.
+    The order: a missing file gives `FileNotFoundError` with the same message
+    as `read_capture`; a file shorter than the format magic (4 bytes) gives
+    `CaptureTruncatedError`; a magic not recognised by any supported format
+    gives `CaptureFormatError`; a recognised magic but a truncated header or
+    any truncated record/block gives `CaptureTruncatedError`.
 
-    Zaden komunikat wyjatku nie niesie surowych bajtow pliku ani tresci
-    ladunku - wylacznie sciezke, przesuniecie w bajtach i nazwe naruszonego
-    warunku (T-2-10), analogicznie do `Violation` bez pola tekstowego w
+    No exception message carries raw file bytes or payload content - only the
+    path, the byte offset and the name of the violated condition (T-2-10),
+    analogously to `Violation` without a text field in
     `scripts/confidentiality_guard.py`.
     """
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(f"Plik zrzutu nie istnieje: {path}")
+        raise FileNotFoundError(f"The capture file does not exist: {path}")
 
     total_size = path.stat().st_size
     with open(path, "rb") as handle:
@@ -448,8 +457,8 @@ def audit_capture_structure(path: Path) -> CaptureStructure:
 
     if len(magic_probe) < 4:
         raise CaptureTruncatedError(
-            f"{path}: plik krotszy niz magic number formatu (4 bajty, "
-            f"znaleziono {len(magic_probe)})"
+            f"{path}: the file is shorter than the format magic number "
+            f"(4 bytes, found {len(magic_probe)})"
         )
 
     if magic_probe == PCAPNG_MAGIC:
@@ -460,6 +469,6 @@ def audit_capture_structure(path: Path) -> CaptureStructure:
         return _audit_pcap_classic(path, total_size, endianness)
 
     raise CaptureFormatError(
-        f"{path}: magic {magic_probe!r} nie odpowiada zadnemu obslugiwanemu "
-        "formatowi (pcap klasyczny ani pcapng)"
+        f"{path}: the magic {magic_probe!r} matches no supported format "
+        "(neither classic pcap nor pcapng)"
     )

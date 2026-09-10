@@ -22,7 +22,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 import check_pub_gate as gate  # noqa: E402
 
 VALID_BODY = (
-    "## Zakres przegladu\n\nWlasnosc intelektualna i dzialalnosc konkurencyjna.\n\n"
+    "## Scope przegladu\n\nWlasnosc intelektualna i dzialalnosc konkurencyjna.\n\n"
     "## Wniosek\n\nWniosek wymyslony na potrzeby testu.\n\n"
     "## Skutki dla projektu\n\nOpis obu galezi.\n\n"
     "## Warunki rewizji\n\nZmiana umowy, zmiana pracodawcy, zmiana zakresu.\n"

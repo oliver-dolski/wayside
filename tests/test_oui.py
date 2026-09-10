@@ -516,7 +516,7 @@ def test_decision_record_resolved_option_matches_tree_state():
 #
 # Luka zamknieta po weryfikacji fazy 3 (03-VERIFICATION.md, W-1). Wszystkie
 # fixture'y w drzewie maja adresy MAC lokalnie administrowane (`02:00:...`),
-# wiec producent jest na nich ZAWSZE nieustalony i zadna asercja nad nimi nie
+# wiec producent jest na nich ZAWSZE not determined i zadna asercja nad nimi nie
 # odroznia dzialajacego lookupu od zepsutego zlozenia w `pipeline.analyze`.
 # Ciche rozpiecie `vendor_lookup` przechodzilo caly pakiet bez ani jednej
 # porazki.
@@ -585,7 +585,7 @@ def test_vendor_from_real_oui_prefix_reaches_analysis_and_report(tmp_path):
     )
     assert host["oui_vendor"]["value"] == expected_vendor
     assert host["oui_vendor"]["provenance"] == "inferred:oui-lookup"
-    assert f"- Producent: {expected_vendor} (inferred:oui-lookup)" in result.report_markdown
+    assert f"- Vendor: {expected_vendor} (inferred:oui-lookup)" in result.report_markdown
 
 
 def test_host_with_locally_administered_mac_stays_undetermined_in_the_same_run(tmp_path):

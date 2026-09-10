@@ -37,7 +37,7 @@ def test_version_exits_zero_and_prints_version():
 def test_inspect_fixture_exits_zero_and_prints_packet_count():
     result = _run_cli("inspect", str(FIXTURE))
     assert result.returncode == 0
-    assert "Liczba pakietow: 2" in result.stdout
+    assert "Packet count: 2" in result.stdout
 
 
 def test_inspect_missing_file_exits_two_without_traceback():

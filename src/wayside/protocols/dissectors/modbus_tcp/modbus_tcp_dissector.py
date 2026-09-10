@@ -1,10 +1,11 @@
-"""Adapter miedzy rejestrem dissectorow i warstwa Modbus/TCP.
+"""An adapter between the dissector registry and the Modbus/TCP layer.
 
-Logika rozpoznania zyje w `wayside.protocols.modbus_tcp` - ten plik dowozi
-wylacznie serializacje wyniku do slownikow, bo rejestr nie zna zadnej
-dataclassy protokolu. Zero innej logiki: kazde rozstrzygniecie o rozpoznaniu
-zostaje w warstwie protokolu, wiec `tests/test_modbus_tcp.py` zostaje bez
-zmiany i nadal pilnuje tego, co pilnowal.
+The recognition logic lives in `wayside.protocols.modbus_tcp` - this file
+delivers only the serialisation of the result into dictionaries, because
+the registry knows no protocol dataclass. No other logic: every ruling
+about recognition stays in the protocol layer, so
+`tests/test_modbus_tcp.py` stays unchanged and still guards what it
+guarded.
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
-"""Entrypoint CLI narzedzia Wayside: komenda `inspect` oraz flaga `--version`.
+"""CLI entrypoint of the Wayside tool: the `inspect` command and the
+`--version` flag.
 
-Narzedzie jest pasywne: zadna komenda tutaj nie otwiera interfejsu sieciowego,
-nie przechwytuje ruchu na zywo i nie wysyla pakietow. Faza 1 nie otwiera tej
-powierzchni.
+The tool is passive: no command here opens a network interface, captures
+live traffic or sends packets. Phase 1 does not open that surface.
 """
 
 from __future__ import annotations
@@ -24,18 +24,18 @@ from wayside.pipeline import analyze as run_analyze
 
 app = typer.Typer(add_completion=False)
 
-# Kody wyjscia komendy `analyze`, rozroznialne dla kazdego trybu porazki
-# (D-01) - nigdy jeden ogolny kod na wszystko. `EXIT_UNREADABLE` rowne 2
-# jest zachowane swiadomie: `tests/test_cli_output_snapshot.py` i kontrakt
-# komendy `inspect` z Fazy 1 na niej stoja.
+# Exit codes of the `analyze` command, distinguishable for every failure
+# mode (D-01) - never one generic code for everything. `EXIT_UNREADABLE`
+# equal to 2 is kept deliberately: `tests/test_cli_output_snapshot.py` and
+# the Phase 1 contract of the `inspect` command stand on it.
 EXIT_OK = 0
 EXIT_UNREADABLE = 2
 EXIT_TRUNCATED = 3
 EXIT_UNSUPPORTED_FORMAT = 4
-# Zrzut uszkodzony strukturalnie - struktura niespojna sama ze soba przy
-# pelnej dlugosci pliku, rozne od obciecia strumienia (EXIT_TRUNCATED).
-# Kryterium 2 fazy 3 wymienia trzy tryby porazki jako trzy osobne slowa,
-# wiec kazdy dostaje wlasny kod wyjscia (zalozenie Z-12).
+# A structurally corrupt capture - a structure inconsistent with itself at
+# the file's full length, distinct from a truncated stream (EXIT_TRUNCATED).
+# Criterion 2 of phase 3 names three failure modes as three separate words,
+# so each gets its own exit code (assumption Z-12).
 EXIT_CORRUPT = 5
 
 
@@ -52,104 +52,107 @@ def main(
         "--version",
         callback=_version_callback,
         is_eager=True,
-        help="Wypisz wersje narzedzia i zakoncz.",
+        help="Print the tool version and exit.",
     ),
 ) -> None:
-    """Wayside - pasywna ocena bezpieczenstwa sieci OT ze zrzutu pcap."""
+    """Wayside - passive OT network security assessment from a pcap file."""
 
 
 @app.command()
 def inspect(
-    path: Path = typer.Argument(..., help="Sciezka do pliku zrzutu pcap."),
+    path: Path = typer.Argument(..., help="Path to the pcap capture file."),
 ) -> None:
-    """Wczytuje zrzut pcap i wypisuje jego podsumowanie."""
+    """Reads a pcap capture and prints its summary."""
     try:
         summary = summarize(path)
     except FileNotFoundError:
-        typer.echo(f"Nie znaleziono pliku zrzutu: {path}", err=True)
+        typer.echo(f"Capture file not found: {path}", err=True)
         raise typer.Exit(code=EXIT_UNREADABLE) from None
     except Exception as exc:
-        # `read_capture` sprawdza tylko istnienie sciezki, a `Path.exists()`
-        # jest prawdziwe takze dla katalogu. Poza tym istniejacy, ale
-        # uszkodzony albo obciety pcap podnosi z `rdpcap` wyjatek z rodziny
-        # `Scapy_Exception`/`struct.error`, ktorej nie da sie tu wyliczyc
-        # z nazwy bez wiazania CLI z wewnetrznymi typami scapy. Uzytkownik
-        # narzedzia ma dostac komunikat i kod 2, nie surowy traceback.
-        typer.echo(f"Nie udalo sie odczytac zrzutu {path}: {exc}", err=True)
+        # `read_capture` only checks that the path exists, and `Path.exists()`
+        # is true for a directory too. Beyond that, an existing but corrupt or
+        # truncated pcap raises from `rdpcap` an exception of the
+        # `Scapy_Exception`/`struct.error` family, which cannot be enumerated
+        # here by name without binding the CLI to scapy's internal types. The
+        # user of the tool is to get a message and code 2, not a raw
+        # traceback.
+        typer.echo(f"Failed to read capture {path}: {exc}", err=True)
         raise typer.Exit(code=EXIT_UNREADABLE) from None
 
-    typer.echo(f"Plik: {summary.path}")
-    typer.echo(f"Liczba pakietow: {summary.packet_count}")
+    typer.echo(f"File: {summary.path}")
+    typer.echo(f"Packet count: {summary.packet_count}")
     first = summary.first_timestamp.isoformat() if summary.first_timestamp else "-"
     last = summary.last_timestamp.isoformat() if summary.last_timestamp else "-"
-    typer.echo(f"Pierwszy znacznik czasu: {first}")
-    typer.echo(f"Ostatni znacznik czasu: {last}")
-    # Zaokraglenie jest w formatowaniu, nie w `CaptureSummary` - roznica
-    # znacznikow czasu w float niesie szum reprezentacji (0.01 s wychodzi
-    # jako 0.009999990463256836), a przyszli konsumenci API maja dostac
-    # wartosc nietkniata.
-    typer.echo(f"Dlugosc okna (s): {summary.duration_s:.6f}")
+    typer.echo(f"First timestamp: {first}")
+    typer.echo(f"Last timestamp: {last}")
+    # Rounding lives in the formatting, not in `CaptureSummary` - the
+    # difference of two float timestamps carries representation noise (0.01 s
+    # comes out as 0.009999990463256836), and future API consumers are to get
+    # the value untouched.
+    typer.echo(f"Window length (s): {summary.duration_s:.6f}")
 
 
 @app.command()
 def analyze(
-    path: Path = typer.Argument(..., help="Sciezka do pliku zrzutu pcap."),
+    path: Path = typer.Argument(..., help="Path to the pcap capture file."),
     out_dir: Path = typer.Option(
         Path("wayside-out"),
         "--out-dir",
-        help="Katalog wyjsciowy na analysis.json i report.md.",
+        help="Output directory for analysis.json and report.md.",
     ),
     export_pdf: bool = typer.Option(
         False,
         "--pdf/--no-pdf",
-        help="Doloz trzeci artefakt, report.pdf, z osadzonym fontem Unicode.",
+        help="Add a third artifact, report.pdf, with an embedded Unicode font.",
     ),
 ) -> None:
-    """Uruchamia pelny potok analizy: od pliku pcap do dwoch albo trzech
-    artefaktow (REPORT-03: `--pdf` dokladajac report.pdf jest opcja
-    wlaczana, domyslnie wylaczona - zalozenie Z-51)."""
-    # Znacznik czasu wygenerowania idzie do zmiennej lokalnej PRZED
-    # wywolaniem potoku i ta sama wartosc wchodzi pozniej do renderowania
-    # PDF - dwa osobne odczyty zegara dalyby markdown i PDF z roznymi
-    # znacznikami z tego samego przebiegu (04-03-PLAN.md, Task 3).
+    """Runs the full analysis pipeline: from a pcap file to two or three
+    artifacts (REPORT-03: `--pdf`, which adds report.pdf, is opt-in and off
+    by default - assumption Z-51)."""
+    # The generation timestamp goes into a local variable BEFORE the pipeline
+    # call and the same value later enters PDF rendering - two separate clock
+    # reads would give markdown and PDF different timestamps from the same
+    # run (04-03-PLAN.md, Task 3).
     generated_at = datetime.now(timezone.utc)
     try:
         result = run_analyze(path, out_dir=out_dir, generated_at=generated_at)
     except FileNotFoundError:
-        typer.echo(f"Nie znaleziono pliku zrzutu: {path}", err=True)
+        typer.echo(f"Capture file not found: {path}", err=True)
         raise typer.Exit(code=EXIT_UNREADABLE) from None
     except CaptureCorruptError as exc:
-        # `CaptureCorruptError` jest podklasa `CaptureTruncatedError` (Z-11),
-        # wiec ten blok MUSI stac PRZED `except CaptureTruncatedError` -
-        # odwrotna kolejnosc dawalaby kod 3 zamiast 5 dla kazdego przypadku.
-        typer.echo(f"Zrzut uszkodzony strukturalnie: {exc}", err=True)
+        # `CaptureCorruptError` is a subclass of `CaptureTruncatedError`
+        # (Z-11), so this block MUST stand BEFORE `except
+        # CaptureTruncatedError` - the reverse order would give code 3
+        # instead of 5 in every case.
+        typer.echo(f"Structurally corrupt capture: {exc}", err=True)
         raise typer.Exit(code=EXIT_CORRUPT) from None
     except CaptureTruncatedError as exc:
-        # D-01: obciecie wykryte strukturalnie przez `audit_capture_structure`
-        # PRZED jakimkolwiek zapisem - `out_dir` zostaje bez zadnego pliku.
-        typer.echo(f"Zrzut obciety: {exc}", err=True)
+        # D-01: truncation detected structurally by `audit_capture_structure`
+        # BEFORE any write - `out_dir` is left without a single file.
+        typer.echo(f"Truncated capture: {exc}", err=True)
         raise typer.Exit(code=EXIT_TRUNCATED) from None
     except CaptureFormatError as exc:
-        typer.echo(f"Format zrzutu nieobslugiwany: {exc}", err=True)
+        typer.echo(f"Unsupported capture format: {exc}", err=True)
         raise typer.Exit(code=EXIT_UNSUPPORTED_FORMAT) from None
     except Exception as exc:
-        # Ten sam szkielet co `inspect`: uzytkownik ma dostac czytelny
-        # komunikat i kod 2, nie surowy traceback zwiazany z wewnetrznymi
-        # typami scapy albo silnika checkow.
-        typer.echo(f"Nie udalo sie przeanalizowac zrzutu {path}: {exc}", err=True)
+        # The same skeleton as `inspect`: the user is to get a readable
+        # message and code 2, not a raw traceback tied to the internal types
+        # of scapy or of the check engine.
+        typer.echo(f"Failed to analyse capture {path}: {exc}", err=True)
         raise typer.Exit(code=EXIT_UNREADABLE) from None
 
-    typer.echo(f"Zapisano: {result.analysis_path}")
-    typer.echo(f"Zapisano: {result.report_path}")
-    typer.echo(f"Liczba findingow: {len(result.analysis['findings'])}")
+    typer.echo(f"Written: {result.analysis_path}")
+    typer.echo(f"Written: {result.report_path}")
+    typer.echo(f"Finding count: {len(result.analysis['findings'])}")
     for warning in result.warnings:
-        typer.echo(f"Ostrzezenie: {warning}", err=True)
+        typer.echo(f"Warning: {warning}", err=True)
 
     if export_pdf:
-        # Import WEWNATRZ galezi obslugujacej flage, nie na gorze pliku -
-        # bez tego kazdy przebieg komendy analizy (takze dziesiatki testow
-        # w podprocesie bez flagi) wciagalby biblioteke generowania PDF do
-        # domyslnej sciezki narzedzia (FOUND-01, 04-03-PLAN.md Task 3).
+        # The import lives INSIDE the branch handling the flag, not at the
+        # top of the file - without that, every run of the analyze command
+        # (including dozens of subprocess tests without the flag) would pull
+        # the PDF generation library into the tool's default path (FOUND-01,
+        # 04-03-PLAN.md Task 3).
         from wayside.model import write_atomic_bytes
         from wayside.report_pdf import PdfRenderError, render_pdf
 
@@ -158,30 +161,31 @@ def analyze(
                 result.analysis, generated_at=generated_at, warnings=result.warnings
             )
         except PdfRenderError as exc:
-            typer.echo(f"Nie udalo sie wyrenderowac pliku PDF: {exc}", err=True)
+            typer.echo(f"Failed to render the PDF file: {exc}", err=True)
             raise typer.Exit(code=EXIT_UNREADABLE) from None
         pdf_path = out_dir / "report.pdf"
         write_atomic_bytes(pdf_path, pdf_bytes)
-        typer.echo(f"Zapisano: {pdf_path}")
+        typer.echo(f"Written: {pdf_path}")
 
 
 def _force_utf8_output() -> None:
-    """Wymusza UTF-8 na wyjsciu procesu.
+    """Forces UTF-8 on the process output.
 
-    Python ustawia `sys.stderr.errors` na `backslashreplace`, wiec na maszynie,
-    ktorej kodowanie domyslne nie niesie polskich znakow (cp1252 na
-    anglojezycznym Windows, a takze na runnerze CI), polska litera w ostrzezeniu
-    narzedzia wychodzi jako `\\u0142` zamiast znaku. Ostrzezenie, ktorego
-    uzytkownik nie przeczyta, nie jest ostrzezeniem - a `README` obiecuje
-    dzialanie na Windows 11 bez zadnego dodatkowego kroku konfiguracyjnego.
+    Python sets `sys.stderr.errors` to `backslashreplace`, so on a machine
+    whose default encoding does not carry a character the tool prints (cp1252
+    on English Windows, and on the CI runner too), a character outside that
+    encoding comes out as `\\u0142` instead of the character itself. Vendor
+    names read from the OUI table are the routine case: they carry letters
+    from across Europe and Asia, and they land in warnings and in the report.
+    A warning the user cannot read is not a warning - and the `README`
+    promises the tool works on Windows 11 with no extra configuration step.
 
-    Ten sam blad zostal juz raz naprawiony po stronie odczytu w
-    `tests/test_history_audit.py::_run_git`; tutaj jest naprawiony po stronie
-    zapisu, czyli u zrodla.
+    The same fault was already fixed once on the read side in
+    `tests/test_history_audit.py::_run_git`; here it is fixed on the write
+    side, that is at the source.
 
-    `reconfigure` istnieje wylacznie na `TextIOWrapper`, wiec strumien
-    podmieniony na inny obiekt (przechwycenie wyjscia w tescie) jest pomijany
-    bez bledu.
+    `reconfigure` exists only on `TextIOWrapper`, so a stream replaced by
+    another object (output capture in a test) is skipped without an error.
     """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
@@ -190,7 +194,7 @@ def _force_utf8_output() -> None:
 
 
 def run() -> None:
-    """Wejscie procesu: `python -m wayside.cli`."""
+    """Process entrypoint: `python -m wayside.cli`."""
     _force_utf8_output()
     app()
 

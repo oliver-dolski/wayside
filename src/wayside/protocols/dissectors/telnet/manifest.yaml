@@ -1,5 +1,5 @@
-# Identyfikator z pola `id` jest tym samym lancuchem, ktory trafia do pola
-# `protocol` kazdego zdarzenia i do etykiety wiersza macierzy komunikacji
+# The identifier in the `id` field is the same string that lands in the
+# `protocol` field of every event and in the communication matrix row label
 # (PROTO-05, CHECK-03).
 id: telnet
 confidence: high

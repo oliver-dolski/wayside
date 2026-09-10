@@ -1,18 +1,18 @@
-"""Warstwa Modbus/TCP nad scapy: walidacja MBAP jako brama, klasyfikacja
-kodow funkcji i rekonstrukcja kierunku zadanie/odpowiedz bez odwolania do
-numeru portu.
+"""The Modbus/TCP layer over scapy: MBAP validation as a gate, function
+code classification and reconstruction of the request/response direction
+without reference to a port number.
 
-Rozpoznanie protokolu idzie po ksztalcie naglowka MBAP na dowolnym porcie
-TCP (PROTO-01) - scapy wiaze Modbusa na sztywno z portem 502 przez
-`bind_layers` (02-RESEARCH.md, Pitfall 2), wiec ten modul nigdy nie polega na
-automatycznej dissekcji `pkt[TCP].payload`. `validate_mbap` jest brama:
-naglowek niepoprawny nie dochodzi do klasyfikacji funkcjonalnej (PROTO-02) -
-scapy samo NIE waliduje ani `protoId`, ani spojnosci pola `len`
-(zweryfikowane w 02-RESEARCH.md).
+Protocol recognition goes by the shape of the MBAP header on any TCP port
+(PROTO-01) - scapy binds Modbus rigidly to port 502 through `bind_layers`
+(02-RESEARCH.md, Pitfall 2), so this module never relies on automatic
+dissection of `pkt[TCP].payload`. `validate_mbap` is the gate: an invalid
+header never reaches functional classification (PROTO-02) - scapy itself
+validates neither `protoId` nor the consistency of the `len` field
+(verified in 02-RESEARCH.md).
 
-Kody funkcji sa klasyfikowane wg pelnej tabeli Modbus Application Protocol
-odtworzonej z `scapy.contrib.modbus` (PROTO-04) - lista kodow jest odczytem
-publicznie udokumentowanej specyfikacji, nie zgadywaniem.
+Function codes are classified against the full Modbus Application Protocol
+table reconstructed from `scapy.contrib.modbus` (PROTO-04) - the code list
+is a reading of a publicly documented specification, not guesswork.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import logging
 import struct
 from dataclasses import dataclass
 
-import wayside.pcap  # noqa: F401  - izolacja cache scapy PRZED importem warstw
+import wayside.pcap  # noqa: F401  - scapy cache isolation BEFORE layer imports
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
@@ -42,10 +42,10 @@ __all__ = [
 ]
 
 MBAP_HEADER_LEN = 7
-MIN_ADU_LEN = 8  # 7 bajtow MBAP + minimum 1 bajt kodu funkcji
+MIN_ADU_LEN = 8  # 7 bytes of MBAP + at least 1 byte of function code
 
-# Tabela kodow funkcji Modbus Application Protocol, odtworzona z
-# `scapy.contrib.modbus` (02-RESEARCH.md, Pattern 3). Dokladnie 19 wpisow.
+# The Modbus Application Protocol function code table, reconstructed from
+# `scapy.contrib.modbus` (02-RESEARCH.md, Pattern 3). Exactly 19 entries.
 FUNCTION_CODE_KIND: dict[int, str] = {
     0x01: "read",
     0x02: "read",
@@ -54,7 +54,7 @@ FUNCTION_CODE_KIND: dict[int, str] = {
     0x05: "write",
     0x06: "write",
     0x07: "read",
-    0x08: "other",  # Diagnostics - efekt zalezny od subFunc
+    0x08: "other",  # Diagnostics - the effect depends on subFunc
     0x0B: "read",
     0x0C: "read",
     0x0F: "write",
@@ -63,7 +63,7 @@ FUNCTION_CODE_KIND: dict[int, str] = {
     0x14: "read",
     0x15: "write",
     0x16: "write",
-    0x17: "write",  # Read/Write Multiple Registers - zawiera zapis w PDU
+    0x17: "write",  # Read/Write Multiple Registers - the PDU contains a write
     0x18: "read",
     0x2B: "read",
 }
@@ -115,12 +115,11 @@ class ModbusEvent:
 
 
 def validate_mbap(raw: bytes) -> MbapHeader | None:
-    """Waliduje naglowek MBAP jako brama przed parsowaniem funkcjonalnym.
+    """Validates the MBAP header as a gate before functional parsing.
 
-    Kolejnosc sprawdzen jest wymagana (zagrozenie T-2-01): dlugosc jest
-    sprawdzana PRZED jakimkolwiek indeksowaniem opartym o pole dlugosci.
-    `scapy` nie waliduje zadnego z tych trzech warunkow samo z siebie
-    (zweryfikowane w 02-RESEARCH.md).
+    The order of checks is required (threat T-2-01): the length is checked
+    BEFORE any indexing based on the length field. `scapy` validates none of
+    these three conditions on its own (verified in 02-RESEARCH.md).
     """
     if len(raw) < MIN_ADU_LEN:
         return None
@@ -145,22 +144,23 @@ def validate_mbap(raw: bytes) -> MbapHeader | None:
 
 
 def classify_function_code(code: int) -> str:
-    """Klasyfikuje kod funkcji. Kod poza tabela zwraca `unknown`, nigdy nie
-    podnosi `KeyError` i nigdy nie zwraca `read` domyslnie."""
+    """Classifies a function code. A code outside the table returns
+    `unknown`; it never raises `KeyError` and never returns `read` by
+    default."""
     return FUNCTION_CODE_KIND.get(code, "unknown")
 
 
 def dissect_all(segments: list[Segment]) -> list[ModbusEvent]:
-    """Dysekcja Modbus/TCP nad lista segmentow, w kolejnosci pliku.
+    """Modbus/TCP dissection over a list of segments, in file order.
 
-    Kierunek jest rozstrzygany BEZ odwolania do portu 502: strona, ktora w
-    danej sesji pierwsza wyslala ladunek przechodzacy `validate_mbap`, jest
-    klientem - jej segmenty sa `request`, segmenty drugiej strony `response`
-    (PROTO-01). `ModbusADURequest`/`ModbusADUResponse` sa konstruowane
-    recznie z surowych bajtow, zgodnie z rozstrzygnietym kierunkiem,
-    wylacznie jako dodatkowa brama (blad `struct.error` odrzuca segment) -
-    kod funkcji idzie z bajtu surowego na pozycji `MBAP_HEADER_LEN`, nie
-    z atrybutu obiektu scapy.
+    The direction is settled WITHOUT reference to port 502: the party that
+    first sent, in a given session, a payload passing `validate_mbap` is the
+    client - its segments are `request`, the other party's `response`
+    (PROTO-01). `ModbusADURequest`/`ModbusADUResponse` are constructed by
+    hand from raw bytes, following the settled direction, purely as an
+    additional gate (a `struct.error` rejects the segment) - the function
+    code comes from the raw byte at position `MBAP_HEADER_LEN`, not from an
+    attribute of a scapy object.
     """
     events: list[ModbusEvent] = []
     session_clients: dict[int, tuple[str, int]] = {}

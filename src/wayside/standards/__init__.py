@@ -1,1 +1,1 @@
-"""Warstwa normatywna: publiczny katalog norm i rozwiazywanie powolan."""
+"""The normative layer: the public standards catalogue and citation resolution."""

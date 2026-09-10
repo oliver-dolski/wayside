@@ -1,26 +1,27 @@
 id: unauthenticated-industrial-protocol
-title: "Użycie protokołu przemysłowego bez mechanizmu uwierzytelnienia w zaobserwowanej komunikacji"
+title: "Use of an industrial protocol without an authentication mechanism in the observed communication"
 applies_to:
   protocol: modbus-tcp
 severity: high
 rationale: >-
-  Finding dotyczy samego użycia protokołu, który nie ma mechanizmu
-  uwierzytelnienia nadawcy, niezależnie od tego, czy w tym zrzucie doszło do
-  operacji zapisu. Każdy host widzący ten segment sieci może wysłać
-  polecenie, które urządzenie wykona, a odczyt zaobserwowany w zrzucie
-  dowodzi wyłącznie tego, że ścieżka komunikacji istnieje i jest otwarta.
-  Jest to własność protokołu, nie decyzja ani zaniedbanie operatora
-  instalacji - w starszej instalacji przemysłowej alternatywy często nie ma.
+  This finding concerns the mere use of a protocol that has no mechanism for
+  authenticating the sender, regardless of whether a write operation
+  occurred in this capture. Any host that can see this network segment may
+  send a command the device will execute, and a read observed in the capture
+  proves only that the communication path exists and is open. This is a
+  property of the protocol, not a decision or an omission of the
+  installation operator - in an older industrial installation there is often
+  no alternative.
 standards:
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 1.2"
   - standard: "CLC/TS 50701"
     edition: "2023"
-    clause: "nieustalony-1"
+    clause: "undetermined-1"
 evaluator: "unauthenticated_industrial_protocol:evaluate"
 remediation: >-
-  Ograniczyć na poziomie sieci grono hostów, które mogą w ogóle otworzyć
-  sesję do sterownika, przez segmentację i listy kontroli dostępu. Samego
-  protokołu nie da się uwierzytelnić bez wymiany urządzeń albo bez warstwy
-  pośredniczącej.
+  Restrict at the network level the set of hosts that may open a session to
+  the controller at all, through segmentation and access control lists. The
+  protocol itself cannot be authenticated without replacing devices or
+  without an intermediary layer.

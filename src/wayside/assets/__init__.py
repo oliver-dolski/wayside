@@ -1,1 +1,1 @@
-"""Podpakiet warstwy inwentarza, rownolegly do checks i standards."""
+"""The inventory layer subpackage, parallel to checks and standards."""

@@ -2,55 +2,54 @@ entries:
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 1.1"
-    clause_title: "Identyfikacja i uwierzytelnienie użytkowników ludzkich"
-    clause_title_source: "wlasny"
+    clause_title: "Human user identification and authentication"
+    clause_title_source: "own"
     paraphrase: >-
-      Punkt dotyczy zapewnienia, że każdy użytkownik ludzki łączący się z
-      systemem sterowania jest jednoznacznie zidentyfikowany i
-      uwierzytelniony.
+      The clause concerns ensuring that every human user connecting to the
+      control system is uniquely identified and authenticated.
     paraphrase_note: >-
-      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
-      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
-      renderowane w żadnym formacie raportu.
+      Our own working paraphrase - never a quotation from the standard. The
+      field is visible only to an auditor verifying this catalogue against a
+      copy of the standard, and is not rendered in any report format.
     verified: false
     verification_note: >-
-      Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym
-      egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
-      prowizoryczny i nie stanowi potwierdzonego powołania.
+      The clause numbering and the paraphrase text await collation against a
+      legal copy of IEC 62443-3-3 in phase 4. Until then the entry is
+      provisional and does not constitute a confirmed citation.
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 1.2"
-    clause_title: "Identyfikacja i uwierzytelnienie procesów programowych i urządzeń"
-    clause_title_source: "wlasny"
+    clause_title: "Software process and device identification and authentication"
+    clause_title_source: "own"
     paraphrase: >-
-      Punkt dotyczy zapewnienia, że każdy proces programowy i każde
-      urządzenie łączące się z systemem sterowania jest jednoznacznie
-      zidentyfikowane i uwierzytelnione - w odróżnieniu od użytkowników
-      ludzkich, których dotyczy odrębny punkt tego katalogu.
+      The clause concerns ensuring that every software process and every
+      device connecting to the control system is uniquely identified and
+      authenticated - as distinct from human users, who are covered by a
+      separate clause of this catalogue.
     paraphrase_note: >-
-      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
-      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
-      renderowane w żadnym formacie raportu.
+      Our own working paraphrase - never a quotation from the standard. The
+      field is visible only to an auditor verifying this catalogue against a
+      copy of the standard, and is not rendered in any report format.
     verified: false
     verification_note: >-
-      Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym
-      egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
-      prowizoryczny i nie stanowi potwierdzonego powołania.
+      The clause numbering and the paraphrase text await collation against a
+      legal copy of IEC 62443-3-3 in phase 4. Until then the entry is
+      provisional and does not constitute a confirmed citation.
   - standard: "IEC-62443-3-3"
     edition: "2013"
     clause: "SR 4.1"
-    clause_title: "Poufność informacji w komunikacji"
-    clause_title_source: "wlasny"
+    clause_title: "Information confidentiality in communication"
+    clause_title_source: "own"
     paraphrase: >-
-      Punkt dotyczy ochrony poufności informacji przesyłanej w komunikacji
-      systemu sterowania, w tym danych uwierzytelniających, przed
-      ujawnieniem stronom nieuprawnionym.
+      The clause concerns protecting the confidentiality of information
+      transmitted in control system communication, credentials included,
+      against disclosure to unauthorised parties.
     paraphrase_note: >-
-      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
-      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
-      renderowane w żadnym formacie raportu.
+      Our own working paraphrase - never a quotation from the standard. The
+      field is visible only to an auditor verifying this catalogue against a
+      copy of the standard, and is not rendered in any report format.
     verified: false
     verification_note: >-
-      Numeracja punktu i treść parafrazy czekają na zestawienie z legalnym
-      egzemplarzem normy IEC 62443-3-3 w fazie 4. Do tego czasu wpis jest
-      prowizoryczny i nie stanowi potwierdzonego powołania.
+      The clause numbering and the paraphrase text await collation against a
+      legal copy of IEC 62443-3-3 in phase 4. Until then the entry is
+      provisional and does not constitute a confirmed citation.

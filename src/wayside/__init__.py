@@ -1,4 +1,4 @@
-"""Wayside: pasywne narzedzie do oceny bezpieczenstwa sieci OT/ICS."""
+"""Wayside: a passive security assessment tool for OT/ICS networks."""
 
 from importlib.metadata import version
 

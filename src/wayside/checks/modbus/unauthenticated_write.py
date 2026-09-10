@@ -1,8 +1,8 @@
-"""Evaluator checka `modbus-unauthenticated-write` (CHECK-04).
+"""Evaluator of the `modbus-unauthenticated-write` check (CHECK-04).
 
-Czyta WYLACZNIE `analysis["protocol_events"]`, nigdy pakietow ani pliku
-pcap - checki widza wylacznie model, nigdy wewnetrzne szczegoly dekodowania
-(02-RESEARCH.md, Anti-Pattern 1). Czysta funkcja, zero I/O.
+It reads ONLY `analysis["protocol_events"]`, never packets and never the
+pcap file - checks see the model only, never the internal details of
+decoding (02-RESEARCH.md, Anti-Pattern 1). A pure function, zero I/O.
 """
 
 from __future__ import annotations
@@ -11,15 +11,15 @@ __all__ = ["evaluate"]
 
 
 def evaluate(analysis: dict) -> list[dict]:
-    """Wybiera zdarzenia zapisu-zadania i zwraca dla kazdego finding z
-    dowodem (numer pakietu, identyfikator sesji). Metadane checka (tytul,
-    waga, uzasadnienie, powolanie na norme, zalecenie) sa dolaczane przez
-    silnik z pliku YAML, nie duplikowane tutaj.
+    """Selects write-request events and returns for each a finding with
+    the evidence (packet number, session identifier). The check metadata
+    (title, severity, rationale, standard citation, remediation) is attached
+    by the engine from the YAML file, not duplicated here.
 
-    Indeksowanie `analysis["protocol_events"]` jest CELOWO wymagajace: model
-    bez tego klucza jest modelem o niepoprawnym ksztalcie, a `KeyError`
-    jawnie to sygnalizuje, zamiast cicho zwrocic liste pusta, ktora
-    wygladalaby jak legalny brak zdarzen."""
+    Indexing `analysis["protocol_events"]` is DELIBERATELY demanding: a
+    model without that key is a model of invalid shape, and `KeyError`
+    signals it outright instead of quietly returning an empty list, which
+    would look like a legal absence of events."""
     results: list[dict] = []
     for event in analysis["protocol_events"]:
         if event.get("kind") == "write" and event.get("direction") == "request":

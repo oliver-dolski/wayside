@@ -1,7 +1,7 @@
-# Identyfikator z pola `id` jest tym samym lancuchem, ktory trafia do pola
-# `protocol` kazdego zdarzenia i do etykiety wiersza macierzy komunikacji
-# (PROTO-05). Ta sama wartosc, ktora dataclassa `LowConfidenceEvent` juz
-# niesie w polu `protocol`.
+# The identifier in the `id` field is the same string that lands in the
+# `protocol` field of every event and in the communication matrix row label
+# (PROTO-05). The same value the `LowConfidenceEvent` dataclass already
+# carries in its `protocol` field.
 id: modbus-rtu-over-tcp
 confidence: low
 dissector: "modbus_rtu_tunnel_dissector:dissect"

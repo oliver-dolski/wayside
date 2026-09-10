@@ -168,7 +168,7 @@ def test_scan_forbidden_on_empty_text_returns_empty_list():
 
 
 def test_scan_forbidden_on_clean_text_returns_empty_list():
-    text = "Analiza zrzutu wykazala jeden wskaznik zaobserwowanego zachowania."
+    text = "Analysis of capture raised one indicator of observed behaviour."
 
     assert scan_forbidden(text, ALL_PATTERNS) == []
 
@@ -242,7 +242,7 @@ def test_security_level_pattern_catches_three_spellings():
 def test_security_level_pattern_does_not_catch_bare_acronym_or_clause_number():
     for text in (
         "poziom bezpieczenstwa jest celem z analizy ryzyka, nie pomiarem",
-        "Powolanie na norme: IEC-62443-3-3 SR 1.1",
+        "Standard citation: IEC-62443-3-3 SR 1.1",
     ):
         assert scan_forbidden(text, SECURITY_LEVEL_PATTERNS) == [], text
 
@@ -312,7 +312,7 @@ def _section_body(text: str, name: str) -> str:
 def test_methodology_section_carries_every_rubric_criterion(fixture, tmp_path):
     result = _analyze_or_skip(fixture, tmp_path)
 
-    body = _section_body(result.report_markdown, "Metodyka")
+    body = _section_body(result.report_markdown, "Methodology")
 
     for severity, criterion in risk.RUBRIC_CRITERIA.items():
         assert criterion in body, f"{fixture.name}: brak kryterium dla wagi {severity}"
@@ -324,7 +324,7 @@ def test_methodology_section_carries_every_rubric_criterion(fixture, tmp_path):
 def test_methodology_section_carries_rubric_version(fixture, tmp_path):
     result = _analyze_or_skip(fixture, tmp_path)
 
-    body = _section_body(result.report_markdown, "Metodyka")
+    body = _section_body(result.report_markdown, "Methodology")
 
     assert risk.RUBRIC_VERSION in body, fixture.name
 
@@ -335,7 +335,7 @@ def test_methodology_section_carries_rubric_version(fixture, tmp_path):
 def test_methodology_section_names_every_allowed_severity(fixture, tmp_path):
     result = _analyze_or_skip(fixture, tmp_path)
 
-    body = _section_body(result.report_markdown, "Metodyka")
+    body = _section_body(result.report_markdown, "Methodology")
 
     for severity in risk.ALLOWED_SEVERITIES:
         assert severity in body, f"{fixture.name}: brak nazwy wagi {severity}"

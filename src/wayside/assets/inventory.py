@@ -1,17 +1,17 @@
-"""Budowa inwentarza hostow z segmentow: adres IP i adres MAC, kazde pole
-z wlasnym znacznikiem pochodzenia (ASSET-01, ASSET-03).
+"""Building the host inventory from segments: IP address and MAC address,
+every field with its own provenance marker (ASSET-01, ASSET-03).
 
-Ta lista NIE jest lista urzadzen widocznych w sieci - jest lista adresow IP,
-ktore pojawily sie w ruchu przechwyconym w tym punkcie podsluchu. Zrzut
-pokazuje wylacznie ruch, ktory dotarl do sondy (MUST NOT prezentowac
-inwentarza jako kompletnej listy urzadzen w sieci).
+This list is NOT a list of devices visible on the network - it is a list of
+IP addresses that appeared in traffic captured at this listening point. A
+capture shows only the traffic that reached the probe (the inventory is
+never to be presented as a complete list of devices on the network).
 
-Zalozenie Z-03: jeden adres IP niesie co najwyzej jeden adres MAC - pierwszy
-zaobserwowany w kolejnosci pliku. Drugi, rozny adres MAC dla tego samego IP
-przestawia pole `mac` na `not-derivable-passively`, zamiast wybierac jeden z
-dwoch: punkt przechwytywania za routerem widzi adres warstwy drugiej routera,
-nie hosta, wiec podanie jednego z dwoch jako `observed` bylby podaniem
-cudzego adresu jako adresu hosta.
+Assumption Z-03: one IP address carries at most one MAC address - the first
+observed in file order. A second, different MAC address for the same IP
+switches the `mac` field to `not-derivable-passively` instead of picking one
+of the two: a capture point behind a router sees the router's layer two
+address, not the host's, so presenting one of the two as `observed` would
+mean presenting someone else's address as the host's.
 """
 
 from __future__ import annotations
@@ -41,16 +41,17 @@ __all__ = [
     "build_assets",
 ]
 
-ROLE_MODBUS_CLIENT = "klient Modbus"
-ROLE_MODBUS_SERVER = "serwer Modbus"
-ROLE_MODBUS_BOTH = "klient i serwer Modbus"
-ROLE_UNDETERMINED = "nieustalona"
+ROLE_MODBUS_CLIENT = "Modbus client"
+ROLE_MODBUS_SERVER = "Modbus server"
+ROLE_MODBUS_BOTH = "Modbus client and server"
+ROLE_UNDETERMINED = "undetermined"
 
-# Zamkniety zbior etykiet roli, na wzor `ALLOWED_SEVERITIES` w `risk.py`
-# (zalozenie Z-26). Wszystkie cztery wartosci sa BEHAWIORALNE: mowia, co adres
-# robil w zaobserwowanym ruchu, nie czym urzadzenie jest w procesie. Etykieta
-# organizacyjna wymaga wiedzy, ktorej pasywny zrzut nie niesie, a zamkniety
-# zbior zamienia te dyscypline z konwencji autora we wlasnosc kodu.
+# A closed set of role labels, modelled on `ALLOWED_SEVERITIES` in
+# `risk.py` (assumption Z-26). All four values are BEHAVIOURAL: they say
+# what an address did in the observed traffic, not what a device is in the
+# process. An organisational label requires knowledge a passive capture does
+# not carry, and a closed set turns that discipline from the author's
+# convention into a property of the code.
 ROLE_LABELS: tuple[str, ...] = (
     ROLE_MODBUS_CLIENT,
     ROLE_MODBUS_SERVER,
@@ -58,20 +59,16 @@ ROLE_LABELS: tuple[str, ...] = (
     ROLE_UNDETERMINED,
 )
 
-# Etykiety organizacyjne, czyli DANE TESTOWE dla bramki maszynowej z planu
-# 03-06 Task 3 - w tym samym stylu co `EXTERNAL_DISSECTOR_PATTERNS`
-# w `tests/test_no_external_dissector.py`. Zyja w kodzie produkcyjnym po to,
-# zeby bramka i implementacja miały jedno zrodlo prawdy zamiast dwoch list,
-# ktore rozjada sie przy pierwszej zmianie. Kazda z nich twierdzilaby cos
-# o funkcji urzadzenia w procesie - a z kierunku ruchu w jednym oknie tego
-# ustalic nie mozna (03-RESEARCH.md, Pitfall 4).
+# Organisational labels, that is TEST DATA for the machine gate from plan
+# 03-06 Task 3 - in the same style as `EXTERNAL_DISSECTOR_PATTERNS` in
+# `tests/test_no_external_dissector.py`. They live in production code so
+# that the gate and the implementation have one source of truth instead of
+# two lists that drift at the first change. Each of them would assert
+# something about a device's function in the process - and that cannot be
+# established from traffic direction in a single window (03-RESEARCH.md,
+# Pitfall 4).
 FORBIDDEN_ROLE_LABELS: tuple[str, ...] = (
-    "stanowisko operatorskie",
-    "stacja inzynierska",
-    "stacja inżynierska",
     "historian",
-    "system nadzorczy",
-    "sterownik programowalny",
     "HMI",
     "engineering workstation",
     "operator workstation",
@@ -81,18 +78,19 @@ FORBIDDEN_ROLE_LABELS: tuple[str, ...] = (
     "IED",
 )
 
-# Zamkniety zbior poziomow pewnosci roli (zalozenie Z-27). Wartosci `wysoka`
-# NIE MA i nie bedzie: ograniczeniem nie jest liczebnosc probki, tylko to, ze
-# zaobserwowane okno moze nie obejmowac zachowania odwrotnego - laptop
-# inzyniera, ktory przez kwadrans tylko odczytywal, wyglada tak samo przy
-# dziesieciu zdarzeniach co przy tysiacu. Trzeci poziom w zbiorze bylby
-# zaproszeniem do jego uzycia.
-CONFIDENCE_LEVELS: tuple[str, ...] = ("niska", "średnia")
+# A closed set of role confidence levels (assumption Z-27). There is no
+# `high` value and there will not be one: the limitation is not the sample
+# size but the fact that the observed window may not cover the opposite
+# behaviour - an engineer's laptop that only read for fifteen minutes looks
+# the same at ten events as at a thousand. A third level in the set would be
+# an invitation to use it.
+CONFIDENCE_LEVELS: tuple[str, ...] = ("low", "medium")
 
-# Prog pewnosci sredniej (zalozenie Z-28). Trzy zdarzenia to najmniejsza
-# liczba, przy ktorej kierunek przestaje byc pojedyncza wymiana. Liczba jest
-# arbitralna w tym samym stopniu co kazda inna i dlatego stoi jako nazwana
-# stala, a nie jako liczba w warunku.
+# The medium confidence threshold (assumption Z-28). Three events is the
+# smallest number at which a direction stops being a single exchange. The
+# number is arbitrary to exactly the same degree as any other, which is why
+# it stands as a named constant rather than as a number inside a
+# condition.
 MIN_EVENTS_FOR_MEDIUM_CONFIDENCE = 3
 
 PROVENANCE_METHOD_ROLE = "modbus-traffic-direction"
@@ -105,62 +103,68 @@ def build_assets(
     events: list[dict] | None = None,
     vendor_lookup: Callable[[str], str | None] | None = None,
 ) -> list[dict]:
-    """Buduje liste hostow w kolejnosci pierwszego zaobserwowania adresu IP
-    w pliku. Kazdy wpis ma klucze `ip`, `mac`, `oui_vendor`, `unit_ids`
-    i `gateway`, kazda wartosc jest slownikiem o ksztalcie
-    `{"value": ..., "provenance": ...}` (wynik `dataclasses.asdict` na
-    `ObservedField`).
+    """Builds the host list in the order each IP address is first observed
+    in the file. Every entry has the keys `ip`, `mac`, `oui_vendor`,
+    `unit_ids` and `gateway`, and every value is a dictionary of the shape
+    `{"value": ..., "provenance": ...}` (the result of
+    `dataclasses.asdict` on an `ObservedField`).
 
-    `events` jest lista slownikow w ksztalcie `analysis["protocol_events"]`,
-    czyli wynikiem `dataclasses.asdict` na `ModbusEvent`. Wartosc `None`
-    znaczy tyle co lista pusta - kazdy wywolujacy sprzed tego argumentu
-    dziala dalej bez zmiany.
+    `events` is a list of dictionaries in the shape of
+    `analysis["protocol_events"]`, that is the result of
+    `dataclasses.asdict` on a `ModbusEvent`. A value of `None` means the
+    same as an empty list - every caller predating this argument keeps
+    working unchanged.
 
-    Regula pol `unit_ids` i `gateway` (ASSET-04, ASSET-05): wartosci Unit ID
-    sa zbierane WYLACZNIE pod adresem docelowym zdarzen o kierunku `request`,
-    bo Unit ID adresuje urzadzenie logiczne po stronie serwera. Adres bez ani
-    jednej takiej wartosci daje `not_derivable()` w obu polach. Adres
-    z wartosciami daje `observed(lista posortowana rosnaco)`.
+    The rule for the `unit_ids` and `gateway` fields (ASSET-04, ASSET-05):
+    Unit ID values are collected ONLY under the destination address of
+    events with the `request` direction, because a Unit ID addresses a
+    logical device on the server side. An address without a single such
+    value gives `not_derivable()` in both fields. An address with values
+    gives `observed(list sorted ascending)`.
 
-    `vendor_lookup` jest funkcja przyjmujaca adres MAC i zwracajaca nazwe
-    producenta albo `None` (zalozenie Z-20). Ten modul NIE importuje
-    `wayside.assets.oui.lookup_vendor` ani `load_oui_table` - wywolujacy
-    (`wayside.pipeline.analyze`) wstrzykuje gotowa funkcje domknieta nad
-    wczytana tabela, wiec ten plik i jego testy pozostaja calkowicie
-    niezalezne od tego, czy plik danych lezy w drzewie repozytorium.
+    `vendor_lookup` is a function taking a MAC address and returning a
+    vendor name or `None` (assumption Z-20). This module does NOT import
+    `wayside.assets.oui.lookup_vendor` or `load_oui_table` - the caller
+    (`wayside.pipeline.analyze`) injects a ready function closed over the
+    loaded table, so this file and its tests stay entirely independent of
+    whether the data file sits in the repository tree.
 
-    Regula pola `oui_vendor`, w tej kolejnosci: adres MAC hosta nieustalony
-    (brak warstwy Ethernet albo niezgodnosc wedlug Z-03) daje
-    `not_derivable()` BEZ wolania `vendor_lookup`; `vendor_lookup` rowne
-    `None` daje `not_derivable()`; wynik `vendor_lookup` rowny `None` daje
-    `not_derivable()`; wynik niepusty daje
-    `inferred(nazwa, PROVENANCE_METHOD_OUI)` - producent jest WNIOSKIEM z
-    tabeli, nigdy obserwacja z ruchu (zalozenie Z-23).
+    The rule for the `oui_vendor` field, in this order: an undetermined host
+    MAC address (no Ethernet layer, or a mismatch under Z-03) gives
+    `not_derivable()` WITHOUT calling `vendor_lookup`; a `vendor_lookup`
+    equal to `None` gives `not_derivable()`; a `vendor_lookup` result equal
+    to `None` gives `not_derivable()`; a non-empty result gives
+    `inferred(name, PROVENANCE_METHOD_OUI)` - the vendor is an INFERENCE
+    from the table, never an observation from the traffic (assumption
+    Z-23).
 
-    Uzywa `dict` plus osobnej listy `order` dla kolejnosci wstawiania -
-    nigdy `set` na sciezce do wyniku, bo `model.dump_deterministic` sortuje
-    wylacznie klucze slownika, wiec kolejnosc listy jest obowiazkiem
-    producenta danych (wzorzec identyczny z `pipeline._build_conversations`).
+    It uses a `dict` plus a separate `order` list for insertion order -
+    never a `set` on the path to the result, because
+    `model.dump_deterministic` sorts dictionary keys only, so list order is
+    the obligation of the data producer (the pattern is identical to
+    `pipeline._build_conversations`).
     """
     hosts: dict[str, dict[str, object]] = {}
     order: list[str] = []
     first_mac: dict[str, str | None] = {}
 
-    # `set` jest tu dopuszczalny WYLACZNIE jako struktura robocza wewnatrz
-    # funkcji - do wyniku wchodzi lista posortowana, nigdy kolejnosc iteracji
-    # zbioru.
+    # A `set` is allowed here ONLY as a working structure inside the
+    # function - what enters the result is a sorted list, never the iteration
+    # order of a set.
     unit_ids_by_server: dict[str, set[int]] = {}
-    # Liczone sa WYLACZNIE zdarzenia o kierunku `request`: odpowiedz jest
-    # lustrem zadania, wiec policzenie obu podwoiloby te sama obserwacje.
+    # ONLY events with the `request` direction are counted: a response
+    # mirrors a request, so counting both would double the same
+    # observation.
     requests_sent: dict[str, int] = {}
     requests_received: dict[str, int] = {}
     for event in events or []:
         if event.get("direction") != "request":
             continue
-        # `unit_id` jest polem specyficznym dla Modbusa: od Fazy 4 (PROTO-05)
-        # `events` niesie takze zdarzenia protokolow jawnotekstowych, ktore
-        # tego pola nie maja - `"unit_id" in event`, nigdy `event["unit_id"]`
-        # bez warunku, zeby zdarzenie bez tego pola nie podnosilo KeyError.
+        # `unit_id` is a Modbus-specific field: since Phase 4 (PROTO-05)
+        # `events` also carries cleartext protocol events, which do not have
+        # it - `"unit_id" in event`, never an unconditional
+        # `event["unit_id"]`, so that an event without the field does not
+        # raise KeyError.
         if "unit_id" in event:
             unit_ids_by_server.setdefault(event["dst_ip"], set()).add(event["unit_id"])
         requests_sent[event["src_ip"]] = requests_sent.get(event["src_ip"], 0) + 1
@@ -184,10 +188,11 @@ def build_assets(
         seen = unit_ids_by_server.get(ip)
         if seen is not None and len(seen) > 1:
             return inferred(True, "multiple-unit-ids")
-        # Galezi zwracajacej `False` tu nie ma i nie bedzie (zalozenie Z-25):
-        # jedna wartosc Unit ID pod adresem jest brakiem dowodu na brame, nie
-        # dowodem jej braku - brama z jednym podpietym urzadzeniem wyglada
-        # w zrzucie identycznie jak urzadzenie bez bramy.
+        # There is no branch returning `False` here and there will not be
+        # one (assumption Z-25): a single Unit ID under an address is an
+        # absence of evidence for a gateway, not evidence of its absence - a
+        # gateway with one device attached looks identical in a capture to a
+        # device with no gateway.
         return not_derivable()
 
     def _role_field(sent: int, received: int) -> object:
@@ -197,32 +202,33 @@ def build_assets(
             return inferred(ROLE_MODBUS_CLIENT, PROVENANCE_METHOD_ROLE)
         if received > 0:
             return inferred(ROLE_MODBUS_SERVER, PROVENANCE_METHOD_ROLE)
-        # ASSET-07: jedyne pole inwentarza, w ktorym brak wiedzy ma WARTOSC,
-        # a nie `null`. Rola nieustalona ma byc widocznym wierszem raportu,
-        # bo host pominiety w inwentarzu wyglada jak host, ktorego nie ma,
-        # a host z pusta rubryka wyglada jak usterka renderowania. Znacznik
-        # pochodzenia niesie ten sam komunikat co wszedzie indziej.
+        # ASSET-07: the only inventory field where an absence of knowledge
+        # has a VALUE rather than `null`. An undetermined role is meant to be
+        # a visible row in the report, because a host omitted from the
+        # inventory looks like a host that does not exist, and a host with an
+        # empty cell looks like a rendering fault. The provenance marker
+        # carries the same message as everywhere else.
         return ObservedField(value=ROLE_UNDETERMINED, provenance=PROVENANCE_NOT_DERIVABLE)
 
     def _role_evidence_field(sent: int, received: int) -> object:
         if sent == 0 and received == 0:
-            # Zero zaobserwowanych zdarzen jest OBSERWACJA, nie brakiem
-            # obserwacji - stad znacznik `observed` takze tutaj.
+            # Zero observed events is an OBSERVATION, not an absence of
+            # observation - hence the `observed` marker here too.
             return observed(
-                "Zero zdarzeń Modbus powiązanych z tym adresem w tym zrzucie "
-                "(zadania wysłane: 0, zadania odebrane: 0)."
+                "Zero Modbus events associated with this address in this "
+                "capture (requests sent: 0, requests received: 0)."
             )
         return observed(
-            f"Zadania Modbus wysłane przez ten adres: {sent}; "
-            f"zadania Modbus odebrane przez ten adres: {received}."
+            f"Modbus requests sent by this address: {sent}; "
+            f"Modbus requests received by this address: {received}."
         )
 
     def _role_confidence_field(sent: int, received: int) -> object:
         total = sent + received
         directions_seen = (1 if sent > 0 else 0) + (1 if received > 0 else 0)
         if total >= MIN_EVENTS_FOR_MEDIUM_CONFIDENCE and directions_seen == 1:
-            return inferred("średnia", PROVENANCE_METHOD_ROLE_CONFIDENCE)
-        return inferred("niska", PROVENANCE_METHOD_ROLE_CONFIDENCE)
+            return inferred("medium", PROVENANCE_METHOD_ROLE_CONFIDENCE)
+        return inferred("low", PROVENANCE_METHOD_ROLE_CONFIDENCE)
 
     def _visit(ip: str, mac: str | None) -> None:
         if ip not in hosts:
@@ -244,14 +250,15 @@ def build_assets(
             }
             return
 
-        # Drugi, rozny adres MAC dla tego samego IP (Z-03): przestaw pole
-        # na not_derivable() i zostaw je tam - druga niezgodnosc niczego
-        # juz nie zmienia. Adres MAC nieobecny przy pierwszym napotkaniu
-        # zostaje not_derivable() na stale, nawet jesli pozniejszy segment
-        # niesie adres MAC - brak wiedzy na starcie nie zamienia sie w
-        # pewnosc pozniej. Pole oui_vendor NIE jest przeliczane tutaj - jest
-        # ustalane wylacznie przy pierwszym napotkaniu adresu IP, spojnie z
-        # polem mac, ktorego wtedy dotyczy.
+        # A second, different MAC address for the same IP (Z-03): switch the
+        # field to not_derivable() and leave it there - a second mismatch
+        # changes nothing any more. A MAC address absent at the first
+        # encounter stays not_derivable() permanently, even if a later
+        # segment carries one - an absence of knowledge at the start does not
+        # turn into certainty later. The oui_vendor field is NOT recomputed
+        # here - it is established only at the first encounter with the IP
+        # address, consistently with the mac field it concerns at that
+        # moment.
         if first_mac[ip] is not None and mac is not None and mac != first_mac[ip]:
             hosts[ip]["mac"] = not_derivable()
 

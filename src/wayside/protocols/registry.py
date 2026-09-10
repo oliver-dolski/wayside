@@ -1,17 +1,17 @@
-"""Rejestr dissectorow: skan katalogu w czasie dzialania, bez rejestru
-statycznego (PROTO-05, ten sam wzorzec co `checks/engine.py` dla D-06).
+"""The dissector registry: a directory scan at runtime, with no static
+registry (PROTO-05, the same pattern as `checks/engine.py` for D-06).
 
-Nowy protokol to nowy katalog z plikiem `manifest.yaml` i plikiem
-siostrzanym pod `protocols/dissectors/<nazwa>/` - ten modul sie przy tym
-nie zmienia, bo `discover_dissectors` odkrywa pliki fizycznie przez
-`sorted(dissectors_root.rglob("manifest.yaml"))`, nie przez liste
-zaimportowanych modulow (PROTO-05).
+A new protocol is a new directory with a `manifest.yaml` file and a sibling
+file under `protocols/dissectors/<name>/` - this module does not change for
+it, because `discover_dissectors` discovers files physically through
+`sorted(dissectors_root.rglob("manifest.yaml"))`, not through a list of
+imported modules (PROTO-05).
 
-Pole `dissector` jest rozwiazywane jako plik SIOSTRZANY wobec
-`manifest.yaml`, przez `importlib.util.spec_from_file_location`, nigdy przez
-`importlib.import_module` na sciezce z kropkami - to zamyka to samo
-zagrozenie (T-4-01), ktore `checks/engine.py::_load_evaluator` zamyka dla
-pola `evaluator` (T-2-04).
+The `dissector` field is resolved as a file SIBLING to `manifest.yaml`,
+through `importlib.util.spec_from_file_location`, never through
+`importlib.import_module` on a dotted path - that closes the same threat
+(T-4-01) which `checks/engine.py::_load_evaluator` closes for the
+`evaluator` field (T-2-04).
 """
 
 from __future__ import annotations
@@ -47,9 +47,9 @@ REQUIRED_EVENT_FIELDS: tuple[str, ...] = ("packet_number", "session_id")
 
 
 class DissectorSchemaError(Exception):
-    """Plik manifestu dissectora nie ma poprawnego ksztaltu, `dissector`
-    wskazuje na niedozwolony modul, albo zdarzenie zwrocone przez dissector
-    nie ma poprawnego ksztaltu."""
+    """The dissector manifest file does not have a valid shape,
+    `dissector` points at a disallowed module, or an event returned by a
+    dissector does not have a valid shape."""
 
 
 @dataclass(frozen=True)
@@ -63,14 +63,14 @@ def _validate_fields(spec: dict, manifest_path: Path) -> None:
     missing = [field for field in REQUIRED_DISSECTOR_FIELDS if not spec.get(field)]
     if missing:
         raise DissectorSchemaError(
-            f"Dissector {manifest_path} niekompletny: brak albo puste pola {missing}."
+            f"Dissector {manifest_path} is incomplete: missing or empty fields {missing}."
         )
 
     confidence = spec["confidence"]
     if confidence not in ALLOWED_CONFIDENCE:
         raise DissectorSchemaError(
-            f"Dissector {manifest_path}: pole confidence ma wartosc "
-            f"{confidence!r}, dozwolone wartosci to {ALLOWED_CONFIDENCE}."
+            f"Dissector {manifest_path}: the confidence field has the value "
+            f"{confidence!r}, allowed values are {ALLOWED_CONFIDENCE}."
         )
 
 
@@ -79,19 +79,20 @@ def _load_dissector(spec: dict, manifest_path: Path) -> Callable[[list], list[di
     module_name, sep, func_name = dissector_ref.partition(":")
     if not sep or not module_name or not func_name:
         raise DissectorSchemaError(
-            f"Dissector {manifest_path}: pole dissector ma niepoprawny ksztalt "
-            f"{dissector_ref!r}, oczekiwano 'modul:funkcja'."
+            f"Dissector {manifest_path}: the dissector field has an invalid "
+            f"shape {dissector_ref!r}, expected 'module:function'."
         )
     if any(token in module_name for token in ("/", "\\", ".")):
         raise DissectorSchemaError(
-            f"Dissector {manifest_path}: nazwa modulu dissectora {module_name!r} "
-            "nie moze zawierac separatora sciezki ani kropki (zagrozenie T-4-01)."
+            f"Dissector {manifest_path}: the dissector module name "
+            f"{module_name!r} cannot contain a path separator or a dot "
+            "(threat T-4-01)."
         )
 
     module_path = manifest_path.parent / f"{module_name}.py"
     if not module_path.is_file():
         raise DissectorSchemaError(
-            f"Dissector {manifest_path}: plik dissectora nie istnieje: {module_path}."
+            f"Dissector {manifest_path}: the dissector file does not exist: {module_path}."
         )
 
     module_spec = importlib.util.spec_from_file_location(
@@ -99,7 +100,7 @@ def _load_dissector(spec: dict, manifest_path: Path) -> Callable[[list], list[di
     )
     if module_spec is None or module_spec.loader is None:
         raise DissectorSchemaError(
-            f"Dissector {manifest_path}: nie udalo sie zaladowac modulu dissectora "
+            f"Dissector {manifest_path}: failed to load the dissector module "
             f"{module_path}."
         )
     module = importlib.util.module_from_spec(module_spec)
@@ -108,20 +109,20 @@ def _load_dissector(spec: dict, manifest_path: Path) -> Callable[[list], list[di
     dissect = getattr(module, func_name, None)
     if not callable(dissect):
         raise DissectorSchemaError(
-            f"Dissector {manifest_path}: funkcja {func_name!r} nie istnieje w "
-            f"{module_path}."
+            f"Dissector {manifest_path}: the function {func_name!r} does not "
+            f"exist in {module_path}."
         )
     return dissect
 
 
 def discover_dissectors(dissectors_root: Path = DISSECTORS_ROOT) -> list[DissectorSpec]:
-    """Skanuje `dissectors_root` w poszukiwaniu plikow `manifest.yaml`, w
-    kolejnosci posortowanej (kolejnosc systemu plikow nie jest gwarantowana
-    miedzy maszynami - determinizm bajtowy `analysis.json` zalezy od tego
-    sortowania, REPORT-06). Dwa manifesty o identycznym `id` koncza sie
-    `DissectorSchemaError`, nigdy cichym nadpisaniem. Katalog nieistniejacy
-    zwraca liste pusta - `rglob` na sciezce nieistniejacej zwraca iterator
-    pusty, wiec to zachowanie wynika z biblioteki."""
+    """Scans `dissectors_root` for `manifest.yaml` files, in sorted order
+    (filesystem order is not guaranteed between machines - the byte
+    determinism of `analysis.json` depends on this sorting, REPORT-06). Two
+    manifests with an identical `id` end in a `DissectorSchemaError`, never
+    in a silent overwrite. A non-existent directory returns an empty list -
+    `rglob` on a non-existent path returns an empty iterator, so that
+    behaviour follows from the library."""
     dissectors: list[DissectorSpec] = []
     seen_ids: dict[str, Path] = {}
 
@@ -132,8 +133,8 @@ def discover_dissectors(dissectors_root: Path = DISSECTORS_ROOT) -> list[Dissect
         dissector_id = spec["id"]
         if dissector_id in seen_ids:
             raise DissectorSchemaError(
-                f"Zduplikowany identyfikator dissectora {dissector_id!r}: "
-                f"{seen_ids[dissector_id]} oraz {manifest_path}."
+                f"Duplicate dissector identifier {dissector_id!r}: "
+                f"{seen_ids[dissector_id]} and {manifest_path}."
             )
         seen_ids[dissector_id] = manifest_path
 
@@ -147,14 +148,14 @@ def _validate_event_shape(event: dict, dissector: DissectorSpec) -> None:
     missing = [field for field in REQUIRED_EVENT_FIELDS if field not in event]
     if missing:
         raise DissectorSchemaError(
-            f"Dissector {dissector.path}: zdarzenie bez pol wymaganych {missing}."
+            f"Dissector {dissector.path}: event without required fields {missing}."
         )
     manifest_protocol = dissector.spec["id"]
     event_protocol = event.get("protocol")
     if event_protocol is not None and event_protocol != manifest_protocol:
         raise DissectorSchemaError(
-            f"Dissector {dissector.path}: zdarzenie niesie pole protocol "
-            f"{event_protocol!r}, sprzeczne z identyfikatorem manifestu "
+            f"Dissector {dissector.path}: the event carries a protocol field "
+            f"{event_protocol!r}, contradicting the manifest identifier "
             f"{manifest_protocol!r}."
         )
 
@@ -162,19 +163,21 @@ def _validate_event_shape(event: dict, dissector: DissectorSpec) -> None:
 def run_dissectors(
     segments: list, dissectors: list[DissectorSpec]
 ) -> tuple[list[dict], list[dict]]:
-    """Uruchamia kazdy dissector nad PELNA lista `segments` (kazdy dissector
-    jest bezstanowy i sam odrzuca segmenty, ktore go nie dotycza), rejestr
-    wstrzykuje pola `protocol` i `confidence` z manifestu do kazdego
-    zdarzenia zwroconego przez dissector - dissector nie ma jak podniesc
-    wlasnej pewnosci rozpoznania (zalozenie Z-41, zagrozenie T-4-03).
+    """Runs every dissector over the FULL `segments` list (each dissector
+    is stateless and rejects the segments that do not concern it itself);
+    the registry injects the `protocol` and `confidence` fields from the
+    manifest into every event a dissector returns - a dissector has no way
+    to raise its own recognition confidence (assumption Z-41, threat
+    T-4-03).
 
-    Wynik jest rozdzielany na dwie listy po polu `confidence` z MANIFESTU:
-    zdarzenia dissectorow o pewnosci `high` ida do pierwszej listy
-    (`protocol_events`), o pewnosci `low` do drugiej
-    (`low_confidence_events`). Obie listy sa sortowane po trojce
-    `(packet_number, session_id, protocol)` PRZED zwrotem - trzeci klucz
-    jest potrzebny, bo dwa dissectory moga rozpoznac ten sam segment w tej
-    samej sesji, a wtedy para pierwszych kluczy nie rozstrzyga kolejnosci."""
+    The result is split into two lists by the `confidence` field from the
+    MANIFEST: events from dissectors with `high` confidence go into the
+    first list (`protocol_events`), those with `low` confidence into the
+    second (`low_confidence_events`). Both lists are sorted by the triple
+    `(packet_number, session_id, protocol)` BEFORE being returned - the
+    third key is needed because two dissectors may recognise the same
+    segment in the same session, and then the first pair of keys does not
+    settle the order."""
     protocol_events: list[dict] = []
     low_confidence_events: list[dict] = []
 

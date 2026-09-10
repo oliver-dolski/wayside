@@ -65,7 +65,7 @@ def _finding(**overrides) -> dict:
         "check_id": "modbus-unauthenticated-write",
         "title": "Operacja zapisu do sterownika przez Modbus/TCP bez uwierzytelnienia",
         "severity": "high",
-        "risk": "wysokie",
+        "risk": "serious",
         "rationale": "Wlasna analiza zaobserwowanego ruchu, nie cytat z normy.",
         "standard_refs": [
             {
@@ -73,7 +73,7 @@ def _finding(**overrides) -> dict:
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
-                "clause_title_source": "egzemplarz",
+                "clause_title_source": "copy",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": False,
                 "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
@@ -166,8 +166,8 @@ def test_empty_findings_list_still_has_all_six_sections_and_explicit_statement()
     headers = _headers(text)
     assert tuple(headers) == SECTIONS
 
-    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
-    assert "brak" in findings_body.lower()
+    findings_body = _section_bodies(text)[SECTIONS.index("Findings")]
+    assert "no findings" in findings_body.lower()
 
 
 # --- Model z jednym findingiem: pola dowodu i znacznik nieweryfikacji ------
@@ -176,15 +176,15 @@ def test_empty_findings_list_still_has_all_six_sections_and_explicit_statement()
 def test_one_finding_section_carries_evidence_clause_and_unverified_marker():
     text = _render(findings=[_finding()])
 
-    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
+    findings_body = _section_bodies(text)[SECTIONS.index("Findings")]
 
-    assert "pakiet nr 1" in findings_body
-    assert "sesja nr 0" in findings_body
+    assert "packet no. 1" in findings_body
+    assert "session no. 0" in findings_body
     assert "SR 1.1" in findings_body
     assert "Human user identification and authentication" in findings_body
     assert "Parafraza punktu normy" in findings_body
-    assert "PROWIZORYCZNE" in findings_body
-    assert "NIEZWERYFIKOWANE" in findings_body
+    assert "PROVISIONAL" in findings_body
+    assert "UNVERIFIED" in findings_body
 
 
 # --- G-04-5b: linia uczestnikow sesji, przed linia dowodu ------------------
@@ -195,17 +195,17 @@ def test_session_parties_line_builds_source_arrow_target():
 
     line = session_parties_line(evidence)
 
-    assert line == "Uczestnicy sesji: A:1 -> B:2"
+    assert line == "Session parties: A:1 -> B:2"
 
 
 def test_finding_block_carries_session_parties_line_before_evidence_line():
     text = _render(findings=[_finding()])
 
-    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
+    findings_body = _section_bodies(text)[SECTIONS.index("Findings")]
 
-    assert "Uczestnicy sesji: 10.0.0.1:502 -> 10.0.0.2:50210" in findings_body
-    parties_pos = findings_body.index("Uczestnicy sesji:")
-    evidence_pos = findings_body.index("Dowód:")
+    assert "Session parties: 10.0.0.1:502 -> 10.0.0.2:50210" in findings_body
+    parties_pos = findings_body.index("Session parties:")
+    evidence_pos = findings_body.index("Evidence:")
     assert parties_pos < evidence_pos
 
 
@@ -227,9 +227,9 @@ def test_five_findings_of_same_check_have_five_distinct_session_parties_lines():
 
     text = _render(findings=findings)
 
-    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
+    findings_body = _section_bodies(text)[SECTIONS.index("Findings")]
     parties_lines = [
-        line for line in findings_body.splitlines() if line.startswith("- Uczestnicy sesji:")
+        line for line in findings_body.splitlines() if line.startswith("- Session parties:")
     ]
     assert len(parties_lines) == 5
     assert len(set(parties_lines)) == 5
@@ -243,41 +243,41 @@ def _ref(**overrides) -> dict:
         "standard": "IEC-62443-3-3",
         "clause": "SR 1.1",
         "clause_title": "Tytul punktu",
-        "clause_title_source": "egzemplarz",
+        "clause_title_source": "copy",
     }
     base.update(overrides)
     return base
 
 
-def test_citation_line_carries_title_for_egzemplarz_provenance():
-    line = citation_line(_ref(clause_title_source="egzemplarz"))
+def test_citation_line_carries_title_for_copy_provenance():
+    line = citation_line(_ref(clause_title_source="copy"))
 
     assert "IEC-62443-3-3" in line
     assert "SR 1.1" in line
     assert "Tytul punktu" in line
 
 
-def test_citation_line_omits_title_for_wlasny_provenance():
-    line = citation_line(_ref(clause_title_source="wlasny"))
+def test_citation_line_omits_title_for_own_provenance():
+    line = citation_line(_ref(clause_title_source="own"))
 
     assert "IEC-62443-3-3" in line
     assert "SR 1.1" in line
     assert "Tytul punktu" not in line
 
 
-def test_citation_scope_line_is_none_for_egzemplarz_provenance():
-    assert citation_scope_line(_ref(clause_title_source="egzemplarz")) is None
+def test_citation_scope_line_is_none_for_copy_provenance():
+    assert citation_scope_line(_ref(clause_title_source="copy")) is None
 
 
-def test_citation_scope_line_carries_label_and_title_for_wlasny_provenance():
-    line = citation_scope_line(_ref(clause_title_source="wlasny"))
+def test_citation_scope_line_carries_label_and_title_for_own_provenance():
+    line = citation_scope_line(_ref(clause_title_source="own"))
 
     assert line is not None
     assert CITATION_SCOPE_LABEL in line
     assert "Tytul punktu" in line
 
 
-def test_wlasny_provenance_finding_has_no_line_with_both_clause_and_title():
+def test_own_provenance_finding_has_no_line_with_both_clause_and_title():
     """Zbiorowy dowod na modelu recznym: wpis o prowieniencji wlasnej nie ma
     ani jednej linii niosacej jednoczesnie numer punktu i tytul (G-04-3c)."""
     finding = _finding(
@@ -287,7 +287,7 @@ def test_wlasny_provenance_finding_has_no_line_with_both_clause_and_title():
                 "edition": "2013",
                 "clause": "SR 1.1",
                 "clause_title": "Tytul opisu wlasnego",
-                "clause_title_source": "wlasny",
+                "clause_title_source": "own",
                 "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
                 "verified": False,
                 "verification_note": "Numeracja prowizoryczna.",
@@ -295,7 +295,7 @@ def test_wlasny_provenance_finding_has_no_line_with_both_clause_and_title():
         ]
     )
     text = _render(findings=[finding])
-    findings_body = _section_bodies(text)[SECTIONS.index("Findingi")]
+    findings_body = _section_bodies(text)[SECTIONS.index("Findings")]
 
     for line in findings_body.splitlines():
         if "SR 1.1" in line:
@@ -310,7 +310,7 @@ def test_wlasny_provenance_finding_has_no_line_with_both_clause_and_title():
 def test_methodology_section_carries_every_rubric_criterion():
     text = _render(findings=[])
 
-    methodology_body = _section_bodies(text)[SECTIONS.index("Metodyka")]
+    methodology_body = _section_bodies(text)[SECTIONS.index("Methodology")]
 
     for criterion_text in risk.RUBRIC_CRITERIA.values():
         assert criterion_text in methodology_body
@@ -383,7 +383,7 @@ def _matrix_row() -> dict:
 def _limitations_body(analysis: dict, warnings: tuple[str, ...] = ()) -> str:
     text = render_markdown(analysis, generated_at=GENERATED_AT, warnings=warnings)
     bodies = _section_bodies(text)
-    return bodies[SECTIONS.index("Ograniczenia")]
+    return bodies[SECTIONS.index("Limitations")]
 
 
 def test_collect_not_derivable_fields_on_model_without_sections_is_empty():
@@ -462,7 +462,7 @@ def test_vantage_point_limitations_without_window_says_so_instead_of_empty_value
     )
     joined = " ".join(lines)
 
-    assert "nie zostało ustalone" in joined
+    assert "was not established" in joined
     assert "None" not in joined
 
 
@@ -486,8 +486,8 @@ def test_limitations_section_names_blind_spots():
 
     for sentence in VANTAGE_POINT_LIMITATIONS:
         assert sentence in body
-    assert "sekcja `assets`, pole `mac`: 1 z 1 wpisów" in body
-    assert "sekcja `comm_matrix`, pole `initiator`: 1 z 1 wpisów" in body
+    assert "section `assets`, field `mac`: 1 of 1 entries" in body
+    assert "section `comm_matrix`, field `initiator`: 1 of 1 entries" in body
 
 
 def test_limitations_section_states_explicitly_when_nothing_is_undetermined():
@@ -500,7 +500,10 @@ def test_limitations_section_states_explicitly_when_nothing_is_undetermined():
 
     body = _limitations_body(analysis)
 
-    assert "każde pole sekcji inwentarza i macierzy komunikacji zostało ustalone" in body
+    assert (
+        "every field of the inventory and communication matrix sections was "
+        "established" in body
+    )
 
 
 def test_report_makes_no_completeness_claim():
@@ -566,14 +569,15 @@ def test_aggregated_remediations_on_empty_list_is_empty_list():
 
 
 def test_finding_genitive_phrase_singular_for_one():
-    assert finding_genitive_phrase(1) == "1 findingu"
+    assert finding_genitive_phrase(1) == "1 finding"
 
 
-def test_finding_genitive_phrase_genitive_plural_for_every_other_count():
-    """Ta odmiana nie ma wyjatku dla 12-14: forma dopelniaczowa jest ta sama
-    dla kazdej liczby wiekszej niz jeden w tej konstrukcji."""
+def test_finding_genitive_phrase_plural_for_every_other_count():
+    """English plural has no exception for 12-14 - the Polish original of
+    this function did, and this test is what proved the rule collapsed
+    correctly when the report moved to English."""
     for count in (2, 5, 12, 13, 14, 22, 100):
-        assert finding_genitive_phrase(count) == f"{count} findingów", count
+        assert finding_genitive_phrase(count) == f"{count} findings", count
 
 
 def _analyzable_fixtures() -> list[Path]:

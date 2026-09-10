@@ -1,40 +1,41 @@
-"""Macierz komunikacji: kto z kim rozmawia, w ktora strone, jakim protokolem
-i ile tego bylo (FLOW-01, FLOW-02, FLOW-03).
+"""Communication matrix: who talks to whom, in which direction, over which
+protocol and how much of it there was (FLOW-01, FLOW-02, FLOW-03).
 
-Co ta macierz pokazuje: sesje TCP, ktore dotarly do punktu przechwytywania
-i mialy co najmniej jeden segment z ladunkiem (zalozenie Z-31). Sesje zlozone
-wylacznie z pakietow bez ladunku sa POLICZONE i nazwane w sekcji ograniczen
-raportu, a nie dopisane tutaj: identyfikatory sesji pochodza z
-`decode.decode_segments` i sa wspolne dla `conversations`, `protocol_events`
-i tej macierzy, wiec wiersz spoza tamtej numeracji rozjechalby przestrzen
-identyfikatorow miedzy sekcjami modelu.
+What this matrix shows: TCP sessions that reached the capture point and
+carried at least one segment with payload (assumption Z-31). Sessions made
+up exclusively of packets without payload are COUNTED and named in the
+report's limitations section rather than added here: session identifiers
+come from `decode.decode_segments` and are shared by `conversations`,
+`protocol_events` and this matrix, so a row outside that numbering would
+split the identifier space between model sections.
 
-Czego ta macierz NIE pokazuje: obrazu sieci. Nieobecnosc rozmowy w tej tabeli
-nie jest dowodem, ze rozmowa nie miala miejsca - jest dowodem, ze nie dotarla
-do tego punktu podsluchu. Zdania z `VANTAGE_POINT_LIMITATIONS` stoja w raporcie
-po to, zeby czytelnik nie musial sam na to wpasc.
+What this matrix does NOT show: a picture of the network. The absence of a
+conversation from this table is not proof that the conversation did not
+happen - it is proof that it did not reach this listening point. The
+sentences in `VANTAGE_POINT_LIMITATIONS` stand in the report so the reader
+does not have to work that out alone.
 
-Sesja, ktorej protokolu nie rozpoznano, MA wiersz z etykieta `tcp`. Znikniecie
-takiego wiersza bylo by klamstwem przez pominiecie, a to jest ta czesc raportu,
-w ktorej takie klamstwo kosztuje najwiecej: czytelnik buduje z niej obraz sieci.
+A session whose protocol was not recognised DOES have a row, labelled `tcp`.
+Dropping such a row would be a lie by omission, and this is the part of the
+report where that lie costs the most: the reader builds their picture of the
+network out of it.
 
-Identyfikatory protokolow zyja teraz w plikach `manifest.yaml` rejestru
-dissectorow (`wayside.protocols.registry`) i sa jedynym zrodlem prawdy - ten
-modul nie niesie zamknietej krotki stalych z etykietami, bo bylaby drugą,
-rozjezdzajaca sie kopia tej samej listy (PROTO-05). Etykieta wiersza pochodzi
-wprost z pola `protocol` zdarzenia. Kolejnosc rozstrzygania NIE jest
-przemienna: pewnosc wysoka wyprzedza pewnosc niska, a przy kilku protokolach
-o pewnosci wysokiej w tej samej sesji etykieta jest zlozona (posortowane
-identyfikatory rozdzielone znakiem plus, zalozenie Z-43) - wybor jednego z
-kilku bylby wyborem przypadkowym, a pominiecie ktoregokolwiek klamstwem przez
-pominiecie.
+Protocol identifiers now live in the `manifest.yaml` files of the dissector
+registry (`wayside.protocols.registry`) and are the single source of truth -
+this module carries no closed tuple of label constants, because that would
+be a second, drifting copy of the same list (PROTO-05). A row label comes
+straight from the event's `protocol` field. Resolution order is NOT
+commutative: high confidence precedes low confidence, and with several
+high-confidence protocols in the same session the label is compound (sorted
+identifiers joined by a plus sign, assumption Z-43) - picking one of several
+would be an arbitrary choice, and dropping any of them a lie by omission.
 """
 
 from __future__ import annotations
 
 import dataclasses
 
-import wayside.pcap  # noqa: F401  - izolacja cache scapy PRZED importem warstw
+import wayside.pcap  # noqa: F401  - scapy cache isolation BEFORE layer imports
 
 from scapy.layers.inet import IP, TCP  # noqa: E402
 
@@ -58,40 +59,45 @@ PROTOCOL_UNRECOGNIZED = "tcp"
 PROVENANCE_METHOD_PAYLOAD_SHAPE = "payload-shape"
 PROVENANCE_METHOD_FIRST_SENDER = "first-observed-sender"
 
-# Lancuchy sugerujace zupelnosc obrazu sieci - DANE TESTOWE dla bramki
-# maszynowej FLOW-03, w tym samym stylu co `FORBIDDEN_ROLE_LABELS`
-# w `assets/inventory.py`. Zyja w kodzie produkcyjnym, zeby bramka i tekst
-# raportu mialy jedno zrodlo prawdy.
+# Strings suggesting a complete picture of the network - TEST DATA for the
+# FLOW-03 machine gate, in the same style as `FORBIDDEN_ROLE_LABELS` in
+# `assets/inventory.py`. They live in production code so that the gate and
+# the report text have one source of truth.
 COMPLETENESS_CLAIM_TERMS: tuple[str, ...] = (
-    "kompletn",
-    "wszystkie urzadzenia",
-    "wszystkich urzadzen",
-    "wszystkie hosty",
-    "wszystkich hostow",
-    "pelna lista",
-    "pelny inwentarz",
-    "pelny obraz",
-    "cala siec",
-    "calej sieci",
     "complete list",
+    "complete inventory",
+    "complete picture",
+    "full list",
+    "full inventory",
     "full picture",
     "all devices",
+    "all hosts",
+    "the whole network",
+    "entire network",
 )
 
-# Stale zdania nazywajace martwe pole widzenia pasywnej obserwacji. Sa stalymi,
-# a nie tekstem sklejanym w warstwie renderowania, bo to jest tresc, ktora ma
-# brzmiec identycznie w kazdym raporcie i ktorej nie wolno zgubic przy edycji
-# szablonu.
+# Deliberately NOT on the list above: "every device" and "every host". Both
+# read as a completeness claim in isolation, but both also open an ordinary
+# requirement sentence ("every device connecting to the control system is
+# uniquely identified"), and the standards catalogue paraphrases carry
+# exactly that construction. A gate that fires on the paraphrase of a clause
+# rather than on a claim about the inventory teaches its reader to ignore
+# it.
+
+# Fixed sentences naming the blind spot of passive observation. They are
+# constants rather than text assembled in the rendering layer, because this
+# is content that must read identically in every report and that must not be
+# lost while editing a template.
 VANTAGE_POINT_LIMITATIONS: tuple[str, ...] = (
-    "Ten raport opisuje wyłącznie ruch, który dotarł do punktu przechwytywania. "
-    "Urządzenie nieobecne w wyniku nie jest urządzeniem nieobecnym w sieci - jest "
-    "urządzeniem, którego ruch tego punktu nie minął.",
-    "Urządzenie stojące za bramą protokołu jest widoczne wyłącznie pod adresem tej "
-    "bramy. Adres sieciowy w tym raporcie może więc odpowiadać więcej niż jednemu "
-    "urządzeniu fizycznemu.",
-    "Wiele hostów ukrytych za jednym adresem po translacji adresów jest z tego "
-    "punktu nieodróżnialnych. Jeden wiersz inwentarza może odpowiadać więcej niż "
-    "jednemu urządzeniu.",
+    "This report describes only traffic that reached the capture point. A "
+    "device absent from the result is not a device absent from the network - "
+    "it is a device whose traffic did not pass this point.",
+    "A device sitting behind a protocol gateway is visible only under the "
+    "address of that gateway. A network address in this report may therefore "
+    "correspond to more than one physical device.",
+    "Multiple hosts hidden behind a single address after address translation "
+    "are indistinguishable from this point. One inventory row may correspond "
+    "to more than one device.",
 )
 
 
@@ -108,13 +114,14 @@ def _inferred_endpoint(value: str):
 
 
 def _wire_length(pkt) -> int:
-    """Dlugosc pakietu na drucie (zalozenie Z-34).
+    """Packet length on the wire (assumption Z-34).
 
-    `wirelen` ustawia czytelnik scapy przy odczycie zrzutu. Atrybut nieobecny
-    (np. pakiet zbudowany w pamieci, nie odczytany z pliku) zastepuje dlugosc
-    bajtow pakietu - jawna droga zapasowa, nie cicha wartosc zero. Zero dalo by
-    wolumen zerowy dla calej sesji, czyli PEWNA, BLEDNA liczbe w raporcie, a to
-    jest najgorszy tryb porazki w tym projekcie.
+    `wirelen` is set by the scapy reader when the capture is read. When the
+    attribute is absent (e.g. a packet built in memory rather than read from
+    a file) the byte length of the packet stands in - an explicit fallback,
+    not a silent zero. Zero would give a zero volume for the whole session,
+    that is a CONFIDENT, WRONG number in the report, and that is the worst
+    failure mode in this project.
     """
     wirelen = getattr(pkt, "wirelen", None)
     if wirelen is None:
@@ -130,16 +137,16 @@ def build_comm_matrix(
     low_confidence_events: list[dict],
     initiators: dict[int, SessionInitiator],
 ) -> list[dict]:
-    """Buduje macierz komunikacji, jeden wiersz na sesje z ladunkiem.
+    """Builds the communication matrix, one row per session with payload.
 
-    Kolejnosc wierszy jest kolejnoscia pierwszego napotkania sesji w pliku -
-    `dict` plus osobna lista `order`, nigdy `set` na sciezce do serializacji
-    (`03-PATTERNS.md`, Shared Patterns).
+    Row order is the order in which sessions are first encountered in the
+    file - a `dict` plus a separate `order` list, never a `set` on the path
+    to serialisation (`03-PATTERNS.md`, Shared Patterns).
 
-    KAZDE pole wiersza przechodzi przez `dataclasses.asdict` na `ObservedField`,
-    wlacznie z identyfikatorem sesji. Jednolitosc jest tu warta jednego
-    dodatkowego opakowania: bramka prowieniencji chodzi wtedy po calej sekcji
-    bez wyjatkow, a wyjatek jest tym, o czym sie zapomina.
+    EVERY field of a row goes through `dataclasses.asdict` on an
+    `ObservedField`, the session identifier included. Uniformity is worth one
+    extra wrapper here: the provenance gate then walks the whole section with
+    no exceptions, and an exception is the thing that gets forgotten.
     """
     rows: dict[int, dict[str, object]] = {}
     order: list[int] = []
@@ -148,7 +155,7 @@ def build_comm_matrix(
     packet_counts: dict[int, int] = {}
     volume_bytes: dict[int, int] = {}
 
-    # Przebieg pierwszy: sesje i pierwszy nadawca ladunku.
+    # First pass: sessions and the first sender of payload.
     for segment in segments:
         key = _canonical_session_key(
             segment.src_ip, segment.src_port, segment.dst_ip, segment.dst_port
@@ -164,10 +171,10 @@ def build_comm_matrix(
         packet_counts[segment.session_id] = 0
         volume_bytes[segment.session_id] = 0
 
-    # Przebieg drugi: liczba pakietow i wolumen na drucie, po WSZYSTKICH
-    # pakietach sesji, nie po samych segmentach z ladunkiem (zalozenie Z-33).
-    # Pakiet o kluczu nieobecnym w odwzorowaniu nalezy do sesji bez ladunku,
-    # policzonej osobno w sekcji ograniczen.
+    # Second pass: packet count and wire volume, over ALL packets of the
+    # session, not only the segments carrying payload (assumption Z-33). A
+    # packet whose key is absent from the mapping belongs to a session
+    # without payload, counted separately in the limitations section.
     for pkt in packets:
         if not pkt.haslayer(IP) or not pkt.haslayer(TCP):
             continue
@@ -182,12 +189,12 @@ def build_comm_matrix(
         packet_counts[session_id] += 1
         volume_bytes[session_id] += _wire_length(pkt)
 
-    # PROTO-05: odwzorowanie sesja -> krotka posortowanych identyfikatorow
-    # protokolu, zbudowane wprost z pola `protocol` zdarzenia - zero
-    # zamknietego zbioru stalych w tym pliku. Indeksowanie `event["protocol"]`
-    # bez wartosci domyslnej jest CELOWE: rejestr dissectorow wstrzykuje to
-    # pole do kazdego zdarzenia, wiec jego brak jest bledem ksztaltu modelu
-    # i `KeyError` ma go zglosic wprost.
+    # PROTO-05: a session -> tuple of sorted protocol identifiers mapping,
+    # built straight from the event's `protocol` field - zero closed sets of
+    # constants in this file. Indexing `event["protocol"]` without a default
+    # is DELIBERATE: the dissector registry injects this field into every
+    # event, so its absence is a model shape error and `KeyError` is meant to
+    # report it outright.
     high_confidence_protocols: dict[int, set[str]] = {}
     for event in events:
         high_confidence_protocols.setdefault(event["session_id"], set()).add(
@@ -204,32 +211,33 @@ def build_comm_matrix(
         initiator = initiators.get(session_id)
         if initiator is not None:
             initiator_endpoint = _endpoint(initiator.ip, initiator.port)
-            # Strona inicjujaca jest znana, wiec zrodlo i cel wiersza sa
-            # OBSERWACJA, a nie wnioskiem z tego, kto pierwszy wyslal ladunek.
+            # The initiating party is known, so the row's source and target
+            # are an OBSERVATION rather than an inference from who sent
+            # payload first.
             other = target_value if source_value == initiator_endpoint else source_value
             source_value, target_value = initiator_endpoint, other
             initiator_field = observed(initiator_endpoint)
             endpoint_field = _observed_endpoint
         else:
-            # Zalozenie Z-30: inicjator NIEUSTALONY, a kierunek wniosek
-            # oznaczony jako wniosek. Pierwszy nadawca ladunku nie jest
-            # zamiennikiem strony inicjujacej.
+            # Assumption Z-30: the initiator is NOT DETERMINED, and the
+            # direction is an inference marked as an inference. The first
+            # sender of payload is not a substitute for the initiating party.
             initiator_field = not_derivable()
             endpoint_field = _inferred_endpoint
 
         if session_id in high_confidence_protocols:
-            # Zalozenie Z-43: kilka protokolow o pewnosci wysokiej w tej samej
-            # sesji daje etykiete zlozona, posortowane identyfikatory
-            # rozdzielone znakiem plus - wybor jednego z nich bylby wyborem
-            # przypadkowym, a pominiecie klamstwem przez pominiecie.
+            # Assumption Z-43: several high-confidence protocols in the same
+            # session give a compound label, sorted identifiers joined by a
+            # plus sign - picking one of them would be arbitrary, and
+            # dropping any a lie by omission.
             label = "+".join(sorted(high_confidence_protocols[session_id]))
             protocol_field = inferred(label, PROVENANCE_METHOD_PAYLOAD_SHAPE)
         elif session_id in low_confidence_protocols:
             label = "+".join(sorted(low_confidence_protocols[session_id]))
             protocol_field = inferred(label, PROVENANCE_METHOD_PAYLOAD_SHAPE)
         else:
-            # To, ze widziano TCP, jest obserwacja - nierozpoznanie protokolu
-            # aplikacyjnego nie czyni z niej wniosku.
+            # Having seen TCP is an observation - failing to recognise the
+            # application protocol does not turn it into an inference.
             protocol_field = observed(PROTOCOL_UNRECOGNIZED)
 
         rows[session_id] = {
@@ -256,35 +264,36 @@ def vantage_point_limitations(
     payloadless_session_count: int,
     window_duration_s: float | None,
 ) -> list[str]:
-    """Zdania o martwym polu widzenia: stale plus jedno zdanie z liczbami
-    TEGO przebiegu.
+    """Sentences about the blind spot: the constants plus one sentence with
+    the numbers of THIS run.
 
-    Sama formula ogolna jest tania i dlatego bezwartosciowa - czytelnik czyta
-    ja jako zastrzezenie prawne i pomija. Zdanie podajace, ile adresow, ile
-    sesji i jak dlugie okno faktycznie widziano, wiaze ograniczenie z tym
-    konkretnym zrzutem (FLOW-03).
+    A general formula on its own is cheap and therefore worthless - the
+    reader reads it as a legal disclaimer and skips it. A sentence stating
+    how many addresses, how many sessions and how long a window were actually
+    seen ties the limitation to this specific capture (FLOW-03).
     """
     if window_duration_s is None:
-        window_sentence = "okno czasowe zrzutu nie zostało ustalone"
+        window_sentence = "the capture time window was not established"
     else:
-        window_sentence = f"okno czasowe zrzutu ma długość {window_duration_s} s"
+        window_sentence = f"the capture time window is {window_duration_s} s long"
 
-    # Zdanie z liczbami stoi PIERWSZE, przed zdaniami stalymi: formula ogolna
-    # czytana jako pierwsza jest odbierana jako zastrzezenie prawne i pomijana,
-    # a liczby z tego przebiegu wiaza ograniczenie z tym konkretnym zrzutem.
+    # The sentence with numbers stands FIRST, ahead of the fixed sentences: a
+    # general formula read first is taken for a legal disclaimer and skipped,
+    # while the numbers from this run tie the limitation to this capture.
     lines = [
-        f"Zakres tego przebiegu: adresów zaobserwowanych {host_count}, sesji "
-        f"z ładunkiem {session_count}, sesji bez ani jednego segmentu z ładunkiem "
-        f"{payloadless_session_count}, {window_sentence}."
+        f"Scope of this run: addresses observed {host_count}, sessions with "
+        f"payload {session_count}, sessions without a single segment carrying "
+        f"payload {payloadless_session_count}, {window_sentence}."
     ]
     lines.extend(VANTAGE_POINT_LIMITATIONS)
 
     if payloadless_session_count:
         lines.append(
-            f"Sesji TCP złożonych wyłącznie z pakietów bez ładunku: "
-            f"{payloadless_session_count}. Nie mają wiersza w macierzy komunikacji, "
-            "bo nie niosą ani jednego segmentu do rozpoznania - są policzone tutaj, "
-            "żeby nie zniknęły bez śladu."
+            f"TCP sessions made up exclusively of packets without payload: "
+            f"{payloadless_session_count}. They have no row in the "
+            "communication matrix, because they carry no segment to "
+            "recognise - they are counted here so they do not vanish without "
+            "a trace."
         )
 
     return lines

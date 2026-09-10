@@ -54,9 +54,9 @@ TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
-# Jedno zrodlo prawdy dla zbioru osiemnastu polskich znakow diakrytycznych,
-# dzielone z regulami README i raportu (wzorzec tests/test_readme_claims.py).
-from test_report_orthography import POLISH_DIACRITICS  # noqa: E402
+# One source of truth for the predicate over characters outside ASCII,
+# shared with the report orthography gate.
+from test_report_orthography import non_ascii_chars  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SECURITY_PATH = REPO_ROOT / "SECURITY.md"
@@ -349,10 +349,12 @@ def test_no_rfc9116_security_txt_file_exists():
 # --- Ortografia: brak polskich znakow diakrytycznych ------------------------
 
 
-def test_security_md_has_no_polish_diacritics():
+def test_security_md_is_ascii():
     text = _security_text()
-    hits = [(i, ch) for i, ch in enumerate(text) if ch in POLISH_DIACRITICS]
-    assert hits == [], f"Znaki diakrytyczne w SECURITY.md (pozycja, znak): {hits[:5]}"
+    hits = [(i, ch) for i, ch in enumerate(text) if non_ascii_chars(ch)]
+    assert hits == [], (
+        f"Characters outside ASCII in SECURITY.md (position, char): {hits[:5]}"
+    )
 
 
 # --- Test: bramka nie zapisuje niczego w drzewie ----------------------------

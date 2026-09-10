@@ -1,12 +1,13 @@
-"""Rozwiazywanie powolania na punkt normy wobec publicznego katalogu
+"""Resolving a standard clause citation against the public catalogue
 (STD-01, STD-02, STD-06).
 
-`resolve` przyjmuje model strefy jako argument WYMAGANY i podnosi
-`StandardsError`, gdy lista stref jest pusta - STD-06 wymaga, zeby model
-strefy istnial wypelniony PRZED pierwszym powolaniem na wymaganie systemowe,
-a argument wymagany czyni to sprawdzalnym maszynowo, nie kwestia kolejnosci
-wywolan. Komunikat bledu niesie wylacznie metadane, nigdy tresc normy - ta
-sama dyscyplina co `Violation` w `scripts/confidentiality_guard.py`.
+`resolve` takes the zone model as a REQUIRED argument and raises
+`StandardsError` when the zone list is empty - STD-06 requires the zone
+model to exist, populated, BEFORE the first citation of a system
+requirement, and a required argument makes that machine-checkable rather
+than a matter of call order. The error message carries metadata only, never
+the content of a standard - the same discipline as `Violation` in
+`scripts/confidentiality_guard.py`.
 """
 
 from __future__ import annotations
@@ -30,14 +31,14 @@ __all__ = [
 
 CATALOG_ROOT = Path(__file__).resolve().parent
 
-# Prowieniencja tytulu punktu: `egzemplarz` gdy tytul zostal przepisany z
-# legalnego egzemplarza normy, `wlasny` gdy jest opisem zakresu napisanym
-# przez autora projektu. Pole `verified` opisuje CALY wpis (numeracje punktu
-# i tresc parafrazy), a tytul punktu jest osobna rzecza, ktora do dzis nie
-# miala wlasnego znacznika - tytul wymyslony dla punktu bez numeru renderowal
-# sie w tym samym ksztalcie, co tytul potwierdzony wobec egzemplarza
-# (G-04-3c).
-CLAUSE_TITLE_SOURCES: frozenset[str] = frozenset({"egzemplarz", "wlasny"})
+# Clause title provenance: `copy` when the title was transcribed from a
+# legal copy of the standard, `own` when it is a scope description written
+# by the project's author. The `verified` field describes the WHOLE entry
+# (clause numbering and paraphrase text), while the clause title is a
+# separate thing which until now had no marker of its own - a title invented
+# for a clause without a number rendered in the same shape as a title
+# confirmed against a copy (G-04-3c).
+CLAUSE_TITLE_SOURCES: frozenset[str] = frozenset({"copy", "own"})
 
 REQUIRED_CATALOG_FIELDS: tuple[str, ...] = (
     "standard",
@@ -49,10 +50,10 @@ REQUIRED_CATALOG_FIELDS: tuple[str, ...] = (
     "verified",
 )
 
-# Typ oczekiwany kazdego pola z REQUIRED_CATALOG_FIELDS. Pole `verified` musi
-# byc `bool` - wartosc dowolnego innego typu (napis, liczba) nie ma prawa
-# przejsc przez wczytanie, bo `resolve` przekazuje ta wartosc dalej BEZ zadnej
-# konwersji (G-04-2).
+# The expected type of every field in REQUIRED_CATALOG_FIELDS. The
+# `verified` field has to be a `bool` - a value of any other type (a string,
+# a number) has no right to pass loading, because `resolve` passes that
+# value straight on WITHOUT any conversion (G-04-2).
 CATALOG_FIELD_TYPES: dict[str, type] = {
     "standard": str,
     "edition": str,
@@ -63,11 +64,11 @@ CATALOG_FIELD_TYPES: dict[str, type] = {
     "verified": bool,
 }
 
-# Pola OPCJONALNE, kontrolowane co do typu tylko wtedy, gdy sa obecne we
-# wpisie (Z-77) - wymuszenie obecnosci zamknelo by droge wpisu w pelni
-# potwierdzonego, ktory zadnej notatki o prowizorycznosci nie potrzebuje.
-# `paraphrase_note` niesie formuly ramowe adresowane do audytora (Z-82) -
-# pole celowo NIE jest przekazywane do modelu powolania w `resolve` nizej.
+# OPTIONAL fields, type-checked only when present in the entry (Z-77) -
+# forcing their presence would close the door on a fully confirmed entry,
+# which needs no note about being provisional. `paraphrase_note` carries
+# framing formulas addressed to an auditor (Z-82) - the field is
+# deliberately NOT passed into the citation model in `resolve` below.
 OPTIONAL_CATALOG_FIELD_TYPES: dict[str, type] = {
     "verification_note": str,
     "paraphrase_note": str,
@@ -75,23 +76,23 @@ OPTIONAL_CATALOG_FIELD_TYPES: dict[str, type] = {
 
 
 class StandardsError(Exception):
-    """Katalog norm niekompletny albo powolanie zadane przed wypelnieniem
-    modelu strefy (STD-06)."""
+    """The standards catalogue is incomplete, or a citation was requested
+    before the zone model was populated (STD-06)."""
 
 
 def _validate_entry_fields(entry: dict, yaml_path: Path) -> None:
-    """Sprawdza `REQUIRED_CATALOG_FIELDS` w trzech przebiegach: obecnosc
-    kazdego pola, niepustosc (poza `verified`, ktorego legalna wartoscia jest
-    `False`), i typ wartosci. `verified` jest wykluczone z kontroli
-    niepustosci celowo: `False` jest fasz-owate w Pythonie, ale jest tu
-    jedyna poprawna wartoscia (wpis prowizoryczny), wiec traktowanie go jak
-    brakujacego pola byloby bledem. Od bramki typu ponizej to wylaczenie jest
-    bezpieczne, bo przebieg typu obejmuje pole `verified` wprost i odrzuci
-    kazda wartosc, ktora nie jest dokladnie `bool`."""
+    """Checks `REQUIRED_CATALOG_FIELDS` in three passes: the presence of
+    each field, non-emptiness (except `verified`, whose legal value may be
+    `False`), and the type of the value. `verified` is excluded from the
+    non-emptiness check deliberately: `False` is falsy in Python but is the
+    only correct value here (a provisional entry), so treating it as a
+    missing field would be a fault. Given the type gate below, that
+    exclusion is safe, because the type pass covers the `verified` field
+    explicitly and rejects any value that is not exactly a `bool`."""
     missing = [field for field in REQUIRED_CATALOG_FIELDS if field not in entry]
     if missing:
         raise StandardsError(
-            f"Wpis katalogu {yaml_path} niekompletny: brak pol {missing}."
+            f"Catalogue entry {yaml_path} is incomplete: missing fields {missing}."
         )
 
     empty = [
@@ -101,24 +102,24 @@ def _validate_entry_fields(entry: dict, yaml_path: Path) -> None:
     ]
     if empty:
         raise StandardsError(
-            f"Wpis katalogu {yaml_path} niekompletny: puste pola {empty}."
+            f"Catalogue entry {yaml_path} is incomplete: empty fields {empty}."
         )
 
-    # Przebieg typu: porownanie DOKLADNE przez tozsamosc typu (`type(x) is T`),
-    # nie przez `isinstance` (Z-76). `bool` jest w Pythonie podklasa `int`,
-    # wiec sprawdzenie przynaleznosci do klasy nad polem liczbowym przyjeloby
-    # wartosc logiczna i bramka bylaby slabsza, niz sie czyta - katalog nie ma
-    # dzis pol liczbowych, ale ta bramka ma trzymac takze te, ktore powstana
-    # pozniej. Komunikat niesie wylacznie nazwe pola i nazwy typow (z atrybutu
-    # nazwy klasy), NIGDY wartosc pola - katalog niesie parafraze punktu
-    # platnej normy (T-4-37).
+    # The type pass: an EXACT comparison by type identity (`type(x) is T`),
+    # not by `isinstance` (Z-76). In Python `bool` is a subclass of `int`, so
+    # a class membership check over a numeric field would accept a boolean
+    # and the gate would be weaker than it reads - the catalogue has no
+    # numeric fields today, but this gate is meant to hold the ones added
+    # later too. The message carries only the field name and type names (from
+    # the class name attribute), NEVER the field value - the catalogue
+    # carries a paraphrase of a clause from a paid standard (T-4-37).
     type_errors: list[str] = []
     for field, expected_type in CATALOG_FIELD_TYPES.items():
         value = entry[field]
         if type(value) is not expected_type:
             type_errors.append(
-                f"{field} (oczekiwano {expected_type.__name__}, "
-                f"otrzymano {type(value).__name__})"
+                f"{field} (expected {expected_type.__name__}, "
+                f"got {type(value).__name__})"
             )
     for field, expected_type in OPTIONAL_CATALOG_FIELD_TYPES.items():
         if field not in entry:
@@ -126,47 +127,47 @@ def _validate_entry_fields(entry: dict, yaml_path: Path) -> None:
         value = entry[field]
         if type(value) is not expected_type:
             type_errors.append(
-                f"{field} (oczekiwano {expected_type.__name__}, "
-                f"otrzymano {type(value).__name__})"
+                f"{field} (expected {expected_type.__name__}, "
+                f"got {type(value).__name__})"
             )
     if type_errors:
         raise StandardsError(
-            f"Wpis katalogu {yaml_path} niesie pola zlego typu: "
+            f"Catalogue entry {yaml_path} carries fields of the wrong type: "
             f"{', '.join(type_errors)}."
         )
 
-    # Przebieg czwarty: prowieniencja tytulu punktu musi nalezec do
-    # zamknietego zbioru, a wpis z podniesionym polem weryfikacji i
-    # prowieniencja inna niz pochodzaca z egzemplarza konczy sie bledem
-    # katalogu (G-04-3c). Decyzja 0006 prowadzi czlowieka przez reczna
-    # edycje tego pliku po zakupie egzemplarza; bez tej reguly czlowiek
-    # moglby podniesc `verified`, zostawiajac tytul opisem wlasnym, i raport
-    # przedstawilby opis wlasny jako tytul potwierdzony wobec egzemplarza.
+    # Fourth pass: clause title provenance has to belong to a closed set, and
+    # an entry with the verification field raised and a provenance other than
+    # coming from a copy ends in a catalogue error (G-04-3c). Decision 0006
+    # walks a human through editing this file by hand after buying a copy;
+    # without this rule a human could raise `verified` while leaving the
+    # title an own description, and the report would present that own
+    # description as a title confirmed against a copy.
     clause_title_source = entry["clause_title_source"]
     if clause_title_source not in CLAUSE_TITLE_SOURCES:
         raise StandardsError(
-            f"Wpis katalogu {yaml_path} niesie clause_title_source o "
-            f"niedozwolonej wartosci {clause_title_source!r}. Dozwolone "
-            f"wartosci: {sorted(CLAUSE_TITLE_SOURCES)}."
+            f"Catalogue entry {yaml_path} carries a clause_title_source with "
+            f"the disallowed value {clause_title_source!r}. Allowed values: "
+            f"{sorted(CLAUSE_TITLE_SOURCES)}."
         )
-    if entry["verified"] is True and clause_title_source != "egzemplarz":
+    if entry["verified"] is True and clause_title_source != "copy":
         raise StandardsError(
-            f"Wpis katalogu {yaml_path} ma podniesione pole verified, ale "
-            f"clause_title_source={clause_title_source!r} zamiast "
-            "'egzemplarz' - tytul potwierdzony wymaga prowieniencji z "
-            "egzemplarza."
+            f"Catalogue entry {yaml_path} has the verified field raised, but "
+            f"clause_title_source={clause_title_source!r} instead of 'copy' - "
+            "a confirmed title requires provenance from a copy."
         )
 
 
 def load_catalog(catalog_root: Path = CATALOG_ROOT) -> dict[tuple[str, str], dict]:
-    """Wczytuje wszystkie pliki `catalog.yaml` pod `catalog_root`, w
-    kolejnosci posortowanej, i buduje mapowanie `(standard, clause) -> wpis`.
+    """Loads every `catalog.yaml` file under `catalog_root`, in sorted
+    order, and builds a `(standard, clause) -> entry` mapping.
 
-    Dwa pliki katalogu niosace ta sama pare (standard, clause) koncza sie
-    `StandardsError` z OBIEMA sciezkami w komunikacie, nigdy cichym
-    nadpisaniem - wzorzec `discover_checks` silnika checkow. Bez tej bramki
-    cicha wygrana pliku wczytanego pozniej bylaby nieodrozialna od
-    poprawnego wczytania, a od tej fazy w drzewie stoja dwa pliki katalogu."""
+    Two catalogue files carrying the same (standard, clause) pair end in a
+    `StandardsError` naming BOTH paths in the message, never in a silent
+    overwrite - the pattern of `discover_checks` in the check engine.
+    Without that gate a silent win for the file loaded later would be
+    indistinguishable from a correct load, and from this phase on the tree
+    holds two catalogue files."""
     catalog: dict[tuple[str, str], dict] = {}
     seen_paths: dict[tuple[str, str], Path] = {}
 
@@ -178,8 +179,8 @@ def load_catalog(catalog_root: Path = CATALOG_ROOT) -> dict[tuple[str, str], dic
             key = (entry["standard"], entry["clause"])
             if key in seen_paths:
                 raise StandardsError(
-                    f"Zduplikowana para (standard, clause) {key} miedzy "
-                    f"plikami katalogu: {seen_paths[key]} oraz {yaml_path}."
+                    f"Duplicate (standard, clause) pair {key} between "
+                    f"catalogue files: {seen_paths[key]} and {yaml_path}."
                 )
             seen_paths[key] = yaml_path
             catalog[key] = entry
@@ -188,20 +189,20 @@ def load_catalog(catalog_root: Path = CATALOG_ROOT) -> dict[tuple[str, str], dic
 
 
 def resolve(standard: str, clause: str, *, zone_model: dict) -> StandardRef:
-    """Rozwiazuje `(standard, clause)` wobec katalogu. Model strefy jest
-    argumentem wymaganym: pusta lista stref konczy sie `StandardsError`
-    (STD-06), zanim jakikolwiek katalog zostanie w ogole odczytany."""
+    """Resolves `(standard, clause)` against the catalogue. The zone model
+    is a required argument: an empty zone list ends in a `StandardsError`
+    (STD-06) before any catalogue is read at all."""
     if not zone_model.get("zones"):
         raise StandardsError(
-            "Model strefy jest pusty - powolanie na wymaganie systemowe "
-            "wymaga wypelnionego modelu strefy przed wygenerowaniem (STD-06)."
+            "The zone model is empty - citing a system requirement requires a "
+            "populated zone model before generation (STD-06)."
         )
 
     catalog = load_catalog()
     entry = catalog.get((standard, clause))
     if entry is None:
         raise StandardsError(
-            f"Brak wpisu w katalogu norm dla standard={standard!r}, "
+            f"No entry in the standards catalogue for standard={standard!r}, "
             f"clause={clause!r}."
         )
 
@@ -212,15 +213,14 @@ def resolve(standard: str, clause: str, *, zone_model: dict) -> StandardRef:
         clause_title=entry["clause_title"],
         clause_title_source=entry["clause_title_source"],
         paraphrase=entry["paraphrase"],
-        # Bez konwersji: warstwa wczytujaca gwarantuje juz typ `bool`, wiec
-        # konwersja w tym miejscu moglaby juz tylko ukryc defekt danych, a
-        # decyzja 0006 prowadzi czlowieka przez reczna edycje tego pliku bez
-        # gwarancji, ze przed zaufaniem edycji uruchomi pakiet testow.
+        # No conversion: the loading layer already guarantees the `bool`
+        # type, so a conversion here could only hide a data defect, and
+        # decision 0006 walks a human through editing this file by hand with
+        # no guarantee they run the test suite before trusting the edit.
         verified=entry["verified"],
         verification_note=entry.get("verification_note", ""),
-        # Pole `paraphrase_note` NIE jest przekazywane - to jest wybor
-        # projektowy, nie przeoczenie (zalozenie Z-82). Pole nieobecne w
-        # modelu, ktory renderery czytaja, jest silniejsza gwarancja
-        # nierenderowania formul ramowych dla audytora niz jakikolwiek test
-        # nad wynikiem.
+        # The `paraphrase_note` field is NOT passed on - that is a design
+        # choice, not an oversight (assumption Z-82). A field absent from the
+        # model the renderers read is a stronger guarantee that auditor-facing
+        # framing formulas are not rendered than any test over the output.
     )

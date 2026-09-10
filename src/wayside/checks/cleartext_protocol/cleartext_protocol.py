@@ -1,15 +1,14 @@
-"""Evaluator checka `cleartext-protocol` (CHECK-03).
+"""Evaluator of the `cleartext-protocol` check (CHECK-03).
 
-Czyta WYLACZNIE `analysis["protocol_events"]`, nigdy pakietow, zadnego
-modulu dekodowania ani zadnego modulu dissectora - checki widza wylacznie
-model, nigdy wewnetrzne szczegoly dekodowania (02-RESEARCH.md,
-Anti-Pattern 1). Czysta funkcja, zero I/O, zero stanu wspoldzielonego
-miedzy wywolaniami.
+It reads ONLY `analysis["protocol_events"]`, never packets, no decoding
+module and no dissector module - checks see the model only, never the
+internal details of decoding (02-RESEARCH.md, Anti-Pattern 1). A pure
+function, zero I/O, zero state shared between calls.
 
-Emituje jeden finding na pare identyfikator sesji plus identyfikator
-protokolu jawnotekstowy (zalozenie Z-47), nigdy jeden finding na zdarzenie:
-pojedyncza sesja HTTP niesie dziesiatki zdarzen tego samego protokolu, a
-finding na kazde z nich bylby szumem zamiast sygnalem.
+It emits one finding per (session identifier, cleartext protocol
+identifier) pair (assumption Z-47), never one finding per event: a single
+HTTP session carries dozens of events of the same protocol, and a finding
+for each of them would be noise instead of signal.
 """
 
 from __future__ import annotations
@@ -20,19 +19,19 @@ CLEARTEXT_PROTOCOLS = frozenset({"telnet", "ftp", "http"})
 
 
 def evaluate(analysis: dict) -> list[dict]:
-    """Dla kazdej pary (identyfikator sesji, identyfikator protokolu
-    jawnotekstowy) zapamietuje PIERWSZE napotkane zdarzenie w kolejnosci
-    wejscia i zwraca dla niej jeden finding z dowodem (numer pakietu,
-    identyfikator sesji) tego pierwszego zdarzenia.
+    """For every (session identifier, cleartext protocol identifier) pair
+    it remembers the FIRST event encountered in input order and returns one
+    finding for that pair, with the evidence (packet number, session
+    identifier) of that first event.
 
-    Indeksowanie `analysis["protocol_events"]` jest CELOWO wymagajace: model
-    bez tego klucza jest modelem o niepoprawnym ksztalcie, a `KeyError`
-    jawnie to sygnalizuje, zamiast cicho zwrocic liste pusta, ktora
-    wygladalaby jak legalny brak zdarzen.
+    Indexing `analysis["protocol_events"]` is DELIBERATELY demanding: a
+    model without that key is a model of invalid shape, and `KeyError`
+    signals it outright instead of quietly returning an empty list, which
+    would look like a legal absence of events.
 
-    Slownik plus osobna lista kolejnosci, nigdy zbior na sciezce do
-    serializacji (wzorzec wspolny tego repozytorium od Fazy 3) - kolejnosc
-    wynikow wchodzi do artefaktu, a zbior jej nie ma."""
+    A dictionary plus a separate order list, never a set on the path to
+    serialisation (the shared pattern of this repository since Phase 3) -
+    result order goes into the artifact, and a set does not have it."""
     first_seen: dict[tuple[int, str], dict] = {}
     order: list[tuple[int, str]] = []
 

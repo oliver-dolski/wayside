@@ -1,10 +1,10 @@
-"""Renderowanie raportu markdown osmiosekcyjnego, bez silnika szablonow
+"""Eight-section markdown report rendering, with no template engine
 (D-05, REPORT-01).
 
-`SECTIONS` jest literalna krotka, kolejnosc jest kontraktem. Sekcja
-metodyki renderuje `risk.RUBRIC_CRITERIA`, zeby kryteria byly udokumentowane
-w produkcie, nie tylko w kodzie. Zaden finding nie jest zaslepka: dowod,
-powolanie i parafraza pochodza z modelu przekazanego przez wywolujacego.
+`SECTIONS` is a literal tuple and its order is a contract. The methodology
+section renders `risk.RUBRIC_CRITERIA` so that the criteria are documented
+in the product, not only in the code. No finding is a placeholder: evidence,
+citation and paraphrase all come from the model handed in by the caller.
 """
 
 from __future__ import annotations
@@ -27,102 +27,105 @@ __all__ = [
 ]
 
 SECTIONS: tuple[str, ...] = (
-    "Streszczenie",
-    "Zakres",
-    "Metodyka",
-    "Inwentarz",
-    "Macierz komunikacji",
-    "Ograniczenia",
-    "Findingi",
-    "Zalecenia",
+    "Summary",
+    "Scope",
+    "Methodology",
+    "Asset inventory",
+    "Communication matrix",
+    "Limitations",
+    "Findings",
+    "Recommendations",
 )
 
+# Value rendered wherever a model field is present but could not be
+# established from the capture. English has no grammatical gender, so a
+# single form covers every field - unlike the Polish original, which needed
+# three.
+NOT_DETERMINED = "not determined"
 
-# Pola wpisu hosta renderowane wlasnym punktem z etykieta czytelna dla
-# czlowieka, ponizej petli ogolnej po kluczach wpisu.
+
+# Host entry fields rendered as their own bullet with a human-readable
+# label, below the generic loop over entry keys.
 _HOST_FIELDS_WITH_OWN_ROW: frozenset[str] = frozenset(
     {"oui_vendor", "unit_ids", "gateway", "role", "role_evidence", "role_confidence"}
 )
 
-# Etykieta opisu wlasnego (G-04-3c) - nazywa rzecz wprost, a nie lagodzi ja:
-# czytelnik ma wiedziec, ze to zdanie napisal autor narzedzia, a nie komitet
-# normalizacyjny. Stala wspoldzielona przez markdown i PDF (przez import w
-# `report_pdf.py`), zeby ksztalt etykiety nie mogl rozjechac sie miedzy
-# formatami.
-CITATION_SCOPE_LABEL = "Zakres punktu (opis własny, nie tytuł z egzemplarza)"
+# Label for an own-description clause scope (G-04-3c) - it names the thing
+# outright instead of softening it: the reader is meant to know this sentence
+# was written by the tool's author, not by a standards committee. Shared
+# between markdown and PDF (imported by `report_pdf.py`) so the shape of the
+# label cannot drift between formats.
+CITATION_SCOPE_LABEL = "Clause scope (own description, not a title from the copy)"
 
 
 def citation_line(ref: dict) -> str:
-    """Buduje linie powolania na norme (G-04-3c).
+    """Builds the standard citation line (G-04-3c).
 
-    Dla prowieniencji z egzemplarza (`clause_title_source == "egzemplarz"`)
-    zwraca ksztalt dzisiejszy: sygnatura, numer punktu, separator i tytul
-    punktu - tytul jest wtedy PRZEPISANY z legalnego egzemplarza normy. Dla
-    prowieniencji wlasnej zwraca sam poczatek, bez tytulu i bez separatora:
-    tytul wymyslony dla punktu bez numeru nie ma stac w tym samym ksztalcie,
-    co tytul potwierdzony."""
-    base = f"Powołanie na normę: {ref['standard']} {ref['clause']}"
-    if ref["clause_title_source"] == "egzemplarz":
+    For copy provenance (`clause_title_source == "copy"`) it returns today's
+    shape: designation, clause number, separator and clause title - in that
+    case the title has been transcribed from a legal copy of the standard.
+    For own provenance it returns only the opening, with no title and no
+    separator: a title invented for a clause without a number must not stand
+    in the same shape as a confirmed one."""
+    base = f"Standard citation: {ref['standard']} {ref['clause']}"
+    if ref["clause_title_source"] == "copy":
         return f"{base} - {ref['clause_title']}"
     return base
 
 
 def finding_count_phrase(count: int) -> str:
-    """Buduje zdanie o liczbie findingow z poprawna polska odmiana (G-04-4).
+    """Builds the sentence fragment stating how many findings were raised.
 
-    Liczba rowna jeden daje forme pojedyncza. Liczba, ktorej ostatnia cyfra
-    nalezy do przedzialu od dwoch do czterech, daje forme mnoga - CHYBA ZE
-    dwie ostatnie cyfry naleza do przedzialu od dwunastu do czternastu, bo
-    ten przedzial jest wyjatkiem od reguly koncowki w calej polskiej
-    odmianie rzeczownikow policzalnych (12, 13, 14, ale takze 112, 213 -
-    dowolna setka/tysiac z tymi samymi dwiema ostatnimi cyframi). Kazda inna
-    liczba daje forme mnoga dopelniaczowa."""
+    The Polish original of this function carried the full inflection rule for
+    countable nouns (singular, the two-to-four plural, and the genitive
+    plural, with the twelve-to-fourteen exception). English needs only the
+    singular/plural split, so the rule collapses to one comparison - the
+    function is kept rather than inlined because it is part of the module's
+    public surface and both renderers call it."""
     if count == 1:
-        return f"{count} finding wymagający uwagi"
-    last_two_digits = count % 100
-    last_digit = count % 10
-    if last_digit in (2, 3, 4) and last_two_digits not in (12, 13, 14):
-        return f"{count} findingi wymagające uwagi"
-    return f"{count} findingów wymagających uwagi"
+        return f"{count} finding requiring attention"
+    return f"{count} findings requiring attention"
 
 
 def citation_scope_line(ref: dict) -> str | None:
-    """Buduje linie opisu wlasnego zakresu punktu (G-04-3c).
+    """Builds the own-description clause scope line (G-04-3c).
 
-    Zwraca `None` dla prowieniencji z egzemplarza - tytul juz stoi w linii
-    powolania i osobna linia opisu byłaby powtorzeniem. Dla prowieniencji
-    wlasnej zwraca linie z `CITATION_SCOPE_LABEL` i trescia pola tytulu."""
-    if ref["clause_title_source"] == "egzemplarz":
+    Returns `None` for copy provenance - the title already stands in the
+    citation line and a separate scope line would repeat it. For own
+    provenance it returns a line carrying `CITATION_SCOPE_LABEL` and the
+    content of the title field."""
+    if ref["clause_title_source"] == "copy":
         return None
     return f"{CITATION_SCOPE_LABEL}: {ref['clause_title']}"
 
 
 def finding_genitive_phrase(count: int) -> str:
-    """Buduje forme dopelniaczowa liczby findingow, obok `finding_count_phrase`
-    (G-04-5a). Liczba rowna jeden daje forme pojedyncza ("1 findingu"), kazda
-    inna liczba forme dopelniaczowa liczby mnogiej ("N findingów") - BEZ
-    wyjatku dla przedzialu dwanascie-czternascie: w tej konstrukcji (rzeczownik
-    w dopelniaczu po liczebniku glownym) forma jest ta sama dla kazdej liczby
-    wiekszej niz jeden, w odroznieniu od `finding_count_phrase` powyzej, ktora
-    ma inny ksztalt gramatyczny (rzeczownik w mianowniku/bierniku zgadzajacy
-    sie z liczebnikiem)."""
+    """Builds the bare count phrase used in the recommendations section,
+    alongside `finding_count_phrase` (G-04-5a).
+
+    The name is a leftover from the Polish original, where this form was
+    genuinely a different grammatical case ("N findingow") rather than a
+    different word. In English the two phrases differ only by the trailing
+    "requiring attention", but they are still two separate call sites with
+    two separate meanings, so both functions stay."""
     if count == 1:
-        return f"{count} findingu"
-    return f"{count} findingów"
+        return f"{count} finding"
+    return f"{count} findings"
 
 
 def aggregated_remediations(findings: list[dict]) -> list[tuple[str, int]]:
-    """Zbiera zalecenia findingow bez powtorzen (G-04-5a).
+    """Collects finding remediations without repetition (G-04-5a).
 
-    Zwraca liste par (tresc zalecenia, liczba findingow, ktore je niosa), w
-    kolejnosci PIERWSZEGO wystapienia zalecenia na liscie wejsciowej. Wzorzec
-    identyczny z `checks.engine._dedupe_standards`: slownik zliczajacy plus
-    osobna lista kolejnosci, nigdy zbior na sciezce do serializacji -
-    kolejnosc wierszy raportu wchodzi do artefaktu porownywanego bajtowo,
-    a zbior jej nie ma.
+    Returns a list of (remediation text, number of findings carrying it)
+    pairs, in order of the remediation's FIRST appearance in the input list.
+    The pattern is identical to `checks.engine._dedupe_standards`: a counting
+    dictionary plus a separate order list, never a set on the path to
+    serialisation - report row order goes into an artifact compared byte for
+    byte, and a set does not have it.
 
-    Porownanie idzie po PELNYM lancuchu zalecenia (zalozenie Z-94): dwa
-    zalecenia rozniace sie samym koncem sa dwoma roznymi zaleceniami."""
+    Comparison runs over the FULL remediation string (assumption Z-94): two
+    remediations differing only at the very end are two different
+    remediations."""
     counts: dict[str, int] = {}
     order: list[str] = []
     for finding in findings:
@@ -134,106 +137,111 @@ def aggregated_remediations(findings: list[dict]) -> list[tuple[str, int]]:
 
 
 def session_parties_line(evidence: dict) -> str:
-    """Buduje linie uczestnikow sesji, ktorej finding dotyczy (G-04-5b):
-    strony sesji w postaci adres zrodlowy, strzalka, adres docelowy, wziete
-    z pary punktow koncowych dopisanej do dowodu przez silnik checkow.
-    Wspolna funkcja czysta dla markdown i PDF (`report_pdf.py` importuje ja
-    ta sama droga co `citation_line`)."""
-    return f"Uczestnicy sesji: {evidence['source']} -> {evidence['target']}"
+    """Builds the line naming the parties of the session a finding concerns
+    (G-04-5b): the session endpoints as source address, arrow, target
+    address, taken from the endpoint pair the check engine attaches to the
+    evidence. A pure function shared by markdown and PDF (`report_pdf.py`
+    imports it the same way it imports `citation_line`)."""
+    return f"Session parties: {evidence['source']} -> {evidence['target']}"
 
 
 def render_markdown(
     analysis: dict, *, generated_at: datetime, warnings: tuple[str, ...] = ()
 ) -> str:
-    """Renderuje `analysis` do markdown, zwyklymi funkcjami Pythona.
-    Znacznik czasu wygenerowania raportu wchodzi WYLACZNIE tutaj, przez
-    argument `generated_at` (D-02) - `analysis.json` go nie niesie.
-    Analogicznie `warnings` (ostrzezenia z `AnalyzeResult`, np. zrzut
-    strukturalnie pusty, D-01) wchodzi tylko tutaj - nie jest czescia
-    schematu `analysis.json`."""
+    """Renders `analysis` to markdown with plain Python functions.
+
+    The report generation timestamp enters ONLY here, through the
+    `generated_at` argument (D-02) - `analysis.json` does not carry it. The
+    same holds for `warnings` (warnings from `AnalyzeResult`, e.g. a
+    structurally empty capture, D-01): they enter only here and are not part
+    of the `analysis.json` schema."""
     capture = analysis.get("capture", {})
     findings = analysis.get("findings", [])
 
     lines: list[str] = []
-    lines.append("# Raport Wayside")
+    lines.append("# Wayside report")
     lines.append("")
-    lines.append(f"Wygenerowano: {generated_at.isoformat()}")
+    lines.append(f"Generated: {generated_at.isoformat()}")
     lines.append("")
 
     lines.append(f"## {SECTIONS[0]}")
     lines.append("")
     if findings:
         lines.append(
-            f"Analiza zrzutu `{capture.get('filename', '?')}` wykazała "
+            f"Analysis of capture `{capture.get('filename', '?')}` raised "
             f"{finding_count_phrase(len(findings))}."
         )
     else:
         lines.append(
-            f"Analiza zrzutu `{capture.get('filename', '?')}` nie wykazała "
-            "żadnego findingu w tym przebiegu."
+            f"Analysis of capture `{capture.get('filename', '?')}` raised no "
+            "finding in this run."
         )
     lines.append("")
 
     lines.append(f"## {SECTIONS[1]}")
     lines.append("")
-    # PROTO-05: lista protokolow idzie z danych (`analysis["protocol_events"]`),
-    # nie z zamknietej listy stalych - kolejny dissector w rejestrze nie
-    # wymaga zmiany tego zdania (04-RESEARCH.md, Pitfall 4).
+    # PROTO-05: the protocol list comes from the data
+    # (`analysis["protocol_events"]`), not from a closed list of constants -
+    # another dissector in the registry does not require changing this
+    # sentence (04-RESEARCH.md, Pitfall 4).
     recognized_protocols = sorted(
         {event["protocol"] for event in analysis.get("protocol_events", [])}
     )
     if recognized_protocols:
         protocols_sentence = (
-            f"Zrzut niesie {capture.get('packet_count', 0)} pakietów. W tym "
-            f"zrzucie rozpoznano protokół(y): {', '.join(recognized_protocols)}, "
-            "rozpoznawane po kształcie zawartości segmentu, nigdy po numerze "
-            "portu."
+            f"The capture carries {capture.get('packet_count', 0)} packets. "
+            f"Protocol(s) recognised in this capture: "
+            f"{', '.join(recognized_protocols)}, recognised by the shape of "
+            "the segment payload, never by port number."
         )
     else:
         protocols_sentence = (
-            f"Zrzut niesie {capture.get('packet_count', 0)} pakietów. W tym "
-            "zrzucie żaden protokół aplikacyjny nie został rozpoznany; "
-            "rozpoznanie idzie po kształcie zawartości segmentu, nigdy po "
-            "numerze portu."
+            f"The capture carries {capture.get('packet_count', 0)} packets. "
+            "No application protocol was recognised in this capture; "
+            "recognition goes by the shape of the segment payload, never by "
+            "port number."
         )
     scope_boundary_sentence = (
-        "Ruch, którego protokołu nie rozpoznano, ma wiersz w macierzy "
-        f"komunikacji z etykietą `{PROTOCOL_UNRECOGNIZED}` i nie jest "
-        "podstawą żadnego findingu."
+        "Traffic whose protocol was not recognised has a row in the "
+        f"communication matrix labelled `{PROTOCOL_UNRECOGNIZED}` and is not "
+        "the basis of any finding."
     )
     lines.append(f"{protocols_sentence} {scope_boundary_sentence}")
     first_seen = capture.get("first_seen")
     last_seen = capture.get("last_seen")
     if first_seen is not None and last_seen is not None:
         window_sentence = (
-            f"Okno czasowe zrzutu: od {first_seen} do {last_seen} "
-            "(znaczniki czasu epoki Unix)."
+            f"Capture time window: from {first_seen} to {last_seen} "
+            "(Unix epoch timestamps)."
         )
     else:
         window_sentence = (
-            "Okno czasowe zrzutu nie zostało ustalone - zrzut nie zawiera "
-            "ani jednego pakietu."
+            "The capture time window was not established - the capture "
+            "contains no packets at all."
         )
     snaplen = capture.get("snaplen")
     if snaplen is not None:
-        snaplen_sentence = f"Snaplen odczytany z nagłówka zrzutu: {snaplen} bajtów."
+        snaplen_sentence = f"Snaplen read from the capture header: {snaplen} bytes."
     else:
         snaplen_note = capture.get("snaplen_note") or (
-            "snaplen nie został jednoznacznie ustalony"
+            "snaplen was not unambiguously established"
         )
-        snaplen_sentence = f"Snaplen nie został jednoznacznie ustalony ({snaplen_note})."
-    # Wartosc zero renderowana jawnie - brak ucietych ramek jest wynikiem
-    # analizy zrzutu, nie brakiem zdania o nim (INGEST-03).
+        snaplen_sentence = (
+            f"Snaplen was not unambiguously established ({snaplen_note})."
+        )
+    # Zero is rendered explicitly - no truncated frames is a result of the
+    # analysis, not the absence of a sentence about it (INGEST-03).
     snaplen_truncated_count = capture.get("snaplen_truncated_packet_count", 0)
     snaplen_truncated_sentence = (
-        f"Ramek uciętych przez snaplen: {snaplen_truncated_count}."
+        f"Frames truncated by snaplen: {snaplen_truncated_count}."
     )
-    # PROTO-03: wartosc zero renderowana jawnie, tak samo jak liczba ramek
-    # ucietych przez snaplen wyzej - odczyt przez .get z wartoscia zapasowa,
-    # zeby model budowany recznie w tests/test_report_render.py nadal sie
-    # renderowal.
+    # PROTO-03: zero rendered explicitly, exactly as with the snaplen
+    # truncation count above - read through .get with a fallback so that a
+    # model built by hand in tests/test_report_render.py still renders.
     low_confidence_count = len(analysis.get("low_confidence_events", []))
-    low_confidence_sentence = f"Zdarzeń rozpoznanych z niską pewnością: {low_confidence_count}."
+    low_confidence_sentence = (
+        f"Events recognised with low confidence: {low_confidence_count}."
+    )
     lines.append(
         f"{window_sentence} {snaplen_sentence} {snaplen_truncated_sentence} "
         f"{low_confidence_sentence}"
@@ -243,10 +251,11 @@ def render_markdown(
     lines.append(f"## {SECTIONS[2]}")
     lines.append("")
     lines.append(
-        "Każdy finding niesie wskaźnik zaobserwowanego zachowania w ruchu "
-        "sieciowym, nigdy ocenę, czy instalacja spełnia albo nie spełnia "
-        "wymagań normy. Waga findingu wynika z poniższych, udokumentowanych "
-        f"kryteriów rubryki (wersja {risk.RUBRIC_VERSION}), nie z wymyślonej skali:"
+        "Every finding carries an indicator of behaviour observed in network "
+        "traffic, never a judgement on whether an installation does or does "
+        "not meet the requirements of a standard. Finding severity follows "
+        f"the documented rubric criteria below (version {risk.RUBRIC_VERSION}), "
+        "not an invented scale:"
     )
     lines.append("")
     for severity in risk.ALLOWED_SEVERITIES:
@@ -258,9 +267,7 @@ def render_markdown(
     lines.append("")
     assets = analysis.get("assets", [])
     if not assets:
-        lines.append(
-            "Żaden host z warstwą IP nie został zaobserwowany w tym zrzucie."
-        )
+        lines.append("No IP-layer host was observed in this capture.")
         lines.append("")
     else:
         for host in assets:
@@ -268,74 +275,76 @@ def render_markdown(
             lines.append(f"### {ip_field['value']}")
             lines.append("")
             for field_name, field_value in host.items():
-                # Pola z wlasnymi punktami nizej (ASSET-02, ASSET-04 do
-                # ASSET-07) sa wylaczone z tej petli ogolnej, zeby nie
-                # renderowac ich dwa razy - raz pod nazwa klucza, raz pod
-                # etykieta czytelna dla czlowieka.
+                # Fields with their own bullets below (ASSET-02, ASSET-04 to
+                # ASSET-07) are excluded from this generic loop so they are
+                # not rendered twice - once under the key name, once under a
+                # human-readable label.
                 if field_name in _HOST_FIELDS_WITH_OWN_ROW:
                     continue
                 value = field_value["value"]
                 provenance = field_value["provenance"]
-                rendered_value = "nieustalone" if value is None else value
+                rendered_value = NOT_DETERMINED if value is None else value
                 lines.append(f"- {field_name}: {rendered_value} ({provenance})")
-            # Odczyt przez .get z obsluga braku klucza, zeby model budowany
-            # recznie w tests/test_report_render.py nadal sie renderowal.
+            # Read through .get with missing-key handling so that a model
+            # built by hand in tests/test_report_render.py still renders.
             oui_vendor = host.get("oui_vendor")
             if oui_vendor is not None:
                 vendor_value = oui_vendor["value"]
                 vendor_provenance = oui_vendor["provenance"]
-                rendered_vendor = "nieustalony" if vendor_value is None else vendor_value
-                lines.append(f"- Producent: {rendered_vendor} ({vendor_provenance})")
+                rendered_vendor = (
+                    NOT_DETERMINED if vendor_value is None else vendor_value
+                )
+                lines.append(f"- Vendor: {rendered_vendor} ({vendor_provenance})")
 
             unit_ids = host.get("unit_ids")
             if unit_ids is not None:
                 unit_ids_value = unit_ids["value"]
                 rendered_unit_ids = (
-                    "nieustalone"
+                    NOT_DETERMINED
                     if unit_ids_value is None
                     else ", ".join(str(unit_id) for unit_id in unit_ids_value)
                 )
                 lines.append(
-                    f"- Podadresy Unit ID: {rendered_unit_ids} ({unit_ids['provenance']})"
+                    f"- Unit ID sub-addresses: {rendered_unit_ids} "
+                    f"({unit_ids['provenance']})"
                 )
 
             gateway = host.get("gateway")
             if gateway is not None:
                 if gateway["value"]:
-                    # Liczba urzadzen logicznych wyliczana z dlugosci listy
-                    # podadresow tego samego hosta, nie z osobnego pola modelu:
-                    # jedno zrodlo tej liczby, dwa miejsca jej uzycia.
+                    # The number of logical devices is derived from the length
+                    # of the same host's sub-address list, not from a separate
+                    # model field: one source for this number, two uses of it.
                     logical_devices = len((unit_ids or {}).get("value") or [])
                     rendered_gateway = (
-                        f"prawdopodobna brama z {logical_devices} "
-                        "urządzeniami logicznymi za nią"
+                        f"probable gateway with {logical_devices} logical "
+                        "device(s) behind it"
                     )
                 else:
-                    # Przy wartosci `null` NIE renderujemy zdania o tym, ze host
-                    # brama nie jest (zalozenie Z-25): to ta sama pulapka co
-                    # wartosc `false` w modelu, tylko przeniesiona do tekstu.
-                    rendered_gateway = "nieustalone"
-                lines.append(
-                    f"- Brama: {rendered_gateway} ({gateway['provenance']})"
-                )
+                    # On a `null` value we do NOT render a sentence saying the
+                    # host is not a gateway (assumption Z-25): that is the same
+                    # trap as a `false` value in the model, moved into prose.
+                    rendered_gateway = NOT_DETERMINED
+                lines.append(f"- Gateway: {rendered_gateway} ({gateway['provenance']})")
 
             role = host.get("role")
             if role is not None:
-                lines.append(f"- Rola: {role['value']} ({role['provenance']})")
+                lines.append(f"- Role: {role['value']} ({role['provenance']})")
 
-            # Dowod roli stoi BEZPOSREDNIO pod rola: etykieta bez towarzyszacego
-            # dowodu w tym samym miejscu jest sygnalem, ktorego doswiadczony
-            # recenzent szuka najpierw (PITFALLS.md, Pitfall 9).
+            # Role evidence stands DIRECTLY under the role: a label without
+            # its accompanying evidence in the same place is the signal an
+            # experienced reviewer looks for first (PITFALLS.md, Pitfall 9).
             role_evidence = host.get("role_evidence")
             if role_evidence is not None:
                 lines.append(
-                    f"- Dowód roli: {role_evidence['value']} ({role_evidence['provenance']})"
+                    f"- Role evidence: {role_evidence['value']} "
+                    f"({role_evidence['provenance']})"
                 )
 
             role_confidence = host.get("role_confidence")
             if role_confidence is not None:
                 lines.append(
-                    f"- Pewność roli: {role_confidence['value']} "
+                    f"- Role confidence: {role_confidence['value']} "
                     f"({role_confidence['provenance']})"
                 )
             lines.append("")
@@ -344,21 +353,19 @@ def render_markdown(
     lines.append("")
     comm_matrix = analysis.get("comm_matrix", [])
     if not comm_matrix:
-        lines.append(
-            "Żadna sesja TCP z ładunkiem nie została zaobserwowana w tym zrzucie."
-        )
+        lines.append("No TCP session carrying payload was observed in this capture.")
         lines.append("")
     else:
-        # Tabela jest tu wlasciwym ksztaltem, w odroznieniu od inwentarza:
-        # osiem kolumn krotkich wartosci czyta sie w wierszu, a porownanie sesji
-        # miedzy soba jest cala trescia macierzy. Znacznik pochodzenia stoi przy
-        # kierunku i przy stronie inicjujacej, czyli tam, gdzie rozroznienie
-        # obserwacji od wniosku zmienia odczyt; kolumny czysto liczbowe ze
-        # znacznikiem `observed` znacznika nie niosa, zeby tabela pozostala
-        # czytelna.
+        # A table is the right shape here, unlike in the inventory: eight
+        # columns of short values read well in a row, and comparing sessions
+        # against each other is the whole content of the matrix. The
+        # provenance marker stands next to direction and next to the
+        # initiating party, that is where telling an observation from an
+        # inference changes the reading; purely numeric columns marked
+        # `observed` carry no marker, so the table stays readable.
         lines.append(
-            "| Sesja | Źródło | Cel | Kierunek | Protokół | Wolumen (B) | "
-            "Pakietów | Strona inicjująca |"
+            "| Session | Source | Target | Direction | Protocol | Volume (B) | "
+            "Packets | Initiating party |"
         )
         lines.append("|---|---|---|---|---|---|---|---|")
         for row in comm_matrix:
@@ -366,7 +373,7 @@ def render_markdown(
             initiator = row.get("initiator", {})
             initiator_value = initiator.get("value")
             rendered_initiator = (
-                "nieustalona" if initiator_value is None else initiator_value
+                NOT_DETERMINED if initiator_value is None else initiator_value
             )
             lines.append(
                 f"| {row.get('session_id', {}).get('value', '?')} "
@@ -387,75 +394,78 @@ def render_markdown(
     if warnings:
         lines.append("")
     lines.append(
-        "Ten raport pochodzi z pionowego przekroju: jeden zrzut, jeden "
-        "check, jeden punkt normy. Model strefy i kanału jest placeholderem "
-        "jednostrefowym wyprowadzonym automatycznie z tego zrzutu, nie "
-        "zaprojektowaną topologią sieci. Numeracja punktu normy jest "
-        "prowizoryczna i czeka na zestawienie z legalnym egzemplarzem normy."
+        "This report comes from a vertical slice: one capture, one check, one "
+        "standard clause. The zone and conduit model is a single-zone "
+        "placeholder derived automatically from this capture, not a designed "
+        "network topology. Standard clause numbering is provisional and "
+        "awaits collation against a legal copy of the standard."
     )
     lines.append("")
 
-    # REPORT-02: lista pol nieustalonych powstaje z TEGO modelu, nie z listy
-    # pisanej recznie - dopisanie nowego pola inwentarza albo macierzy trafia
-    # tu samo, bez zmiany w warstwie renderowania.
+    # REPORT-02: the list of not-derivable fields is produced from THIS
+    # model, not from a hand-written list - adding a new inventory or matrix
+    # field lands here on its own, with no change to the rendering layer.
     not_derivable_rows = collect_not_derivable_fields(analysis)
     if not_derivable_rows:
         lines.append(
-            "Pola, których nie da się ustalić z tego zrzutu, zebrane po nazwie pola:"
+            "Fields that cannot be established from this capture, grouped by "
+            "field name:"
         )
         lines.append("")
         for row in not_derivable_rows:
             lines.append(
-                f"- sekcja `{row['section']}`, pole `{row['field']}`: "
-                f"{row['count']} z {row['total']} wpisów"
+                f"- section `{row['section']}`, field `{row['field']}`: "
+                f"{row['count']} of {row['total']} entries"
             )
     else:
         lines.append(
-            "W tym przebiegu każde pole sekcji inwentarza i macierzy komunikacji "
-            "zostało ustalone z zaobserwowanego ruchu."
+            "In this run every field of the inventory and communication "
+            "matrix sections was established from observed traffic."
         )
     lines.append("")
 
     lines.append(f"## {SECTIONS[6]}")
     lines.append("")
     if not findings:
-        lines.append("Brak findingów w tym przebiegu.")
+        lines.append("No findings in this run.")
         lines.append("")
     for finding in findings:
         evidence = finding["evidence"]
         lines.append(f"### {finding['title']}")
         lines.append("")
-        lines.append(f"- Identyfikator checka: `{finding['check_id']}`")
-        lines.append(f"- Waga: {finding['severity']} (ryzyko: {finding['risk']})")
+        lines.append(f"- Check identifier: `{finding['check_id']}`")
+        lines.append(f"- Severity: {finding['severity']} (risk: {finding['risk']})")
         lines.append(f"- {session_parties_line(evidence)}")
         lines.append(
-            f"- Dowód: pakiet nr {evidence['packet_number']}, "
-            f"sesja nr {evidence['session_id']}"
+            f"- Evidence: packet no. {evidence['packet_number']}, "
+            f"session no. {evidence['session_id']}"
         )
-        lines.append(f"- Uzasadnienie: {finding['rationale']}")
+        lines.append(f"- Rationale: {finding['rationale']}")
         for ref in finding["standard_refs"]:
             lines.append(f"- {citation_line(ref)}")
             scope_line = citation_scope_line(ref)
             if scope_line is not None:
                 lines.append(f"  - {scope_line}")
-            lines.append(f"  - Parafraza: {ref['paraphrase']}")
+            lines.append(f"  - Paraphrase: {ref['paraphrase']}")
             if ref["verified"]:
-                lines.append("  - Status: zweryfikowane")
+                lines.append("  - Status: verified")
             else:
                 lines.append(
-                    "  - Status: **PROWIZORYCZNE, NIEZWERYFIKOWANE** "
+                    "  - Status: **PROVISIONAL, UNVERIFIED** "
                     f"({ref['verification_note']})"
                 )
-        lines.append(f"- Zalecenie: {finding['remediation']}")
+        lines.append(f"- Remediation: {finding['remediation']}")
         lines.append("")
 
     lines.append(f"## {SECTIONS[7]}")
     lines.append("")
     if not findings:
-        lines.append("Brak zaleceń w tym przebiegu.")
+        lines.append("No recommendations in this run.")
     else:
         for remediation, count in aggregated_remediations(findings):
-            lines.append(f"- {remediation} (dotyczy {finding_genitive_phrase(count)})")
+            lines.append(
+                f"- {remediation} (applies to {finding_genitive_phrase(count)})"
+            )
     lines.append("")
 
     return "\n".join(lines) + "\n"

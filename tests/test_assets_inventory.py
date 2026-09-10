@@ -575,7 +575,7 @@ def test_no_forbidden_organisational_label_occurs_in_any_role_label():
 
 
 def test_confidence_levels_has_exactly_two_values_and_no_high():
-    assert CONFIDENCE_LEVELS == ("niska", "średnia")
+    assert CONFIDENCE_LEVELS == ("low", "medium")
     assert not any("wysok" in level for level in CONFIDENCE_LEVELS)
 
 
@@ -620,10 +620,10 @@ def test_address_without_any_modbus_event_has_role_undetermined_as_string():
     assets = build_assets(segments=_client_server_segments(), events=[])
     client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
 
-    # ASSET-07: wartoscia pola jest LANCUCH `nieustalona`, nie `None` i nie brak
-    # klucza. Rola nieustalona jest widocznym wpisem, nie pustym wierszem - to
+    # ASSET-07: wartoscia pola jest LANCUCH `not determined`, nie `None` i nie brak
+    # klucza. Rola not determined jest widocznym wpisem, nie pustym wierszem - to
     # jedyne pole inwentarza, w ktorym brak wiedzy ma wartosc inna niz `null`.
-    assert client["role"]["value"] == "nieustalona"
+    assert client["role"]["value"] == "undetermined"
     assert client["role"]["value"] is not None
     assert client["role"]["provenance"] == "not-derivable-passively"
 
@@ -667,7 +667,7 @@ def test_one_event_gives_low_confidence():
     assets = build_assets(segments=_client_server_segments(), events=events)
     server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
 
-    assert server["role_confidence"]["value"] == "niska"
+    assert server["role_confidence"]["value"] == "low"
 
 
 def test_two_events_give_low_confidence_below_the_threshold():
@@ -676,7 +676,7 @@ def test_two_events_give_low_confidence_below_the_threshold():
     assets = build_assets(segments=_client_server_segments(), events=events)
     server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
 
-    assert server["role_confidence"]["value"] == "niska"
+    assert server["role_confidence"]["value"] == "low"
 
 
 def test_three_directionally_consistent_events_give_medium_confidence():
@@ -685,7 +685,7 @@ def test_three_directionally_consistent_events_give_medium_confidence():
     assets = build_assets(segments=_client_server_segments(), events=events)
     server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
 
-    assert server["role_confidence"]["value"] == "średnia"
+    assert server["role_confidence"]["value"] == "medium"
 
 
 def test_three_events_in_both_directions_give_low_confidence():
@@ -698,14 +698,14 @@ def test_three_events_in_both_directions_give_low_confidence():
     assets = build_assets(segments=_client_server_segments(), events=events)
     server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
 
-    assert server["role_confidence"]["value"] == "niska"
+    assert server["role_confidence"]["value"] == "low"
 
 
 def test_address_without_events_has_low_confidence():
     assets = build_assets(segments=_client_server_segments(), events=[])
     client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
 
-    assert client["role_confidence"]["value"] == "niska"
+    assert client["role_confidence"]["value"] == "low"
 
 
 def test_assert_provenance_complete_passes_with_role_fields():
@@ -734,10 +734,10 @@ def _host_entry(*, ip: str, role: str) -> dict:
         "unit_ids": {"value": None, "provenance": "not-derivable-passively"},
         "gateway": {"value": None, "provenance": "not-derivable-passively"},
         "role": {"value": role, "provenance": "inferred:modbus-traffic-direction"},
-        "role_evidence": {"value": "Zadania Modbus wysłane przez ten adres: 1; "
-                                   "zadania Modbus odebrane przez ten adres: 0.",
+        "role_evidence": {"value": "Modbus requests sent by this address: 1; "
+                                   "Modbus requests received by this address: 0.",
                           "provenance": "observed"},
-        "role_confidence": {"value": "niska",
+        "role_confidence": {"value": "low",
                             "provenance": "inferred:event-count-and-direction"},
     }
 
@@ -755,7 +755,7 @@ def test_rendered_role_rows_carry_no_organisational_label():
     rendered = render_markdown(
         analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
     ).lower()
-    role_rows = [line for line in rendered.splitlines() if line.strip().startswith("- rola:")]
+    role_rows = [line for line in rendered.splitlines() if line.strip().startswith("- role:")]
 
     assert len(role_rows) == len(ROLE_LABELS)
     for row in role_rows:
@@ -773,9 +773,9 @@ def test_role_evidence_row_stands_directly_under_the_role_row():
     lines = render_markdown(
         analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
     ).splitlines()
-    role_index = next(i for i, line in enumerate(lines) if line.startswith("- Rola:"))
+    role_index = next(i for i, line in enumerate(lines) if line.startswith("- Role:"))
 
-    assert lines[role_index + 1].startswith("- Dowód roli:")
+    assert lines[role_index + 1].startswith("- Role evidence:")
 
 
 def test_gateway_true_renders_probable_gateway_sentence_with_device_count():
@@ -788,7 +788,7 @@ def test_gateway_true_renders_probable_gateway_sentence_with_device_count():
         analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
     )
 
-    assert "prawdopodobna brama" in rendered
+    assert "probable gateway" in rendered
     assert "3" in rendered
 
 
@@ -803,11 +803,11 @@ def test_gateway_null_renders_undetermined_and_never_denies_a_gateway():
         analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
     )
     gateway_row = next(
-        line for line in rendered.splitlines() if line.startswith("- Brama:")
+        line for line in rendered.splitlines() if line.startswith("- Gateway:")
     )
 
-    assert "nieustalone" in gateway_row
-    assert "prawdopodobna brama" not in gateway_row.lower().removeprefix("- brama:")
+    assert "not determined" in gateway_row
+    assert "probable gateway" not in gateway_row.lower().removeprefix("- brama:")
 
 
 def test_unit_ids_row_renders_values_separated_by_commas():
@@ -819,7 +819,7 @@ def test_unit_ids_row_renders_values_separated_by_commas():
         analysis, generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
     )
     row = next(
-        line for line in rendered.splitlines() if line.startswith("- Podadresy Unit ID:")
+        line for line in rendered.splitlines() if line.startswith("- Unit ID sub-addresses:")
     )
 
     assert "1, 2, 3" in row

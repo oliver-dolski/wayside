@@ -18,6 +18,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from wayside.assets.oui import load_oui_table
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_RELATIVE = "tests/fixtures/pcap/modbus_write_single_register.pcap"
 FIXTURE_TRUNCATED_RECORD = "tests/fixtures/pcap/truncated_mid_record.pcap"
@@ -179,10 +181,10 @@ def test_report_markdown_carries_evidence_and_unverified_marker(tmp_path):
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    assert "Dowód: pakiet nr 1, sesja nr 0" in report_text
+    assert "Evidence: packet no. 1, session no. 0" in report_text
     assert "SR 1.1" in report_text
-    assert "PROWIZORYCZNE" in report_text
-    assert "NIEZWERYFIKOWANE" in report_text
+    assert "PROVISIONAL" in report_text
+    assert "UNVERIFIED" in report_text
 
 
 # --- D-01: zrzut obciety konczy sie kodem != 0, bez tracebacku, bez artefaktow ---
@@ -191,7 +193,7 @@ def test_report_markdown_carries_evidence_and_unverified_marker(tmp_path):
 def test_truncated_mid_record_pcap_exits_with_truncated_code_and_no_artifacts(tmp_path):
     result = _run_analyze_path(FIXTURE_TRUNCATED_RECORD, tmp_path)
     assert result.returncode == 3, result.stdout + result.stderr
-    assert "obciety" in result.stderr
+    assert "truncated" in result.stderr
     assert "Traceback (most recent call last)" not in result.stderr
     assert list(tmp_path.iterdir()) == []
 
@@ -199,7 +201,7 @@ def test_truncated_mid_record_pcap_exits_with_truncated_code_and_no_artifacts(tm
 def test_truncated_mid_block_pcapng_exits_with_truncated_code(tmp_path):
     result = _run_analyze_path(FIXTURE_TRUNCATED_BLOCK, tmp_path)
     assert result.returncode == 3, result.stdout + result.stderr
-    assert "obciety" in result.stderr
+    assert "truncated" in result.stderr
     assert "Traceback (most recent call last)" not in result.stderr
     assert list(tmp_path.iterdir()) == []
 
@@ -210,7 +212,7 @@ def test_truncated_mid_block_pcapng_exits_with_truncated_code(tmp_path):
 def test_empty_valid_header_exits_zero_with_warning_and_empty_lists(tmp_path):
     result = _run_analyze_path(FIXTURE_EMPTY_HEADER, tmp_path)
     assert result.returncode == 0, result.stderr
-    assert "Ostrzezenie:" in result.stderr
+    assert "Warning:" in result.stderr
 
     analysis = _load_analysis(tmp_path)
     assert analysis["conversations"] == []
@@ -222,12 +224,12 @@ def test_empty_valid_header_exits_zero_with_warning_and_empty_lists(tmp_path):
 
     headers = re.findall(r"^## (.+)$", report_text, flags=re.MULTILINE)
     assert headers == list(SECTIONS)
-    assert "Brak findingów w tym przebiegu." in report_text
+    assert "No findings in this run." in report_text
 
-    ograniczenia_start = report_text.index("## Ograniczenia")
-    findingi_start = report_text.index("## Findingi")
+    ograniczenia_start = report_text.index("## Limitations")
+    findingi_start = report_text.index("## Findings")
     ograniczenia_section = report_text[ograniczenia_start:findingi_start]
-    assert "nie zawiera ani jednego pakietu" in ograniczenia_section
+    assert "contains no packets at all" in ograniczenia_section
 
 
 # --- D-01/INGEST-01: fixture pcapng przechodzi caly potok jak fixture klasyczny ---
@@ -328,8 +330,8 @@ def test_report_markdown_has_eight_sections_with_macierz_after_inwentarz(tmp_pat
     headers = re.findall(r"^## (.+)$", report_text, flags=re.MULTILINE)
     assert headers == list(SECTIONS)
     assert len(SECTIONS) == 8
-    assert SECTIONS.index("Inwentarz") == SECTIONS.index("Metodyka") + 1
-    assert SECTIONS.index("Macierz komunikacji") == SECTIONS.index("Inwentarz") + 1
+    assert SECTIONS.index("Asset inventory") == SECTIONS.index("Methodology") + 1
+    assert SECTIONS.index("Communication matrix") == SECTIONS.index("Asset inventory") + 1
 
 
 def test_report_markdown_inwentarz_section_carries_both_hosts_and_provenance(tmp_path):
@@ -337,8 +339,8 @@ def test_report_markdown_inwentarz_section_carries_both_hosts_and_provenance(tmp
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    inwentarz_start = report_text.index("## Inwentarz")
-    ograniczenia_start = report_text.index("## Ograniczenia")
+    inwentarz_start = report_text.index("## Asset inventory")
+    ograniczenia_start = report_text.index("## Limitations")
     inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
 
     assert "192.0.2.10" in inwentarz_section
@@ -353,12 +355,12 @@ def test_report_markdown_zakres_section_carries_window_and_snaplen(tmp_path):
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Zakres")
-    metodyka_start = report_text.index("## Metodyka")
+    zakres_start = report_text.index("## Scope")
+    metodyka_start = report_text.index("## Methodology")
     zakres_section = report_text[zakres_start:metodyka_start]
 
     assert "Snaplen" in zakres_section
-    assert "Okno czasowe" in zakres_section
+    assert "Capture time window" in zakres_section
 
 
 def test_report_markdown_zakres_section_names_recognized_protocol_from_data(tmp_path):
@@ -369,8 +371,8 @@ def test_report_markdown_zakres_section_names_recognized_protocol_from_data(tmp_
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Zakres")
-    metodyka_start = report_text.index("## Metodyka")
+    zakres_start = report_text.index("## Scope")
+    metodyka_start = report_text.index("## Methodology")
     zakres_section = report_text[zakres_start:metodyka_start]
 
     assert "modbus-tcp" in zakres_section
@@ -383,11 +385,11 @@ def test_report_markdown_zakres_section_names_no_protocol_recognized_for_empty_d
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Zakres")
-    metodyka_start = report_text.index("## Metodyka")
+    zakres_start = report_text.index("## Scope")
+    metodyka_start = report_text.index("## Methodology")
     zakres_section = report_text[zakres_start:metodyka_start]
 
-    assert "żaden protokół aplikacyjny nie został rozpoznany" in zakres_section
+    assert "No application protocol was recognised in this capture" in zakres_section
 
 
 def test_report_markdown_zakres_section_no_longer_claims_single_protocol_exclusivity(tmp_path):
@@ -398,11 +400,11 @@ def test_report_markdown_zakres_section_no_longer_claims_single_protocol_exclusi
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Zakres")
-    metodyka_start = report_text.index("## Metodyka")
+    zakres_start = report_text.index("## Scope")
+    metodyka_start = report_text.index("## Methodology")
     zakres_section = report_text[zakres_start:metodyka_start]
 
-    assert "obejmuje wylacznie protokol" not in zakres_section
+    assert "covers only the protocol" not in zakres_section
 
 
 # --- INGEST-05: zrzut uszkodzony strukturalnie, rozny od zrzutu obcietego ---
@@ -412,7 +414,7 @@ def test_report_markdown_zakres_section_no_longer_claims_single_protocol_exclusi
 def test_corrupted_record_length_exits_with_corrupt_code_and_no_artifacts(tmp_path):
     result = _run_analyze_path(FIXTURE_CORRUPTED_RECORD_LENGTH, tmp_path)
     assert result.returncode == 5, result.stdout + result.stderr
-    assert "uszkodzony" in result.stderr
+    assert "corrupt" in result.stderr
     assert "Traceback (most recent call last)" not in result.stderr
     assert list(tmp_path.iterdir()) == []
 
@@ -439,27 +441,77 @@ def test_unrecognized_magic_still_exits_with_unsupported_format_code_after_corru
     assert result.returncode == 4, result.stdout + result.stderr
 
 
-# --- Kodowanie wyjscia: bramka naprawy defektu ujawnionego przez pierwszy
-# prawdziwy przebieg CI na maszynie bez polskiego kodowania ----------------
+# --- Output encoding: the gate for the defect the first real CI run on a
+# machine with a foreign codepage revealed --------------------------------
 
 
-def test_cli_emits_diacritics_as_characters_under_foreign_environment_encoding(
+def _vendor_probe_prefix_with_non_ascii_name() -> tuple[str, str]:
+    """The first OUI prefix, in sorted order, whose vendor name carries a
+    character outside ASCII, together with that name.
+
+    Chosen FROM THE TABLE the pipeline reads, never written into the test by
+    hand - the IEEE registry gets refreshed, and a hard-coded name would turn
+    a refresh into a test failure with no defect behind it (the
+    `tests/test_oui.py::_write_probe_capture` pattern).
+    """
+    table = load_oui_table()
+    for prefix in sorted(table):
+        name = table[prefix]
+        if any(ord(ch) > 127 for ch in name):
+            return prefix, name
+    raise AssertionError(
+        "The committed OUI table carries no vendor name outside ASCII - this "
+        "test has nothing to assert on and its subject has to be revisited."
+    )
+
+
+def _write_non_ascii_vendor_capture(path: Path, mac: str) -> None:
+    """One Modbus/TCP packet from a host whose MAC prefix resolves to a
+    vendor name outside ASCII - the same shape as
+    `tests/test_oui.py::_write_probe_capture`, built in a temporary
+    directory rather than added to `tests/fixtures/`."""
+    import wayside.pcap  # noqa: F401  - scapy cache isolation BEFORE layers
+
+    from scapy.layers.inet import IP, TCP
+    from scapy.layers.l2 import Ether
+    from scapy.utils import wrpcap
+
+    payload = bytes.fromhex("0001000000060106000000ff")
+    packet = (
+        Ether(src=mac, dst="02:00:00:00:00:07")
+        / IP(src="192.0.2.40", dst="192.0.2.41")
+        / TCP(sport=502, dport=50500, flags="PA")
+        / payload
+    )
+    wrpcap(str(path), [packet])
+
+
+def test_cli_emits_non_ascii_as_characters_under_foreign_environment_encoding(
     tmp_path,
 ):
-    """Ostrzezenie narzedzia niesie polska litere jako ZNAK, nie jako sekwencje
-    ucieczki, takze gdy kodowanie srodowiska jej nie obejmuje.
+    """Tool output carries a character outside ASCII AS A CHARACTER, not as
+    an escape sequence, even when the environment encoding does not cover it.
 
-    Python ustawia `sys.stderr.errors` na `backslashreplace`, wiec na maszynie
-    z kodowaniem bez polskich znakow (cp1252 na anglojezycznym Windows, a takze
-    runner CI) litera `l` z kreska wychodzila jako literalne `\u0142`.
-    Ostrzezenie, ktorego uzytkownik nie przeczyta, nie jest ostrzezeniem, a
-    README obiecuje dzialanie na Windows 11 bez dodatkowej konfiguracji.
+    Python sets `sys.stderr.errors` to `backslashreplace`, so on a machine
+    with an encoding that lacks the character (cp1252 on English Windows, and
+    the CI runner too) it came out as a literal backslash-u sequence. Output
+    the user cannot read is not output, and the README promises the tool
+    works on Windows 11 with no extra configuration.
 
-    Ten test jest bramka `cli._force_utf8_output`: bez niej defekt wraca po
-    cichu i widac go dopiero na cudzej maszynie. `PYTHONIOENCODING=cp1252`
-    odtwarza dokladnie warunek, w ktorym pakiet byl czerwony na CI, a zielony
-    lokalnie.
+    The subject of this gate survived the move of the whole report to
+    English. What carried the character then was Polish prose; what carries
+    it now is a vendor name from the IEEE OUI registry, which holds names
+    from across Europe and Asia - the defect and the code that fixes it
+    (`cli._force_utf8_output`) are unchanged, only the source of the
+    character is different.
     """
+    prefix, expected_name = _vendor_probe_prefix_with_non_ascii_name()
+    mac = ":".join(prefix[i : i + 2] for i in range(0, len(prefix), 2)) + ":11:22:33"
+    capture = tmp_path / "non_ascii_vendor.pcap"
+    _write_non_ascii_vendor_capture(capture, mac)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
     env = dict(os.environ, PYTHONIOENCODING="cp1252")
     result = subprocess.run(
         [
@@ -467,9 +519,9 @@ def test_cli_emits_diacritics_as_characters_under_foreign_environment_encoding(
             "-m",
             "wayside.cli",
             "analyze",
-            FIXTURE_SNAPLEN_TRUNCATED,
+            str(capture),
             "--out-dir",
-            str(tmp_path),
+            str(out_dir),
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -479,8 +531,10 @@ def test_cli_emits_diacritics_as_characters_under_foreign_environment_encoding(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "fałszow" in result.stderr
-    assert r"\u0142" not in result.stderr
+
+    report_text = (out_dir / "report.md").read_text(encoding="utf-8")
+    assert expected_name in report_text
+    assert "\\u" not in report_text
 
 
 # --- INGEST-03: ostrzezenie o ramkach ucietych przez snaplen (plan 03-03, Task 1) ---
@@ -490,7 +544,7 @@ def test_snaplen_truncation_produces_named_warning(tmp_path):
     result = _run_analyze_path(FIXTURE_SNAPLEN_TRUNCATED, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "54" in result.stderr
-    assert "fałszow" in result.stderr
+    assert "falsified" in result.stderr
 
     analysis = _load_analysis(tmp_path)
     capture = analysis["capture"]
@@ -524,11 +578,11 @@ def test_report_zakres_section_states_snaplen_truncated_frame_count(tmp_path):
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Zakres")
-    metodyka_start = report_text.index("## Metodyka")
+    zakres_start = report_text.index("## Scope")
+    metodyka_start = report_text.index("## Methodology")
     zakres_section = report_text[zakres_start:metodyka_start]
 
-    assert "Ramek uciętych przez snaplen: 2" in zakres_section
+    assert "Frames truncated by snaplen: 2" in zakres_section
 
 
 # --- INGEST-04: ostrzezenie o oknie zrzutu krotszym niz prog wobec ---------
@@ -562,8 +616,8 @@ def test_empty_valid_header_report_inwentarz_section_states_no_host(tmp_path):
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    inwentarz_start = report_text.index("## Inwentarz")
-    ograniczenia_start = report_text.index("## Ograniczenia")
+    inwentarz_start = report_text.index("## Asset inventory")
+    ograniczenia_start = report_text.index("## Limitations")
     inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
 
     assert inwentarz_section.strip() != ""
@@ -620,11 +674,11 @@ def test_rtu_over_tcp_report_zakres_section_states_low_confidence_count(tmp_path
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Zakres")
-    metodyka_start = report_text.index("## Metodyka")
+    zakres_start = report_text.index("## Scope")
+    metodyka_start = report_text.index("## Methodology")
     zakres_section = report_text[zakres_start:metodyka_start]
 
-    assert "Zdarzeń rozpoznanych z niską pewnością" in zakres_section
+    assert "Events recognised with low confidence" in zakres_section
     assert "2" in zakres_section
 
 
@@ -633,11 +687,11 @@ def test_rtu_over_tcp_report_ograniczenia_section_names_possible_false_match(tmp
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    ograniczenia_start = report_text.index("## Ograniczenia")
-    findingi_start = report_text.index("## Findingi")
+    ograniczenia_start = report_text.index("## Limitations")
+    findingi_start = report_text.index("## Findings")
     ograniczenia_section = report_text[ograniczenia_start:findingi_start]
 
-    assert "fałszywego dopasowania sumy kontrolnej" in ograniczenia_section
+    assert "false checksum match" in ograniczenia_section
 
 
 def test_baseline_report_ograniczenia_section_lacks_false_match_sentence(tmp_path):
@@ -645,11 +699,11 @@ def test_baseline_report_ograniczenia_section_lacks_false_match_sentence(tmp_pat
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    ograniczenia_start = report_text.index("## Ograniczenia")
-    findingi_start = report_text.index("## Findingi")
+    ograniczenia_start = report_text.index("## Limitations")
+    findingi_start = report_text.index("## Findings")
     ograniczenia_section = report_text[ograniczenia_start:findingi_start]
 
-    assert "fałszywego dopasowania sumy kontrolnej" not in ograniczenia_section
+    assert "false checksum match" not in ograniczenia_section
 
 
 def test_two_runs_on_rtu_over_tcp_fixture_give_byte_identical_analysis_json(tmp_path):
@@ -684,18 +738,18 @@ def test_report_markdown_inwentarz_section_carries_producent_bullet(tmp_path):
     # Adresy MAC fixture'ow tego projektu sa lokalnie administrowane
     # (zalozenie Z-03/gen_fixtures.py) - nie maja dopasowania w rejestrze
     # IEEE niezaleznie od tego, czy tabela lezy w drzewie (Task 4, `<action>`:
-    # "producent pozostanie nieustalony takze z pelna tabela"). Ten test jest
+    # "producent pozostanie not determined takze z pelna tabela"). Ten test jest
     # wiec bezpieczny wobec kazdego rozstrzygniecia checkpointu Task 3.
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    inwentarz_start = report_text.index("## Inwentarz")
-    ograniczenia_start = report_text.index("## Ograniczenia")
+    inwentarz_start = report_text.index("## Asset inventory")
+    ograniczenia_start = report_text.index("## Limitations")
     inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
 
-    assert "Producent" in inwentarz_section
-    assert "nieustalony" in inwentarz_section
+    assert "Vendor" in inwentarz_section
+    assert "not determined" in inwentarz_section
     assert "not-derivable-passively" in inwentarz_section
 
 
@@ -736,7 +790,7 @@ def test_missing_oui_table_gives_named_warning_and_analyze_still_succeeds(tmp_pa
         generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 
-    assert any("Tabela producentów OUI" in warning for warning in result.warnings)
+    assert any("The OUI vendor table" in warning for warning in result.warnings)
     assert all(
         host["oui_vendor"] == {"value": None, "provenance": "not-derivable-passively"}
         for host in result.analysis["assets"]
@@ -752,9 +806,9 @@ def test_gateway_fixture_report_names_probable_gateway_with_device_count(tmp_pat
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
     gateway_rows = [
-        line for line in report_text.splitlines() if line.startswith("- Brama:")
+        line for line in report_text.splitlines() if line.startswith("- Gateway:")
     ]
-    named = [line for line in gateway_rows if "prawdopodobna brama" in line]
+    named = [line for line in gateway_rows if "probable gateway" in line]
 
     # Dwa hosty, ale tylko jeden z nich wystawia wiele wartosci Unit ID -
     # zdanie o bramie ma paść dokladnie raz, nie przy kazdym wierszu.
@@ -771,7 +825,7 @@ def test_baseline_fixture_report_never_names_a_probable_gateway(tmp_path):
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    assert "prawdopodobna brama" not in report_text
+    assert "probable gateway" not in report_text
 
 
 def test_gateway_fixture_report_host_block_carries_all_five_new_rows(tmp_path):
@@ -780,7 +834,7 @@ def test_gateway_fixture_report_host_block_carries_all_five_new_rows(tmp_path):
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    for label in ("- Podadresy Unit ID:", "- Brama:", "- Rola:", "- Dowód roli:", "- Pewność roli:"):
+    for label in ("- Unit ID sub-addresses:", "- Gateway:", "- Role:", "- Role evidence:", "- Role confidence:"):
         assert label in report_text
 
 
@@ -864,8 +918,8 @@ def test_report_has_macierz_komunikacji_section_with_a_table(tmp_path):
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    assert "## Macierz komunikacji" in report_text
-    assert "| Sesja | Źródło | Cel | Kierunek | Protokół |" in report_text
+    assert "## Communication matrix" in report_text
+    assert "| Session | Source | Target | Direction | Protocol |" in report_text
     assert "192.0.2.10:50400" in report_text
 
 
@@ -888,13 +942,13 @@ def test_limitations_section_carries_run_numbers_and_undetermined_field_rows(tmp
     assert result.returncode == 0, result.stderr
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
-    section = report_text.split("## Ograniczenia", 1)[1].split("\n## ", 1)[0]
+    section = report_text.split("## Limitations", 1)[1].split("\n## ", 1)[0]
 
-    assert "Zakres tego przebiegu" in section
-    assert "adresów zaobserwowanych 2" in section
-    assert "sesji z ładunkiem 1" in section
-    assert "pole `" in section
-    assert " wpisów" in section
+    assert "Scope of this run" in section
+    assert "addresses observed 2" in section
+    assert "sessions with payload 1" in section
+    assert "field `" in section
+    assert " entries" in section
 
 
 def test_report_from_every_fixture_makes_no_completeness_claim(tmp_path):

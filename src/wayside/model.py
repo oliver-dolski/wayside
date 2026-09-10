@@ -1,10 +1,10 @@
-"""Model kanoniczny: `analysis.json` jako jedyne zrodlo, dataclassy findingu
-i zapis atomowy.
+"""The canonical model: `analysis.json` as the single source, the finding
+dataclasses and atomic writing.
 
-`Evidence` ma DOKLADNIE dwa pola i zadnego pola na surowe bajty ani na
-tresc ladunku - to wlasnosc typu (zagrozenie T-2-06), na wzor `Violation`
-w `scripts/confidentiality_guard.py`, ktore rowniez nie niesie dopasowanego
-tekstu.
+`Evidence` has EXACTLY the fields listed below and no field for raw bytes
+or payload content - that is a property of the type (threat T-2-06),
+modelled on `Violation` in `scripts/confidentiality_guard.py`, which
+likewise does not carry the matched text.
 """
 
 from __future__ import annotations
@@ -38,11 +38,12 @@ __all__ = [
     "collect_not_derivable_fields",
 ]
 
-# Nosnik prowieniencji pola (zalozenie Z-01): kazde pole inwentarza niesie
-# nie tylko wartosc, ale i sposob, w jaki ta wartosc powstala. Trzy rodziny
-# znacznikow: `observed` (odczytane wprost z ramki), `inferred:<metoda>`
-# (wyliczone, z nazwana metoda wnioskowania) i `not-derivable-passively`
-# (nie da sie ustalic z pasywnego zrzutu - MUST NOT pomijac takiego pola).
+# The carrier of field provenance (assumption Z-01): every inventory field
+# carries not only a value but also the way that value came about. Three
+# families of markers: `observed` (read straight from the frame),
+# `inferred:<method>` (computed, with a named inference method) and
+# `not-derivable-passively` (cannot be established from a passive capture -
+# such a field is never to be omitted).
 PROVENANCE_OBSERVED = "observed"
 PROVENANCE_NOT_DERIVABLE = "not-derivable-passively"
 PROVENANCE_PATTERN = re.compile(r"^(observed|inferred:[a-z0-9_-]+|not-derivable-passively)$")
@@ -50,10 +51,10 @@ PROVENANCE_PATTERN = re.compile(r"^(observed|inferred:[a-z0-9_-]+|not-derivable-
 
 @dataclass(frozen=True)
 class ObservedField:
-    """Wartosc razem ze znacznikiem jej pochodzenia. `__post_init__` odrzuca
-    znacznik spoza `PROVENANCE_PATTERN` od razu przy konstrukcji - ten sam
-    styl co `severity_to_risk` w `risk.py`, ktory na wartosci spoza listy
-    podnosi wyjatek zamiast zwracac wartosc domyslna."""
+    """A value together with the marker of its provenance. `__post_init__`
+    rejects a marker outside `PROVENANCE_PATTERN` at construction time - the
+    same style as `severity_to_risk` in `risk.py`, which raises on a value
+    outside the list instead of returning a default."""
 
     value: object
     provenance: str
@@ -61,42 +62,43 @@ class ObservedField:
     def __post_init__(self) -> None:
         if not PROVENANCE_PATTERN.match(self.provenance):
             raise ValueError(
-                f"Znacznik pochodzenia poza dozwolonym wzorcem: {self.provenance!r}"
+                f"Provenance marker outside the allowed pattern: {self.provenance!r}"
             )
 
 
 class ProvenanceError(Exception):
-    """Pole inwentarza bez znacznika pochodzenia albo ze znacznikiem spoza
-    `PROVENANCE_PATTERN`, wykryte przez `assert_provenance_complete`."""
+    """An inventory field without a provenance marker, or with a marker
+    outside `PROVENANCE_PATTERN`, detected by
+    `assert_provenance_complete`."""
 
 
 def observed(value: object) -> ObservedField:
-    """Pole odczytane wprost z ramki."""
+    """A field read straight from the frame."""
     return ObservedField(value=value, provenance=PROVENANCE_OBSERVED)
 
 
 def inferred(value: object, method: str) -> ObservedField:
-    """Pole wyliczone metoda `method` (bez prefiksu `inferred:` - dopisywany
-    tutaj)."""
+    """A field computed by the method `method` (without the `inferred:`
+    prefix - it is added here)."""
     return ObservedField(value=value, provenance=f"inferred:{method}")
 
 
 def not_derivable() -> ObservedField:
-    """Pole, ktorego nie da sie ustalic z pasywnego zrzutu. `value` jest
-    zawsze `None` - brak pola nigdy nie zastepuje tego znacznika."""
+    """A field that cannot be established from a passive capture. `value`
+    is always `None` - an absent field never stands in for this marker."""
     return ObservedField(value=None, provenance=PROVENANCE_NOT_DERIVABLE)
 
 
 def iter_observed_fields(node: object, path: str = "") -> Iterator[tuple[str, dict]]:
-    """Generator przechodzacy rekurencyjnie po strukturze juz zserializowanej
-    do slownikow i list (wynik `dataclasses.asdict`).
+    """A generator walking recursively over a structure already serialised
+    into dictionaries and lists (the result of `dataclasses.asdict`).
 
-    Slownik o zbiorze kluczy dokladnie rownym `{"value", "provenance"}` JEST
-    polem prowieniencji: generator oddaje pare `(path, node)` i NIE schodzi
-    glebiej w `value` - wartosc bedaca przypadkiem takim samym slownikiem nie
-    jest liczona dwa razy. Kazdy inny slownik jest kontenerem i generator
-    schodzi w jego wartosci. Lista jest kontenerem i generator schodzi w jej
-    elementy."""
+    A dictionary whose key set is exactly `{"value", "provenance"}` IS a
+    provenance field: the generator yields the `(path, node)` pair and does
+    NOT descend into `value` - a value that happens to be a dictionary of the
+    same shape is not counted twice. Every other dictionary is a container
+    and the generator descends into its values. A list is a container and the
+    generator descends into its items."""
     if isinstance(node, dict):
         if set(node.keys()) == {"value", "provenance"}:
             yield path, node
@@ -113,18 +115,18 @@ def iter_observed_fields(node: object, path: str = "") -> Iterator[tuple[str, di
 def collect_not_derivable_fields(
     analysis: dict, sections: tuple[str, ...] = ("assets", "comm_matrix")
 ) -> list[dict]:
-    """Wypisuje pola nieustalone pasywnie, zagregowane po nazwie pola.
+    """Lists the fields not derivable passively, aggregated by field name.
 
-    Korzysta z `iter_observed_fields`, czyli z tego samego przejscia, ktore
-    napedza bramke `assert_provenance_complete`. Jedno przejscie, dwa
-    zastosowania: bramka SPRAWDZA, a ta funkcja WYPISUJE. Drugi, rownolegly
-    obchod modelu rozjechalby sie z bramka przy pierwszym nowym ksztalcie pola.
+    It uses `iter_observed_fields`, that is the same walk that drives the
+    `assert_provenance_complete` gate. One walk, two uses: the gate CHECKS,
+    this function LISTS. A second, parallel traversal of the model would
+    drift from the gate at the first new field shape.
 
-    Agregacja po nazwie pola, nie po wpisie (zalozenie Z-32): lista per host
-    rosnie liniowo z liczba hostow i przy realnym zrzucie zamienia sekcje
-    ograniczen w wyliczanke, ktorej nikt nie czyta.
+    Aggregation is by field name, not by entry (assumption Z-32): a per-host
+    list grows linearly with the number of hosts and, on a real capture,
+    turns the limitations section into an enumeration nobody reads.
 
-    Sekcja nieobecna w modelu nie podnosi wyjatku i nie daje pozycji.
+    A section absent from the model raises nothing and yields no row.
     """
     rows: list[dict] = []
     for section in sections:
@@ -151,22 +153,24 @@ def collect_not_derivable_fields(
 
 
 def assert_provenance_complete(node: object, path: str = "") -> None:
-    """Podnosi `ProvenanceError` rekurencyjnie na kazdym polu inwentarza bez
-    znacznika pochodzenia albo ze znacznikiem spoza `PROVENANCE_PATTERN`.
+    """Raises `ProvenanceError` recursively on every inventory field
+    without a provenance marker or with a marker outside
+    `PROVENANCE_PATTERN`.
 
-    Dwa przypadki naruszenia: wartosc skalarna (`str`, `int`, `float`,
-    `bool`, `None`) NIE bedaca w polu `value` rozpoznanego pola prowieniencji,
-    oraz pole prowieniencji, ktorego `provenance` nie pasuje do wzorca.
-    Komunikat wyjatku niesie sciezke pola i nazwe naruszonego warunku, nigdy
-    samej wartosci - ta sama dyscyplina co `Violation` bez pola tekstowego w
+    Two violation cases: a scalar value (`str`, `int`, `float`, `bool`,
+    `None`) NOT sitting in the `value` field of a recognised provenance
+    field, and a provenance field whose `provenance` does not match the
+    pattern. The exception message carries the field path and the name of the
+    violated condition, never the value itself - the same discipline as
+    `Violation` without a text field in
     `scripts/confidentiality_guard.py`."""
     if isinstance(node, dict):
         if set(node.keys()) == {"value", "provenance"}:
             provenance = node["provenance"]
             if not isinstance(provenance, str) or not PROVENANCE_PATTERN.match(provenance):
                 raise ProvenanceError(
-                    f"Pole '{path}' ma znacznik pochodzenia poza dozwolonym "
-                    f"wzorcem: {provenance!r}"
+                    f"Field '{path}' has a provenance marker outside the "
+                    f"allowed pattern: {provenance!r}"
                 )
             return
         for key, value in node.items():
@@ -179,20 +183,21 @@ def assert_provenance_complete(node: object, path: str = "") -> None:
         return
     if node is None or isinstance(node, (str, int, float, bool)):
         raise ProvenanceError(
-            f"Pole '{path}' niesie wartosc skalarna bez znacznika pochodzenia"
+            f"Field '{path}' carries a scalar value with no provenance marker"
         )
 
 
 @dataclass(frozen=True)
 class Evidence:
-    """Dowod findingu: numer pakietu i identyfikator sesji, do ktorych da
-    sie wrocic w zrzucie, oraz para punktow koncowych (adres:port) sesji,
-    dopisywana przez silnik checkow z macierzy komunikacji TEGO SAMEGO
-    modelu (G-04-5b) - bez niej dwa wystapienia tego samego checka sa dla
-    czytelnika nieodroznialne. Adres i port sa metadanymi polaczenia, ktore
-    macierz komunikacji i inwentarz tego samego dokumentu juz niosa; pola
-    na surowe bajty ani tresc ladunku tu nie ma i miec nie bedzie (CHECK-06,
-    zagrozenie T-2-06)."""
+    """Finding evidence: the packet number and session identifier one can
+    return to in the capture, plus the pair of session endpoints
+    (address:port) attached by the check engine from the communication
+    matrix of THE SAME model (G-04-5b) - without it two occurrences of the
+    same check are indistinguishable to the reader. Address and port are
+    connection metadata which the communication matrix and the inventory of
+    the same document already carry; there is no field here for raw bytes or
+    payload content, and there will not be one (CHECK-06, threat
+    T-2-06)."""
 
     packet_number: int
     session_id: int
@@ -206,18 +211,18 @@ class StandardRef:
     edition: str
     clause: str
     clause_title: str
-    # Prowieniencja tytulu punktu: `egzemplarz` (przepisany z legalnego
-    # egzemplarza normy) albo `wlasny` (opis zakresu napisany przez autora
-    # projektu). Zamkniety zbior dozwolonych wartosci jest
-    # `wayside.standards.mapper.CLAUSE_TITLE_SOURCES` - to jest zrodlo
-    # prawdy, nie ta deklaracja (G-04-3c).
+    # Clause title provenance: `copy` (transcribed from a legal copy of the
+    # standard) or `own` (a scope description written by the project's
+    # author). The closed set of allowed values is
+    # `wayside.standards.mapper.CLAUSE_TITLE_SOURCES` - that is the source of
+    # truth, not this declaration (G-04-3c).
     clause_title_source: str
     paraphrase: str
     verified: bool
     verification_note: str
-    # Pola notatki o parafrazie (`paraphrase_note` w pliku katalogu) NIE MA
-    # tutaj i miec nie bedzie (zalozenie Z-82): pole nieobecne w tym modelu
-    # jest silniejsza gwarancja nierenderowania niz jakikolwiek test.
+    # The paraphrase note field (`paraphrase_note` in the catalogue file) is
+    # NOT here and will not be (assumption Z-82): a field absent from this
+    # model is a stronger guarantee against rendering than any test.
 
 
 @dataclass(frozen=True)
@@ -245,23 +250,22 @@ def build_analysis(
     low_confidence_events: list[dict],
     comm_matrix: list[dict],
 ) -> dict:
-    """Skleja slownik `analysis.json`.
+    """Assembles the `analysis.json` dictionary.
 
-    Zgodnie z D-02 nie dolacza zadnego pola ze znacznikiem czasu
-    wygenerowania analizy - `capture` niesie wylacznie okno czasowe
-    wyprowadzone z `pkt.time`, przekazane juz gotowe przez wywolujacego.
-    `coverage` niesie ocene pokrycia okna zrzutu wobec zmierzonego odstepu
-    odpytywania (INGEST-04), zbudowana przez `wayside.coverage`.
-    `low_confidence_events` niesie zdarzenia rozpoznane dyskryminatorem
-    sumy kontrolnej `wayside.protocols.modbus_rtu_tunnel.detect_all` -
-    klucz istnieje ZAWSZE, takze przy pustej liscie, i jest strukturalnie
-    ODDZIELONY od `protocol_events`: silnik checkow czyta wylacznie
-    `protocol_events`, wiec rozpoznanie o niskiej pewnosci nigdy nie moze
-    stac sie podstawa findingu przez sam fakt obecnosci na wspolnej liscie
-    (zalozenie Z-18, PROTO-03).
-    `comm_matrix` niesie macierz komunikacji zbudowana przez
-    `wayside.flow.build_comm_matrix` - jeden wiersz na sesje z ladunkiem,
-    razem z sesjami, ktorych protokolu nie rozpoznano (FLOW-01).
+    Per D-02 it adds no field carrying the analysis generation timestamp -
+    `capture` carries only the time window derived from `pkt.time`, handed
+    in ready by the caller. `coverage` carries the assessment of capture
+    window coverage against the measured polling interval (INGEST-04), built
+    by `wayside.coverage`. `low_confidence_events` carries events recognised
+    by the checksum discriminator
+    `wayside.protocols.modbus_rtu_tunnel.detect_all` - the key ALWAYS
+    exists, empty list included, and is structurally SEPARATE from
+    `protocol_events`: the check engine reads only `protocol_events`, so a
+    low-confidence recognition can never become the basis of a finding
+    merely by sitting on a shared list (assumption Z-18, PROTO-03).
+    `comm_matrix` carries the communication matrix built by
+    `wayside.flow.build_comm_matrix` - one row per session with payload,
+    including sessions whose protocol was not recognised (FLOW-01).
     """
     return {
         "capture": capture,
@@ -279,16 +283,17 @@ def build_analysis(
 
 
 def dump_deterministic(data: dict) -> str:
-    """Serializuje deterministycznie: klucze posortowane, separatory bez
-    bialych znakow, polskie znaki wprost w UTF-8 (nie escapowane)."""
+    """Serialises deterministically: sorted keys, separators without
+    whitespace, characters outside ASCII written straight in UTF-8 (not
+    escaped)."""
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def write_atomic(path: Path, text: str) -> None:
-    """Zapisuje `text` do `path` przez plik tymczasowy w tym samym katalogu
-    docelowym i `os.replace` - przerwany albo rownolegly przebieg nie
-    zostawia pliku czesciowo zapisanego. Jawny `newline="\\n"` zdejmuje
-    tlumaczenie konca linii na Windows."""
+    """Writes `text` to `path` through a temporary file in the same target
+    directory plus `os.replace` - an interrupted or concurrent run leaves no
+    partially written file. An explicit `newline="\\n"` removes line ending
+    translation on Windows."""
     path = Path(path)
     fd, tmp_path_str = tempfile.mkstemp(
         dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
@@ -306,13 +311,14 @@ def write_atomic(path: Path, text: str) -> None:
 
 
 def write_atomic_bytes(path: Path, data: bytes) -> None:
-    """Zapisuje `data` do `path` przez plik tymczasowy w tym samym katalogu
-    docelowym i `os.replace` - ten sam wzorzec co `write_atomic`. Osobna
-    funkcja, nie argument istniejacej: `write_atomic` otwiera plik w trybie
-    tekstowym z jawnym `newline='\\n'`, a bajty PDF nie sa tekstem i nie
-    maja konca linii do tlumaczenia - dwa tryby otwarcia w jednej funkcji,
-    za galezia warunkowa, ukrylyby w jednym miejscu dwie rozne umowy o
-    tresc parametru."""
+    """Writes `data` to `path` through a temporary file in the same target
+    directory plus `os.replace` - the same pattern as `write_atomic`. A
+    separate function rather than an argument to the existing one:
+    `write_atomic` opens the file in text mode with an explicit
+    `newline='\\n'`, while PDF bytes are not text and have no line endings to
+    translate - two opening modes in one function, behind a conditional
+    branch, would hide two different contracts about the parameter's content
+    in one place."""
     path = Path(path)
     fd, tmp_path_str = tempfile.mkstemp(
         dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"

@@ -1,20 +1,21 @@
-"""Dekodowanie ramek Ether/IP/TCP oraz rekonstrukcja sesji TCP w kolejnosci pliku.
+"""Decoding Ether/IP/TCP frames and reconstructing TCP sessions in file
+order.
 
-Ten modul importuje `wayside.pcap` JAKO PIERWSZY, przed jakimkolwiek importem
-`scapy.layers.*` - `wayside.pcap` wykonuje przy imporcie izolacje cache scapy
-przez `XDG_CACHE_HOME` (patrz `wayside/pcap.py`), a `scapy.main` wylicza
-katalog cache tylko raz. Duplikowanie tej logiki w drugim miejscu
-zaprzeczyloby jej celowi.
+This module imports `wayside.pcap` FIRST, before any `scapy.layers.*`
+import - `wayside.pcap` performs scapy cache isolation through
+`XDG_CACHE_HOME` at import time (see `wayside/pcap.py`), and `scapy.main`
+computes the cache directory only once. Duplicating that logic in a second
+place would defeat its purpose.
 
-Import `Ether` z `scapy.layers.l2` rejestruje mapowanie DLT_EN10MB -> Ether
-w `conf.l2types` jako efekt uboczny samego modulu (`scapy.layers.l2` woala
-`conf.l2types.register(...)` przy imporcie) - bez tego `rdpcap` nie
-rozpoznaje warstwy Ethernet i zwraca surowe pakiety `Raw`, nawet gdy IP/TCP
-sa tez zaimportowane gdzie indziej. `decode_segments` OD FAZY 3 odwoluje sie
-do klasy `Ether` bezposrednio (`pkt.haslayer(Ether)`, `pkt[Ether]`), zeby
-wyciagnac adres warstwy drugiej dla inwentarza (ASSET-01) - import musi tu
-byc niezaleznie od tego uzycia, zanim jakikolwiek kod tej sciezki odczytu
-wywola `rdpcap`.
+Importing `Ether` from `scapy.layers.l2` registers the DLT_EN10MB -> Ether
+mapping in `conf.l2types` as a side effect of the module itself
+(`scapy.layers.l2` calls `conf.l2types.register(...)` at import) - without
+it `rdpcap` does not recognise the Ethernet layer and returns raw `Raw`
+packets, even when IP/TCP are imported elsewhere too. SINCE PHASE 3
+`decode_segments` refers to the `Ether` class directly
+(`pkt.haslayer(Ether)`, `pkt[Ether]`) to pull the layer two address for the
+inventory (ASSET-01) - the import has to be here regardless of that use,
+before any code on this read path calls `rdpcap`.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import wayside.pcap  # noqa: F401  - importowany PIERWSZY, patrz docstring modulu
+import wayside.pcap  # noqa: F401  - imported FIRST, see the module docstring
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
@@ -42,7 +43,7 @@ SESSION_KEY_SEPARATOR = "<->"
 
 @dataclass(frozen=True)
 class Segment:
-    """Jeden segment TCP z niepustym ladunkiem, w kolejnosci pliku pcap."""
+    """One TCP segment with a non-empty payload, in pcap file order."""
 
     packet_number: int
     session_id: int
@@ -58,15 +59,16 @@ class Segment:
 
 @dataclass(frozen=True)
 class SessionInitiator:
-    """Strona, ktora otworzyla sesje TCP, ustalona z pakietu uzgodnienia
-    polaczenia zaobserwowanego w tym zrzucie.
+    """The party that opened the TCP session, established from the
+    connection handshake packet observed in this capture.
 
-    Czego ten typ NIE oznacza: OBECNOSC wpisu jest obserwacja pakietu
-    otwierajacego polaczenie (flaga SYN bez flagi ACK), a jego BRAK oznacza
-    inicjatora NIEUSTALONEGO, nie inicjatora zgadnietego. Zrzut zaczynajacy sie
-    w srodku trwajacej sesji nie niesie tej informacji w ogole, a pierwszy
-    nadawca ladunku nie jest jej zamiennikiem - to jest osobne pole `direction`
-    ze znacznikiem `inferred:first-observed-sender` (zalozenie Z-30).
+    What this type does NOT mean: the PRESENCE of an entry is an observation
+    of the connection-opening packet (the SYN flag without the ACK flag),
+    and its ABSENCE means an UNDETERMINED initiator, not a guessed one. A
+    capture starting in the middle of an ongoing session does not carry this
+    information at all, and the first sender of payload is not a substitute
+    for it - that is the separate `direction` field with the
+    `inferred:first-observed-sender` marker (assumption Z-30).
     """
 
     session_id: int
@@ -75,11 +77,11 @@ class SessionInitiator:
 
 
 def _canonical_session_key(src_ip: str, src_port: int, dst_ip: str, dst_port: int) -> str:
-    """Buduje klucz sesji niezalezny od kierunku ruchu.
+    """Builds a session key independent of traffic direction.
 
-    Oba punkty koncowe sa kanonizowane jako `(ip, port)` posortowane
-    leksykograficznie, zeby oba kierunki tej samej konwersacji TCP dostaly
-    ten sam klucz.
+    Both endpoints are canonicalised as `(ip, port)` sorted
+    lexicographically, so that both directions of the same TCP conversation
+    get the same key.
     """
     endpoint_a = (src_ip, src_port)
     endpoint_b = (dst_ip, dst_port)
@@ -88,15 +90,16 @@ def _canonical_session_key(src_ip: str, src_port: int, dst_ip: str, dst_port: in
 
 
 def decode_segments(packets) -> list[Segment]:
-    """Dekoduje liste pakietow scapy do listy `Segment`.
+    """Decodes a list of scapy packets into a list of `Segment`.
 
-    Pomija ramki bez warstwy IP albo TCP oraz ramki z pustym ladunkiem TCP.
-    `packet_number` jest 1-bazowym indeksem w `packets` (konwencja pola
-    "frame.number" znanego z popularnych analizatorow ruchu), niezaleznie od
-    tego, ile segmentow zostalo pominietych. `session_id` jest przypisywany
-    sekwencyjnie, w kolejnosci pliku, przy pierwszym napotkaniu kanonicznej
-    4-tuple - trzymany w `dict`, nigdy w `set`, bo kolejnosc wstawiania jest
-    tu gwarancja determinizmu (02-RESEARCH.md, Pitfall 5).
+    It skips frames without an IP or TCP layer and frames with an empty TCP
+    payload. `packet_number` is a 1-based index into `packets` (the
+    "frame.number" field convention familiar from popular traffic
+    analysers), regardless of how many segments were skipped. `session_id`
+    is assigned sequentially, in file order, on first encountering a
+    canonical 4-tuple - held in a `dict`, never in a `set`, because
+    insertion order is the guarantee of determinism here (02-RESEARCH.md,
+    Pitfall 5).
     """
     segments: list[Segment] = []
     session_ids: dict[str, int] = {}
@@ -148,21 +151,23 @@ def decode_segments(packets) -> list[Segment]:
 
 
 def find_session_initiators(packets, segments: list[Segment]) -> dict[int, SessionInitiator]:
-    """Zwraca odwzorowanie identyfikatora sesji na strone, ktora ja otworzyla.
+    """Returns a mapping from session identifier to the party that opened
+    it.
 
-    Stoi OBOK `decode_segments`, nie wewnatrz niego: pakiet z flaga SYN nie ma
-    ladunku z definicji protokolu, wiec filtr pustego ladunku w `decode_segments`
-    go odrzuca. Rozbicie tamtego filtru zmienialoby liczbe segmentow widziana
-    przez `dissect_all`, czyli kontrakt z Fazy 2, bez konsumenta tej zmiany.
+    It stands NEXT TO `decode_segments`, not inside it: a packet with the
+    SYN flag carries no payload by definition of the protocol, so the empty
+    payload filter in `decode_segments` rejects it. Breaking that filter
+    would change the number of segments seen by `dissect_all`, that is a
+    contract from Phase 2, with no consumer for the change.
 
-    Klucz sesji pochodzi z `_canonical_session_key`, czyli z jedynego zrodla
-    kluczy w tym module - nowa funkcja nie buduje wlasnego, rownoleglego
-    klucza, bo numeracja rozjechalaby sie z `decode_segments` przy pierwszej
-    zmianie kanonizacji.
+    The session key comes from `_canonical_session_key`, the only source of
+    keys in this module - the new function does not build its own, parallel
+    key, because the numbering would drift from `decode_segments` at the
+    first change of canonicalisation.
 
-    Sesja bez ani jednego segmentu z ladunkiem NIE dostaje wpisu (zalozenie
-    Z-31): nie wystepuje w zadnej innej sekcji modelu, wiec wpis tutaj
-    rozjechalby przestrzen identyfikatorow miedzy sekcjami.
+    A session without a single segment carrying payload gets NO entry
+    (assumption Z-31): it appears in no other section of the model, so an
+    entry here would split the identifier space between sections.
     """
     session_ids: dict[str, int] = {}
     for segment in segments:
@@ -177,10 +182,11 @@ def find_session_initiators(packets, segments: list[Segment]) -> dict[int, Sessi
             continue
 
         tcp_layer = pkt[TCP]
-        # Pole `flags` warstwy TCP w scapy jest polem flag o literach
-        # `FSRPAUECN`, wiec test literowy jest tu czytelniejszy od maski
-        # bitowej. Pakiet OTWIERAJACY polaczenie ma flage SYN i NIE MA flagi
-        # ACK - odpowiedz serwera (SYN razem z ACK) nie jest otwarciem.
+        # The TCP layer `flags` field in scapy is a flag field with the
+        # letters `FSRPAUECN`, so a letter test reads more clearly here than
+        # a bit mask. The packet OPENING a connection has the SYN flag and
+        # does NOT have the ACK flag - the server's reply (SYN together with
+        # ACK) is not an opening.
         if "S" not in tcp_layer.flags or "A" in tcp_layer.flags:
             continue
 
@@ -192,7 +198,7 @@ def find_session_initiators(packets, segments: list[Segment]) -> dict[int, Sessi
         if session_id is None:
             continue
 
-        # Pierwszy pakiet w kolejnosci pliku wygrywa; kolejne nie nadpisuja.
+        # The first packet in file order wins; later ones do not overwrite.
         initiators.setdefault(
             session_id,
             SessionInitiator(

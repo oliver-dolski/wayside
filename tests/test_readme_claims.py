@@ -49,9 +49,10 @@ if str(TESTS_DIR) not in sys.path:
 
 # Jedno zrodlo prawdy dla zbioru osiemnastu polskich znakow diakrytycznych,
 # dzielone z regula ODWROTNA dla raportu (tests/test_report_orthography.py):
-# import wprost, nie kopia wartosci - `test_readme_claims.POLISH_DIACRITICS
-# is test_report_orthography.POLISH_DIACRITICS` musi byc prawda.
-from test_report_orthography import POLISH_DIACRITICS  # noqa: E402
+# a direct import rather than a copy of the value -
+# `test_readme_claims.non_ascii_chars is
+# test_report_orthography.non_ascii_chars` has to hold.
+from test_report_orthography import non_ascii_chars  # noqa: E402
 
 CATALOG_PATH = REPO_ROOT / "compliance" / "readme-claims.yaml"
 README_PATH = REPO_ROOT / "README.md"
@@ -735,22 +736,22 @@ def test_completeness_verdict_is_independent_of_entry_order():
     assert _completeness_errors(catalog_reversed, headers) == []
 
 
-# --- Testy: bramka bezdiakrytycznej ortografii README (D-13) ---------------
+# --- Tests: the README ASCII orthography gate (D-13) -----------------------
 
 
-def test_readme_orthography_gate_shares_frozen_diacritics_set_with_report_gate():
-    """Jeden zapis zbioru osiemnastu znakow w repozytorium - regula README
-    (bezdiakrytyczna) i regula raportu (odwrotna) stoja na tym samym
-    obiekcie, nie na dwoch kopiach tej samej wartosci."""
+def test_readme_orthography_gate_shares_predicate_with_report_gate():
+    """One statement of the rule in the repository - the README rule and the
+    report rule stand on the same object, not on two copies of the same
+    value."""
     import test_report_orthography as _orthography_module
 
-    assert POLISH_DIACRITICS is _orthography_module.POLISH_DIACRITICS
+    assert non_ascii_chars is _orthography_module.non_ascii_chars
 
 
-def test_readme_has_no_polish_diacritics():
+def test_readme_is_ascii():
     text = _readme_text()
-    hits = [(i, ch) for i, ch in enumerate(text) if ch in POLISH_DIACRITICS]
-    assert hits == [], f"Znaki diakrytyczne w README (pozycja, znak): {hits[:5]}"
+    hits = [(i, ch) for i, ch in enumerate(text) if non_ascii_chars(ch)]
+    assert hits == [], f"Characters outside ASCII in README (position, char): {hits[:5]}"
 
 
 # --- Testy: `_evidence_is_collected` ----------------------------------------

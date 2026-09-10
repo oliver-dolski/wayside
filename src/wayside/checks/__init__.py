@@ -1,1 +1,1 @@
-"""Pakiet silnika checkow: skan katalogu w czasie dzialania (D-06)."""
+"""The check engine package: a directory scan at runtime (D-06)."""

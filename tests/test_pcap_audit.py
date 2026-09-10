@@ -171,7 +171,7 @@ def test_truncated_mid_record_pcap_still_raises_truncated_with_offset_in_message
         raise AssertionError("CaptureTruncatedError nie zostal podniesiony")
     except CaptureTruncatedError as exc:
         message = str(exc)
-        assert "bajtow" in message
+        assert "bytes" in message
 
 
 def test_truncated_mid_block_pcapng_still_raises_truncated():

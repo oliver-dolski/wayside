@@ -42,7 +42,7 @@ def _valid_fields(**overrides: str) -> dict[str, str]:
 
 
 VALID_BODY = (
-    "## Zakres\n\nTrzy powierzchnie calej historii.\n\n"
+    "## Scope\n\nTrzy powierzchnie calej historii.\n\n"
     "## Wynik\n\nBrak trafien poza wyjatkami.\n\n"
     "## Wyjatki\n\nPatrz .confidentiality-allow.\n\n"
     "## Kontrakt naprawy\n\ngit filter-repo przed publicznym pushem.\n\n"

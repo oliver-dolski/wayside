@@ -1,41 +1,45 @@
-"""Dyskryminator ramki Modbus RTU tunelowanej po TCP bez naglowka MBAP: drugi,
-pozytywny test wolany WYLACZNIE po nieudanej walidacji MBAP
-(`wayside.protocols.modbus_tcp.validate_mbap`, zalozenie Z-17 w 03-04-PLAN.md).
+"""A discriminator for a Modbus RTU frame tunnelled over TCP without an
+MBAP header: a second, positive test called ONLY after MBAP validation
+fails (`wayside.protocols.modbus_tcp.validate_mbap`, assumption Z-17 in
+03-04-PLAN.md).
 
-Ten modul NIE dekoduje natywnego Modbus/TCP - do tego sluzy
-`wayside.protocols.modbus_tcp.dissect_all` - i NIE zwraca wynikow do
-`protocol_events`: kazde rozpoznanie tego modulu idzie do OSOBNEGO typu
-(`LowConfidenceEvent`), w OSOBNEJ liscie modelu (`analysis["low_confidence_events"]`),
-bo dopasowanie sumy kontrolnej jest rozpoznaniem o niskiej pewnosci, nigdy pewnym
-rozpoznaniem protokolu (zalozenie Z-18, zagrozenia T-3-13/T-3-16). Silnik checkow
-z Fazy 2 czyta wylacznie `protocol_events` - rozdzielenie jest strukturalne, nie
-flaga na wspolnej liscie.
+This module does NOT decode native Modbus/TCP - that is what
+`wayside.protocols.modbus_tcp.dissect_all` is for - and does NOT return
+results into `protocol_events`: every recognition from this module goes into
+a SEPARATE type (`LowConfidenceEvent`), in a SEPARATE model list
+(`analysis["low_confidence_events"]`), because a checksum match is a
+low-confidence recognition, never a confident protocol recognition
+(assumption Z-18, threats T-3-13/T-3-16). The Phase 2 check engine reads
+`protocol_events` only - the separation is structural, not a flag on a
+shared list.
 
-Zrodlo zakresu bajtu adresu i parametrow sumy kontrolnej: "MODBUS over Serial Line
-Specification and Implementation Guide V1.02" (Modbus.org, Dec 20, 2006), pobrane
-2026-09-04 z archiwum Wayback Machine (strona live modbus.org/specs.php odmowila
-polaczenia zapora WAF w tej sesji wykonawcy):
+Source for the address byte range and the checksum parameters: "MODBUS over
+Serial Line Specification and Implementation Guide V1.02" (Modbus.org, Dec
+20, 2006), retrieved 2026-09-04 from the Wayback Machine archive (the live
+modbus.org/specs.php refused the connection through a WAF in that
+executor's session):
 web.archive.org/web/20250910152913/https://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf
 
-[VERIFIED], nie [CITED] ani [ASSUMED] - badanie fazy (03-RESEARCH.md Pattern 3,
-Assumption A3) oznaczylo obie wartosci jako niepotwierdzone wobec zrodla
-pierwotnego; to zadanie domyka te weryfikacje bezposrednim odczytem dokumentu:
+[VERIFIED], not [CITED] and not [ASSUMED] - the phase research
+(03-RESEARCH.md Pattern 3, Assumption A3) marked both values as unconfirmed
+against the primary source; this task closes that verification by reading
+the document directly:
 
-- Zakres bajtu adresu (rozdzial 2.2 "MODBUS Addressing rules", str. 8): przestrzen
-  adresowania obejmuje 256 wartosci - 0 jest adresem rozgloszeniowym, od 1 do 247
-  sa adresy indywidualne urzadzen ("Slave individual addresses"), od 248 do 255
-  sa zarezerwowane.
-- Algorytm CRC16 (rozdzial 6.2.2 "CRC Generation", str. 39, "A procedure for
-  generating a CRC"): rejestr poczatkowy `0xFFFF`; kazdy bajt wiadomosci idzie
-  przez XOR z bajtem mlodszym rejestru; potem osiem przesuniec rejestru w prawo,
-  a gdy bit wypychany przez przesuniecie jest jedynka, rejestr idzie dodatkowo
-  przez XOR z wielomianem w postaci odwroconej `0xA001`; przy wstawieniu do ramki
-  bajt mlodszy CRC idzie pierwszy, bajt starszy drugi (Figure 30 "CRC Byte
-  Sequence", str. 39).
-- Wektor testowy: ten sam dokument, "Example of CRC calculation (frame 02 07)"
-  (str. 41) razem z Figure 30 (str. 39) - dla ramki o dwoch bajtach `0x02 0x07`
-  rejestr CRC koncowy wynosi `0x1241`, wystawiany w ramce jako bajty `0x41 0x12`
-  (bajt mlodszy pierwszy). Ten sam wektor jest bramka maszynowa PROTO-03 w
+- Address byte range (chapter 2.2 "MODBUS Addressing rules", p. 8): the
+  addressing space covers 256 values - 0 is the broadcast address, 1 to 247
+  are individual device addresses ("Slave individual addresses"), 248 to 255
+  are reserved.
+- The CRC16 algorithm (chapter 6.2.2 "CRC Generation", p. 39, "A procedure
+  for generating a CRC"): initial register `0xFFFF`; every message byte is
+  XORed with the low byte of the register; then eight right shifts of the
+  register, and whenever the bit pushed out by a shift is a one, the register
+  is additionally XORed with the polynomial in reversed form `0xA001`; when
+  inserted into the frame the low CRC byte goes first, the high byte second
+  (Figure 30 "CRC Byte Sequence", p. 39).
+- Test vector: the same document, "Example of CRC calculation (frame 02 07)"
+  (p. 41) together with Figure 30 (p. 39) - for a two-byte frame `0x02 0x07`
+  the final CRC register is `0x1241`, placed in the frame as the bytes `0x41
+  0x12` (low byte first). That same vector is the PROTO-03 machine gate in
   `tests/test_modbus_rtu_tunnel.py`.
 """
 
@@ -43,7 +47,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from wayside.decode import Segment  # noqa: F401 - typ parametru detect_all
+from wayside.decode import Segment  # noqa: F401 - the detect_all parameter type
 from wayside.protocols.modbus_tcp import (
     FUNCTION_CODE_KIND,
     FUNCTION_CODE_NAME,
@@ -62,45 +66,48 @@ __all__ = [
     "detect_all",
 ]
 
-# Adres 1B + kod funkcji 1B + suma kontrolna 2B - ramka RTU krotsza od tego nie
-# niesie nawet minimalnych pol wymaganych do rozpoznania (T-3-14).
+# Address 1B + function code 1B + checksum 2B - an RTU frame shorter than
+# that does not carry even the minimal fields required for recognition
+# (T-3-14).
 RTU_MIN_FRAME_LEN = 4
 
-# Zakres adresu jednostki (Unit ID) dla ramki kierowanej do jednego urzadzenia -
-# zrodlo w docstringu modulu, rozdzial 2.2.
+# The unit address (Unit ID) range for a frame addressed to a single device -
+# the source is in the module docstring, chapter 2.2.
 RTU_ADDRESS_MIN = 1
 RTU_ADDRESS_MAX = 247
 
-# Poziom pewnosci rozpoznania - dyskryminator dopasowuje sume kontrolna, nie
-# strukture ramki wprost, wiec rozpoznanie nigdy nie jest pewne (zalozenie Z-18).
+# The recognition confidence level - the discriminator matches a checksum,
+# not the frame structure directly, so the recognition is never confident
+# (assumption Z-18).
 CONFIDENCE_LOW = "low"
 
-# Nazwa podstawy rozpoznania, powtorzona w kazdym LowConfidenceEvent i w tresci
-# ostrzezenia raportu - jedna nazwana stala, nie literal rozsiany po kodzie.
+# The name of the recognition basis, repeated in every LowConfidenceEvent and
+# in the text of the report warning - one named constant, not a literal
+# scattered through the code.
 RTU_DETECTION_BASIS = "crc16-modbus-match"
 
-# Nazwa protokolu wpisywana do LowConfidenceEvent.protocol - jedno miejsce, zeby
-# pipeline.py i testy nie musialy powtarzac literalu.
+# The protocol name written into LowConfidenceEvent.protocol - one place, so
+# that pipeline.py and the tests do not have to repeat the literal.
 _RTU_PROTOCOL_NAME = "modbus-rtu-over-tcp"
 
-# Wielomian CRC16/Modbus w postaci odwroconej i rejestr poczatkowy - zrodlo w
-# docstringu modulu, rozdzial 6.2.2.
+# The CRC16/Modbus polynomial in reversed form and the initial register - the
+# source is in the module docstring, chapter 6.2.2.
 _CRC_INITIAL_REGISTER = 0xFFFF
 _CRC_POLYNOMIAL_REVERSED = 0xA001
 
 
 @dataclass(frozen=True)
 class LowConfidenceEvent:
-    """Rozpoznanie ramki Modbus RTU tunelowanej po TCP, oparte WYLACZNIE na
-    dopasowaniu sumy kontrolnej.
+    """A recognition of a Modbus RTU frame tunnelled over TCP, based ONLY
+    on a checksum match.
 
-    Ten typ celowo NIE jest zdarzeniem protokolu w sensie `ModbusEvent`: nie
-    wchodzi do `protocol_events`, nie jest wejsciem dla silnika checkow i nie
-    niesie zadnego bajtu ladunku (ten sam powod co `Evidence` w `model.py`).
-    `confidence` i `basis` sa zawsze rowne odpowiednio `CONFIDENCE_LOW` i
-    `RTU_DETECTION_BASIS` - pola istnieja na rekordzie, zeby kazdy konsument
-    modelu (raport, przyszly check) mial poziom pewnosci pod reka bez
-    odwolania do stalej modulowej.
+    This type is deliberately NOT a protocol event in the `ModbusEvent`
+    sense: it does not enter `protocol_events`, it is not input for the check
+    engine and it carries no payload byte (the same reason as `Evidence` in
+    `model.py`). `confidence` and `basis` always equal `CONFIDENCE_LOW` and
+    `RTU_DETECTION_BASIS` respectively - the fields exist on the record so
+    that every consumer of the model (the report, a future check) has the
+    confidence level at hand without reaching for a module constant.
     """
 
     packet_number: int
@@ -119,12 +126,12 @@ class LowConfidenceEvent:
 
 
 def modbus_crc16(data: bytes) -> int:
-    """Liczy CRC16/Modbus nad `data`. Funkcja czysta, bez stanu.
+    """Computes CRC16/Modbus over `data`. A pure function, with no state.
 
-    Rejestr poczatkowy, wielomian w postaci odwroconej i kolejnosc przesuniec
-    zgodnie z procedura opisana w docstringu modulu (rozdzial 6.2.2). Dla
-    ciagu pustego zwraca rejestr poczatkowy nietkniety - petla po bajtach nie
-    wykonuje sie ani razu.
+    The initial register, the reversed polynomial and the shift order follow
+    the procedure described in the module docstring (chapter 6.2.2). For an
+    empty sequence it returns the initial register untouched - the loop over
+    bytes does not execute even once.
     """
     crc = _CRC_INITIAL_REGISTER
     for byte in data:
@@ -138,14 +145,14 @@ def modbus_crc16(data: bytes) -> int:
 
 
 def looks_like_rtu_frame(raw: bytes) -> bool:
-    """Sprawdza, czy `raw` wyglada jak surowa ramka Modbus RTU z poprawna
-    suma kontrolna. Zwraca `bool`, nigdy nie podnosi wyjatku.
+    """Checks whether `raw` looks like a raw Modbus RTU frame with a valid
+    checksum. Returns a `bool`, never raises.
 
-    Kolejnosc sprawdzen jest wymagana (zagrozenie T-3-14, ten sam porzadek co
-    `validate_mbap`): dlugosc PRZED jakimkolwiek odwolaniem indeksowym, potem
-    bajt adresu, potem bajt kodu funkcji, na koncu suma kontrolna - kazdy
-    wczesniejszy warunek konczy funkcje zwrotem `False` zanim dojdzie do
-    kosztowniejszego sprawdzenia.
+    The order of checks is required (threat T-3-14, the same order as
+    `validate_mbap`): length BEFORE any indexed access, then the address
+    byte, then the function code byte, and the checksum last - each earlier
+    condition ends the function with `False` before it reaches the more
+    expensive check.
     """
     if len(raw) < RTU_MIN_FRAME_LEN:
         return False
@@ -161,18 +168,20 @@ def looks_like_rtu_frame(raw: bytes) -> bool:
 
     body, crc_bytes = raw[:-2], raw[-2:]
     computed = modbus_crc16(body)
-    transmitted = crc_bytes[0] | (crc_bytes[1] << 8)  # bajt mlodszy pierwszy
+    transmitted = crc_bytes[0] | (crc_bytes[1] << 8)  # low byte first
     return computed == transmitted
 
 
 def detect_all(segments: list[Segment]) -> list[LowConfidenceEvent]:
-    """Dyskryminator RTU-po-TCP nad PELNA lista segmentow, w kolejnosci pliku.
+    """The RTU-over-TCP discriminator over the FULL segment list, in file
+    order.
 
-    Dla kazdego segmentu NAJPIERW wola `validate_mbap` i pomija segment, gdy
-    walidacja zwrocila cokolwiek innego niz `None` - to jest wlasnosc TEGO
-    modulu (zalozenie Z-17), nie obowiazek wywolujacego: `pipeline.py` woala
-    `detect_all` na tej samej liscie segmentow co `modbus_tcp.dissect_all`,
-    a wzajemne wykluczenie miedzy nimi jest gwarantowane tutaj.
+    For every segment it FIRST calls `validate_mbap` and skips the segment
+    when validation returned anything other than `None` - that is a property
+    of THIS module (assumption Z-17), not an obligation of the caller:
+    `pipeline.py` calls `detect_all` on the same segment list as
+    `modbus_tcp.dissect_all`, and the mutual exclusion between them is
+    guaranteed here.
     """
     events: list[LowConfidenceEvent] = []
 

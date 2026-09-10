@@ -1,42 +1,43 @@
 entries:
   - standard: "CLC/TS 50701"
     edition: "2023"
-    clause: "nieustalony-1"
-    clause_title: "Wymagania bezpieczeństwa dla systemu sterowania i sygnalizacji kolejowej"
-    clause_title_source: "wlasny"
+    clause: "undetermined-1"
+    clause_title: "Security requirements for railway signalling and control systems"
+    clause_title_source: "own"
     paraphrase: >-
-      Dokument dotyczy wymagań cyberbezpieczeństwa stawianych systemom
-      sterowania ruchem kolejowym i sygnalizacji, w tym ochrony ich
-      prawidłowego działania przed celowym i przypadkowym naruszeniem
-      bezpieczeństwa.
+      The document concerns cybersecurity requirements placed on railway
+      traffic control and signalling systems, including protection of their
+      correct operation against deliberate and accidental compromise.
     paraphrase_note: >-
-      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
-      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
-      renderowane w żadnym formacie raportu.
+      Our own working paraphrase - never a quotation from the standard. The
+      field is visible only to an auditor verifying this catalogue against a
+      copy of the standard, and is not rendered in any report format.
     verified: false
     verification_note: >-
-      Dokument ma status specyfikacji technicznej CENELEC, nie normy
-      europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia
-      go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie
-      została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje;
-      wpis jest z tego powodu prowizoryczny (decyzja 0006).
+      The document has the status of a CENELEC technical specification, not
+      a European standard, so it is applied voluntarily - the report does
+      not present it as a mandatory basis (decision 0004). The clause
+      numbering has not been collated against a copy, because the project
+      does not buy that copy; the entry is provisional for that reason
+      (decision 0006).
   - standard: "CLC/TS 50701"
     edition: "2023"
-    clause: "nieustalony-2"
-    clause_title: "Ochrona poufności informacji w komunikacji systemu kolejowego"
-    clause_title_source: "wlasny"
+    clause: "undetermined-2"
+    clause_title: "Protection of information confidentiality in railway system communication"
+    clause_title_source: "own"
     paraphrase: >-
-      Dokument dotyczy ochrony poufności informacji przesyłanej w
-      komunikacji systemów kolejowych objętych jego zakresem, przed
-      ujawnieniem stronom nieuprawnionym.
+      The document concerns protecting the confidentiality of information
+      transmitted in the communication of railway systems within its scope,
+      against disclosure to unauthorised parties.
     paraphrase_note: >-
-      Własna, robocza parafraza - nigdy cytat normy. Pole widoczne wyłącznie
-      dla audytora weryfikującego ten katalog wobec egzemplarza normy, nie
-      renderowane w żadnym formacie raportu.
+      Our own working paraphrase - never a quotation from the standard. The
+      field is visible only to an auditor verifying this catalogue against a
+      copy of the standard, and is not rendered in any report format.
     verified: false
     verification_note: >-
-      Dokument ma status specyfikacji technicznej CENELEC, nie normy
-      europejskiej, stosuje się go więc dobrowolnie - raport nie przedstawia
-      go jako podstawy obowiązkowej (decyzja 0004). Numeracja punktu nie
-      została zestawiona z egzemplarzem, bo egzemplarza projekt nie kupuje;
-      wpis jest z tego powodu prowizoryczny (decyzja 0006).
+      The document has the status of a CENELEC technical specification, not
+      a European standard, so it is applied voluntarily - the report does
+      not present it as a mandatory basis (decision 0004). The clause
+      numbering has not been collated against a copy, because the project
+      does not buy that copy; the entry is provisional for that reason
+      (decision 0006).

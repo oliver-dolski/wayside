@@ -1,8 +1,8 @@
-"""Orkiestracja calego potoku: od pliku pcap do dwoch artefaktow,
-`analysis.json` i `report.md` (REPORT-04).
+"""Orchestration of the whole pipeline: from a pcap file to two artifacts,
+`analysis.json` and `report.md` (REPORT-04).
 
-Raport markdown jest renderowany z DOKLADNIE tego samego slownika, ktory
-zostal zserializowany do `analysis.json` - nie z drugiej reprezentacji.
+The markdown report is rendered from EXACTLY the same dictionary that was
+serialised into `analysis.json` - not from a second representation.
 """
 
 from __future__ import annotations
@@ -43,16 +43,17 @@ class AnalyzeResult:
 def _build_capture_section(
     pcap_path: Path, packets, capture_structure: CaptureStructure
 ) -> dict:
-    """Buduje sekcje `capture`. Niesie `filename` (samo `pcap_path.name`),
-    NIE pelna sciezke - pelna sciezka jest funkcja katalogu uruchomienia
-    procesu, wiec dwa przebiegi z roznych katalogow roboczych dawalyby
-    rozne bajty `analysis.json` mimo identycznej tresci analitycznej
-    (REPORT-06). `sha256` niesie mozliwosc powiazania raportu z konkretnym
-    plikiem wejsciowym (zagrozenie T-2-07) - jest funkcja TRESCI pliku, nie
-    jego polozenia, wiec nie lamie determinizmu ani miedzy katalogami, ani
-    miedzy maszynami. `snaplen`/`snaplen_note` pochodza z `capture_structure`,
-    juz wyliczonego przez brame D-01 - `analyze` nie wywoluje audytu drugi
-    raz (INGEST-02)."""
+    """Builds the `capture` section. It carries `filename` (just
+    `pcap_path.name`), NOT the full path - a full path is a function of the
+    directory the process was started from, so two runs from different
+    working directories would produce different `analysis.json` bytes
+    despite identical analytical content (REPORT-06). `sha256` makes it
+    possible to tie the report to a specific input file (threat T-2-07) - it
+    is a function of the file's CONTENT, not its location, so it breaks
+    determinism neither across directories nor across machines.
+    `snaplen`/`snaplen_note` come from `capture_structure`, already computed
+    by the D-01 gate - `analyze` does not run the audit a second time
+    (INGEST-02)."""
     sha256 = hashlib.sha256(pcap_path.read_bytes()).hexdigest()
     if len(packets) == 0:
         first_seen = None
@@ -98,40 +99,40 @@ def _build_conversations(segments: list[decode.Segment]) -> list[dict]:
 
 
 def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> AnalyzeResult:
-    """Wykonuje kroki potoku w kolejnosci: audyt strukturalny (brama D-01),
-    odczyt zrzutu, dekodowanie, dysekcja Modbus, dyskryminator Modbus RTU
-    tunelowanego po TCP nad ta sama lista segmentow (PROTO-03), budowa
-    inwentarza hostow nad segmentami i nad zserializowanymi zdarzeniami
-    (ASSET-04, ASSET-05), macierz komunikacji nad pakietami, segmentami,
-    zdarzeniami i inicjatorami sesji (FLOW-01, FLOW-02), bramka prowieniencji
-    nad inwentarzem i nad macierza (Z-02), model
-    strefy, pomiar cyklu odpytywania i ocena pokrycia okna zrzutu
-    (INGEST-04), model analizy bez findingow, silnik checkow, rozwiazanie
-    powolan na norme, przypisanie ryzyka, zapis `analysis.json`,
-    renderowanie i zapis `report.md`."""
+    """Runs the pipeline steps in order: structural audit (gate D-01),
+    capture read, decoding, Modbus dissection, the Modbus RTU over TCP
+    discriminator over the same segment list (PROTO-03), host inventory
+    construction over segments and over serialised events (ASSET-04,
+    ASSET-05), the communication matrix over packets, segments, events and
+    session initiators (FLOW-01, FLOW-02), the provenance gate over the
+    inventory and over the matrix (Z-02), the zone model, polling interval
+    measurement and capture window coverage assessment (INGEST-04), the
+    analysis model without findings, the check engine, resolution of
+    standard citations, risk assignment, writing `analysis.json`, rendering
+    and writing `report.md`."""
     pcap_path = Path(pcap_path)
     out_dir = Path(out_dir)
 
-    # Brama D-01: audyt strukturalny PRZED jakimkolwiek zapisem albo
-    # dekodowaniem. Zrzut obciety albo o nieznanym formacie (CaptureTruncated
-    # Error/CaptureFormatError) nie dochodzi do potoku wcale, wiec zaden
-    # czesciowy artefakt nie powstaje - ten sam ksztalt rozdzielonej bramki
-    # co `scripts/confidentiality_guard.py`.
+    # Gate D-01: structural audit BEFORE any write or decoding. A truncated
+    # capture or one in an unknown format (CaptureTruncatedError /
+    # CaptureFormatError) never reaches the pipeline at all, so no partial
+    # artifact is created - the same split-gate shape as
+    # `scripts/confidentiality_guard.py`.
     capture_structure = audit_capture_structure(pcap_path)
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
     packets = read_capture(pcap_path)
     segments = decode.decode_segments(packets)
-    # FLOW-02: przebieg po WSZYSTKICH pakietach, nie po segmentach - pakiet
-    # otwierajacy polaczenie nie ma ladunku, wiec w segmentach go nie ma.
+    # FLOW-02: a pass over ALL packets, not over segments - the packet
+    # opening a connection carries no payload, so it is not among segments.
     session_initiators = decode.find_session_initiators(packets, segments)
-    # PROTO-05: rozpoznanie protokolu wchodzi wylacznie przez rejestr - ten
-    # modul nie odwoluje sie do zadnego konkretnego protokolu. `run_dissectors`
-    # woala kazdy dissector odkryty w rejestrze nad TA SAMA lista segmentow;
-    # wzajemne wykluczenie miedzy natywnym Modbus/TCP i rozpoznaniem
-    # RTU-po-TCP jest wlasnoscia dissectorow (zalozenie Z-17), nie kolejnosci
-    # wywolan tutaj.
+    # PROTO-05: protocol recognition enters exclusively through the registry
+    # - this module refers to no specific protocol. `run_dissectors` calls
+    # every dissector discovered in the registry over THE SAME segment list;
+    # mutual exclusion between native Modbus/TCP and RTU-over-TCP
+    # recognition is a property of the dissectors (assumption Z-17), not of
+    # the call order here.
     dissectors = protocol_registry.discover_dissectors()
     protocol_events, low_confidence_events = protocol_registry.run_dissectors(
         segments, dissectors
@@ -139,40 +140,42 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
 
     warnings: list[str] = []
     if capture_structure.is_structurally_empty:
-        # D-01: zrzut pusty jest zrzutem legalnym, nigdy odrzucanym jako
-        # blad - ale cisza na jego temat bylaby cicha, pewna odpowiedzia.
+        # D-01: an empty capture is a legal capture, never rejected as an
+        # error - but silence about it would be a silent, confident answer.
         warnings.append(
-            "Zrzut jest strukturalnie poprawny i nie zawiera ani jednego "
-            "pakietu - brak findingów w tym przebiegu nie jest wynikiem "
-            "analizy, tylko brakiem materiału."
+            "The capture is structurally valid and contains no packets at "
+            "all - the absence of findings in this run is not a result of "
+            "the analysis, only an absence of material."
         )
     elif not protocol_events:
         warnings.append(
-            "Żaden segment w tym zrzucie nie został rozpoznany przez żaden "
-            "dissector z rejestru - w tym przebiegu nie ma ruchu protokołu "
-            "aplikacyjnego do analizy."
+            "No segment in this capture was recognised by any dissector in "
+            "the registry - this run carries no application protocol traffic "
+            "to analyse."
         )
     if capture_structure.snaplen_truncated_packet_numbers:
-        # INGEST-03: ramka uciety przez snaplen nie niesie pelnego ladunku,
-        # wiec brak zdarzenia protokolu na tym zrzucie nie jest dowodem jego
-        # nieobecnosci - narzedzie mowi to wprost, nigdy cicha, zielona
-        # odpowiedzia. Zdanie oznajmujace, bez terminu modalnego w linii z
-        # liczba (scripts/confidentiality_guard.py, warstwa strukturalna).
+        # INGEST-03: a frame truncated by snaplen does not carry the full
+        # payload, so the absence of a protocol event in this capture is not
+        # proof of that protocol's absence - the tool says so outright, never
+        # with a silent, green answer. A declarative sentence, with no modal
+        # term on a line carrying a number (scripts/confidentiality_guard.py,
+        # structural layer).
         truncated_numbers = capture_structure.snaplen_truncated_packet_numbers
         warnings.append(
-            f"Snaplen ustawiony na {capture_structure.snaplen} bajtów uciął "
-            f"{len(truncated_numbers)} z {len(packets)} ramek w tym zrzucie, "
-            f"pierwsza obcięta ramka to numer {truncated_numbers[0]}. Obcięta "
-            "ramka nie niesie pełnego ładunku, analiza funkcjonalna protokołu "
-            "na tym zrzucie jest fałszowana, a brak zdarzenia protokołu nie "
-            "jest dowodem jego nieobecności."
+            f"A snaplen set to {capture_structure.snaplen} bytes truncated "
+            f"{len(truncated_numbers)} of {len(packets)} frames in this "
+            f"capture, the first truncated frame being number "
+            f"{truncated_numbers[0]}. A truncated frame does not carry the "
+            "full payload, functional protocol analysis on this capture is "
+            "falsified, and the absence of a protocol event is not proof of "
+            "that protocol's absence."
         )
     if low_confidence_events:
-        # PROTO-03: zdarzenie rozpoznane z niska pewnoscia stoi poza lista
-        # zdarzen protokolu i poza kazdym findingiem - narzedzie nazywa
-        # liczbe takich zdarzen, protokol(y) i podstawe(y) rozpoznania, bez
-        # odwolania do stalej jednego konkretnego dissectora (zalozenie
-        # Z-18, zagrozenie T-3-13).
+        # PROTO-03: an event recognised with low confidence stands outside
+        # the protocol event list and outside every finding - the tool names
+        # the number of such events, the protocol(s) and the basis of
+        # recognition, without referring to a constant of one specific
+        # dissector (assumption Z-18, threat T-3-13).
         low_confidence_protocols = ", ".join(
             sorted({event["protocol"] for event in low_confidence_events})
         )
@@ -180,12 +183,12 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
             sorted({event["basis"] for event in low_confidence_events})
         )
         warnings.append(
-            f"{len(low_confidence_events)} zdarzenie(a) w tym zrzucie "
-            f"rozpoznane są z niską pewnością jako {low_confidence_protocols}, "
-            f"na podstawie {low_confidence_bases}, poza listą zdarzeń "
-            "protokołu i poza każdym findingiem. Rozpoznanie niesie "
-            "możliwość fałszywego dopasowania sumy kontrolnej na ruchu nie "
-            "będącym Modbusem."
+            f"{len(low_confidence_events)} event(s) in this capture are "
+            f"recognised with low confidence as {low_confidence_protocols}, "
+            f"on the basis of {low_confidence_bases}, outside the protocol "
+            "event list and outside every finding. This recognition carries "
+            "the possibility of a false checksum match on traffic that is "
+            "not Modbus."
         )
 
     observed_ips = sorted(
@@ -199,10 +202,10 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     conversations = _build_conversations(segments)
 
     capture_section = _build_capture_section(pcap_path, packets, capture_structure)
-    # Zaokraglenie do szesciu miejsc po przecinku zdejmuje szum reprezentacji
-    # zmiennoprzecinkowej (roznica dwoch znacznikow czasu daje np.
-    # 5.009999990463257 zamiast 5.01) - ta sama konwencja co formatowanie
-    # dlugosci okna w komendzie `inspect` (zalozenie Z-15).
+    # Rounding to six decimal places removes floating point representation
+    # noise (the difference of two timestamps gives e.g. 5.009999990463257
+    # instead of 5.01) - the same convention as formatting the window length
+    # in the `inspect` command (assumption Z-15).
     window_duration_s = (
         round(capture_section["last_seen"] - capture_section["first_seen"], 6)
         if capture_section["first_seen"] is not None
@@ -213,46 +216,47 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     coverage_section = coverage.build_coverage_section(
         cycles=polling_cycles, window_duration_s=window_duration_s
     )
-    # INGEST-04: zrzut za krotki wobec zmierzonego odstepu odpytywania
-    # konczy sie ostrzezeniem niosacym obie liczby, nigdy cicha, zielona
-    # odpowiedzia - ta sama dyscyplina co ostrzezenie o snaplenie wyzej.
+    # INGEST-04: a capture too short against the measured polling interval
+    # ends with a warning carrying both numbers, never with a silent, green
+    # answer - the same discipline as the snaplen warning above.
     warnings.extend(
         coverage.coverage_warnings(cycles=polling_cycles, window_duration_s=window_duration_s)
     )
 
-    # ASSET-02: tabela producentow OUI wczytywana DOKLADNIE RAZ na przebieg,
-    # PRZED budowa inwentarza - plik ma kilkadziesiat tysiecy wierszy, a
-    # odczyt na hosta zamienilby liniowa prace w kwadratowa. Niepowodzenie
-    # (zalozenie Z-21) daje vendor_lookup rowne None i JAWNE ostrzezenie -
-    # nigdy ciche pole nieustalone, ktore wygladaloby identycznie jak pole
-    # nieustalone z powodu adresu MAC lokalnie administrowanego albo
-    # nieobecnego.
+    # ASSET-02: the OUI vendor table is loaded EXACTLY ONCE per run, BEFORE
+    # the inventory is built - the file has tens of thousands of rows, and a
+    # read per host would turn linear work into quadratic. Failure
+    # (assumption Z-21) gives a vendor_lookup equal to None and an EXPLICIT
+    # warning - never a silent undetermined field, which would look identical
+    # to a field undetermined because the MAC address was locally
+    # administered or absent.
     try:
         oui_table = oui.load_oui_table()
     except oui.OuiTableError:
         vendor_lookup = None
         warnings.append(
-            "Tabela producentów OUI nie jest dołączona do tego wydania "
-            "narzędzia - pole producenta jest nieustalone dla każdego "
-            "hosta w tym przebiegu, niezależnie od tego, czy jego adres "
-            "MAC był widoczny."
+            "The OUI vendor table is not bundled with this release of the "
+            "tool - the vendor field is undetermined for every host in this "
+            "run, regardless of whether its MAC address was visible."
         )
     else:
 
         def vendor_lookup(mac: str) -> str | None:
             return oui.lookup_vendor(mac, oui_table)
 
-    # ASSET-04/ASSET-05: `events` to `protocol_events`, czyli zdarzenia JUZ
-    # zserializowane. Kolejnosc krokow jest tu kontraktem - budowa inwentarza
-    # idzie PO `dissect_all` i po serializacji, bo Unit ID pod adresem serwera
-    # pochodzi ze zdarzen, nie z samych segmentow.
+    # ASSET-04/ASSET-05: `events` is `protocol_events`, that is events
+    # ALREADY serialised. The order of steps is a contract here - inventory
+    # construction goes AFTER `dissect_all` and after serialisation, because
+    # the Unit ID under a server address comes from events, not from the
+    # segments alone.
     assets = inventory.build_assets(
         segments=segments, events=protocol_events, vendor_lookup=vendor_lookup
     )
-    # Bramka prowieniencji stoi na producencie danych, PRZED serializacja
-    # (T-3-04): pole inwentarza bez znacznika pochodzenia nie dochodzi do
-    # `analysis.json`. Zakres bramki jest sekcja `assets`, nie cale drzewo
-    # `analysis` (zalozenie Z-02) - pola z Faz 1-2 nie sa regresja.
+    # The provenance gate stands at the data producer, BEFORE serialisation
+    # (T-3-04): an inventory field without a provenance marker never reaches
+    # `analysis.json`. The gate's scope is the `assets` section, not the
+    # whole `analysis` tree (assumption Z-02) - fields from Phases 1-2 are
+    # not a regression.
     assert_provenance_complete(assets, path="assets")
 
     comm_matrix = flow.build_comm_matrix(
@@ -264,10 +268,10 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     )
     assert_provenance_complete(comm_matrix, path="comm_matrix")
 
-    # FLOW-03: sesje TCP zlozone WYLACZNIE z pakietow bez ladunku nie maja
-    # wiersza w macierzy (zalozenie Z-31), wiec bez policzenia zniknelyby bez
-    # sladu. Kanoniczne klucze z pakietow, ktorych nie ma wsrod kluczy
-    # zbudowanych z segmentow.
+    # FLOW-03: TCP sessions made up EXCLUSIVELY of packets without payload
+    # have no row in the matrix (assumption Z-31), so without being counted
+    # they would vanish without a trace. Canonical keys from packets that are
+    # absent from the keys built out of segments.
     session_keys_with_payload = {
         decode._canonical_session_key(
             segment.src_ip, segment.src_port, segment.dst_ip, segment.dst_port
@@ -288,9 +292,9 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
         if key not in session_keys_with_payload:
             payloadless_session_keys.add(key)
 
-    # Kolejnosc ostrzezen w sekcji ograniczen jest deterministyczna: zdania
-    # o martwym polu widzenia ida PO ostrzezeniach z planow 03-03, 03-04
-    # i 03-05, i ta kolejnosc jest ustalona raz.
+    # The order of warnings in the limitations section is deterministic:
+    # the blind spot sentences go AFTER the warnings from plans 03-03, 03-04
+    # and 03-05, and that order is fixed once.
     warnings.extend(
         flow.vantage_point_limitations(
             host_count=len(assets),
@@ -303,8 +307,8 @@ def analyze(pcap_path: Path, *, out_dir: Path, generated_at: datetime) -> Analyz
     methodology = {
         "rubric_version": risk.RUBRIC_VERSION,
         "note": (
-            "Waga findingu wynika z zapisanych kryteriów rubryki, nie z "
-            "wymyślonej skali (RISK-03)."
+            "Finding severity follows the recorded rubric criteria, not an "
+            "invented scale (RISK-03)."
         ),
     }
 

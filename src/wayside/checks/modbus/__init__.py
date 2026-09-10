@@ -1,1 +1,1 @@
-"""Checki bezpieczenstwa dla ruchu Modbus/TCP."""
+"""Security checks for Modbus/TCP traffic."""

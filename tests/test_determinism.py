@@ -75,7 +75,7 @@ FIXTURES: dict[str, Path] = {
 
 # Linia znacznika czasu wygenerowania raportu (D-02) - jedyna dopuszczalna
 # roznica miedzy dwoma przebiegami `report.md`.
-_GENERATED_AT_LINE_PATTERN = re.compile(r"^Wygenerowano:.*$", flags=re.MULTILINE)
+_GENERATED_AT_LINE_PATTERN = re.compile(r"^Generated:.*$", flags=re.MULTILINE)
 
 # Sekwencja escape JSON dla znaku spoza ASCII (`\uXXXX`) - jej brak w
 # bajtach `analysis.json` dowodzi, ze `ensure_ascii=False` faktycznie
@@ -86,7 +86,12 @@ _UNICODE_ESCAPE_PATTERN = re.compile(rb"\\u[0-9a-fA-F]{4}")
 # (`src/wayside/standards/iec62443-3-3/catalog.yaml`) - obecnosc w
 # odczytanym tekscie dowodzi, ze tresc naprawde przeszla przez potok, a
 # test kodowania nie jest pusty (D-02/STD-01, edge: encoding).
-_POLISH_DIACRITICS = ("ą", "ę", "ł", "ż", "ó", "ś", "ń", "ć")
+# A probe carrying characters outside ASCII, in the shape the pipeline
+# actually meets them: vendor names from the IEEE OUI registry. It is a
+# constant of this test rather than a value read from a fixture, because
+# what is under test is the SERIALISATION setting (`ensure_ascii=False`),
+# not whether a given capture happens to resolve a vendor.
+_NON_ASCII_PROBE = "Pruftechnik Buro Satron \u00fc\u00f6\u00e4"
 
 
 def _run_analyze(
@@ -226,17 +231,32 @@ def test_empty_fixture_analysis_json_is_nonzero_length_with_empty_lists(tmp_path
     assert analysis["findings"] == []
 
 
-# --- Kodowanie: brak escape spoza ASCII, polskie znaki obecne w tekscie -------
+# --- Encoding: no escape sequence outside ASCII in the artifact ------------
 
 
-def test_analysis_json_has_no_ascii_escape_and_decodes_with_polish_diacritics(tmp_path):
+def test_analysis_json_carries_no_unicode_escape_sequence(tmp_path):
     analysis_path, _ = _run_analyze(FIXTURE_WRITE, tmp_path)
     raw = analysis_path.read_bytes()
 
     assert _UNICODE_ESCAPE_PATTERN.search(raw) is None
 
-    text = raw.decode("utf-8")
-    assert any(letter in text for letter in _POLISH_DIACRITICS)
+
+def test_dump_deterministic_writes_non_ascii_as_characters_not_escapes():
+    """The other half of the rule above, on a probe rather than on a fixture.
+
+    The gate above proves the artifact of THIS capture carries no escape
+    sequence - but a capture whose every value happens to be ASCII would pass
+    it with the serialisation setting broken. This test drives a character
+    outside ASCII through `dump_deterministic` directly, so the
+    `ensure_ascii=False` setting has a gate that does not depend on the
+    contents of any capture.
+    """
+    from wayside.model import dump_deterministic
+
+    text = dump_deterministic({"vendor": _NON_ASCII_PROBE})
+
+    assert _NON_ASCII_PROBE in text
+    assert "\\u" not in text
 
 
 # --- Asymetria D-02: report.md rozni sie WYLACZNIE linia znacznika czasu -----

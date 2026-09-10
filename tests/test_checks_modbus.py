@@ -195,4 +195,4 @@ def test_write_operation_finding(tmp_path):
     assert finding["evidence"]["session_id"] == 0
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
-    assert "Dowód: pakiet nr 1, sesja nr 0" in report_text
+    assert "Evidence: packet no. 1, session no. 0" in report_text

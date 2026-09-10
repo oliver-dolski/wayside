@@ -200,7 +200,7 @@ def test_remediations_section_row_count_equals_distinct_remediation_count():
     expected_row_count = len({f["remediation"] for f in findings})
 
     report_text = REPORT_MD_PATH.read_text(encoding="utf-8")
-    section = report_text.split("## Zalecenia", 1)[1]
+    section = report_text.split("## Recommendations", 1)[1]
     rows = [line for line in section.splitlines() if line.startswith("- ")]
 
     assert len(rows) == expected_row_count

@@ -70,9 +70,10 @@ def _write_dissector(
     dissector_source: str = DEFAULT_DISSECTOR_SOURCE,
     write_dissector: bool = True,
 ) -> Path:
-    """Zapisuje jeden dissector (`manifest.yaml` plus siostrzany `.py`) pod
-    `root/subdir`. Wydzielona wspolna logika, wzorzec `_write_check` z
-    `tests/test_check_engine.py`. Zwraca sciezke do `manifest.yaml`."""
+    """Writes one dissector (its `manifest.yaml` plus the sibling `.py`) under
+    `root/subdir`. The shared logic is extracted, following the `_write_check`
+    pattern of `tests/test_check_engine.py`. Returns the path of the
+    `manifest.yaml`."""
     target_dir = root / subdir
     target_dir.mkdir(parents=True, exist_ok=True)
 

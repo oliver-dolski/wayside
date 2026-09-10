@@ -37,7 +37,7 @@ def load_manifest(fixture_dir: Path) -> dict:
 
 
 def orphaned_fixture_files(fixture_dir: Path, manifest: dict) -> set[str]:
-    """Zwraca nazwy plikow `*.pcap*` w `fixture_dir` bez wpisu w `manifest`."""
+    """Returns the names of the `*.pcap*` files in `fixture_dir` with no entry in `manifest`."""
     manifest_paths = {entry["path"] for entry in manifest["fixtures"]}
     actual_files = {p.name for p in fixture_dir.glob("*.pcap*")}
     return actual_files - manifest_paths

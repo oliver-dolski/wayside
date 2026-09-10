@@ -261,7 +261,7 @@ def test_text_layer_carries_eight_section_headers_in_order():
 
     positions = [pdf_text.find(section) for section in SECTIONS]
     assert all(position != -1 for position in positions), (
-        f"Nie wszystkie naglowki sekcji obecne: {list(zip(SECTIONS, positions))}"
+        f"Not every section header is present: {list(zip(SECTIONS, positions))}"
     )
     assert positions == sorted(positions)
 
@@ -599,10 +599,10 @@ def test_check_id_set_is_identical_across_pdf_markdown_and_analysis_json(
     "fixture", _analyzable_fixtures(), ids=lambda path: path.name
 )
 def test_check_id_label_count_equals_finding_count(fixture, tmp_path):
-    """Rownosc zbiorow NIE wystarcza (krawedz adjacency): dwa findingi o
-    identycznym identyfikatorze daja ten sam zbior przy jednym i przy dwoch
-    blokach w tekscie. Liczba wystapien etykiety musi byc rowna liczbie
-    findingow w modelu."""
+    """Set equality is NOT enough (the adjacency edge case): two findings with
+    an identical identifier give the same set whether the text carries one
+    block or two. The number of occurrences of the label has to equal the
+    number of findings in the model."""
     result = _analyze_or_skip(fixture, tmp_path)
     pdf_text = _extract_text(
         render_pdf(result.analysis, generated_at=GENERATED_AT, warnings=result.warnings)

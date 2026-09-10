@@ -628,14 +628,14 @@ def test_entry_errors_reports_in_file_order():
 
 
 def test_failure_message_never_carries_claim_text():
-    claim_text = "TAJNE-TWIERDZENIE-NIE-POWTORZ"
+    claim_text = "SECRET-CLAIM-DO-NOT-REPEAT"
     catalog = {
         "entries": [
             {"id": "secretive", "claim": claim_text, "readme_anchor": "A", "evidence": "", "status": "active"}
         ]
     }
     errors = _entry_errors(catalog, frozenset())
-    assert errors, "test wymaga co najmniej jednego bledu do sprawdzenia"
+    assert errors, "the test needs at least one failure to check"
     assert all(claim_text not in e for e in errors)
 
 

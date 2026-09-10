@@ -1,25 +1,26 @@
-"""Bramka ksztaltu rekordu PUB-01 (`compliance/pre-publication-review.md`).
+"""Shape gate for the PUB-01 record (`compliance/pre-publication-review.md`).
 
-Ten modul jest zaleznosciowo izolowany od reszty pakietu `wayside` i uzywa
-WYLACZNIE biblioteki standardowej Pythona. To jest warunek, nie preferencja:
-bramka ma dzialac jako krok wstepny przed kazdym publicznym pushem, takze na
-maszynie bez zsynchronizowanego srodowiska projektu (bez `uv sync`).
+This module is dependency-isolated from the rest of the `wayside` package and
+uses the Python standard library ONLY. That is a condition, not a preference:
+the gate has to work as a preliminary step before every public push, on a
+machine without a synchronized project environment as well (without
+`uv sync`).
 
-Ten skrypt sprawdza WYLACZNIE ksztalt rekordu - obecnosc wymaganych pol,
-parsowalnosc daty, brak cytatu blokowego w tresci i regule pola `reviewer`.
-Nie sprawdza i nie moze sprawdzic, czy zapisane rozstrzygniecie odpowiada
-temu, co czlowiek faktycznie powiedzial - to jest przedmiot weryfikacji
-`backstop` w PLAN.md, nie kod.
+This script checks the SHAPE of the record ONLY - the presence of the
+required fields, whether the date parses, the absence of a block quote in the
+body, and the rules for the `reviewer` field. It does not and cannot check
+whether the recorded verdict matches what a human actually said - that is the
+subject of the `backstop` verification in PLAN.md, not of code.
 
-Frontmatter jest parsowany wlasnym, prostym czytnikiem par `klucz: wartosc`
-miedzy dwiema liniami separatora `---`, bez zadnej biblioteki YAML.
+The frontmatter is parsed by a small hand-written reader of `key: value`
+pairs between two `---` separator lines, without any YAML library.
 
-Kody wyjscia (czesc kontraktu, musza byc rozroznialne):
-    0 - rekord kompletny z jawnym rozstrzygnieciem (`go` albo `no-go`)
-    1 - rozstrzygniecie `no-go` przy podanej fladze `--require-go`
-    3 - brak pliku rekordu
-    4 - rekord niekompletny albo naruszajacy regule tresci
-    5 - rozstrzygniecie wciaz `pending`
+Exit codes (part of the contract, they must stay distinguishable):
+    0 - record complete with an explicit verdict (`go` or `no-go`)
+    1 - verdict `no-go` while the `--require-go` flag was given
+    3 - the record file is absent
+    4 - record incomplete or breaking the body rule
+    5 - verdict still `pending`
 """
 
 from __future__ import annotations
@@ -51,11 +52,15 @@ REQUIRED_KEYS: tuple[str, ...] = (
 
 VALID_VERDICTS: frozenset[str] = frozenset({"go", "no-go", "pending"})
 
-# Jedyna kontrola przeciw sfabrykowaniu rozstrzygniecia, jaka da sie zapisac
-# w kodzie: pole `reviewer` nie moze nalezec do listy nazw agentowych. Nie
-# wykrywa czlowieka podszywajacego sie pod samego siebie ani agenta
-# wpisujacego prawdziwe imie autora - zgodnosc zapisu z wypowiedziana
-# decyzja pozostaje predykatem typu backstop (patrz PLAN.md, must_haves).
+# The only control against a fabricated verdict that can be written down in
+# code: the `reviewer` field must not belong to the list of agent names. It
+# does not catch a human impersonating himself, nor an agent typing in the
+# author's real name - the agreement between the record and the spoken
+# decision remains a backstop-class predicate (see PLAN.md, must_haves).
+#
+# The list stays bilingual on purpose: the author writes this field by hand
+# and a Polish placeholder ("skrypt", "asystent") is exactly the mistake this
+# threshold is meant to catch. Widening the detection never costs correctness.
 AGENT_REVIEWER_NAMES: frozenset[str] = frozenset(
     {
         "agent",
@@ -71,9 +76,9 @@ AGENT_REVIEWER_NAMES: frozenset[str] = frozenset(
     }
 )
 
-# Granice tokenow w polu `reviewer`. Dzielenie wylacznie po bialych znakach
-# przepuszczalo `jakis-bot` i `pomocniczy_agent`, mimo ze gole `bot` bylo
-# odrzucane - to byl blad tokenizacji, nie slabosc heurystyki.
+# Token boundaries inside the `reviewer` field. Splitting on whitespace alone
+# let `some-bot` and `helper_agent` through even though a bare `bot` was
+# rejected - that was a tokenization bug, not a weakness of the heuristic.
 _REVIEWER_TOKEN_SPLIT = re.compile(r"[^0-9A-Za-z]+")
 
 EXIT_OK = 0
@@ -84,22 +89,23 @@ EXIT_PENDING = 5
 
 
 class RecordShapeError(ValueError):
-    """Frontmatter zle uformowany (brak separatorow, linia bez dwukropka)."""
+    """The frontmatter is malformed (missing separators, a line without a colon)."""
 
 
 def load_record(path: Path) -> tuple[dict[str, str], str]:
-    """Wczytuje rekord: frontmatter jako pary klucz-wartosc oraz tresc.
+    """Reads the record: the frontmatter as key-value pairs plus the body.
 
-    Podnosi `FileNotFoundError`, gdy plik nie istnieje, i `RecordShapeError`,
-    gdy frontmatter nie jest zamkniety miedzy dwiema liniami `---`. Puste
-    linie i linie zaczynajace sie od `#` wewnatrz frontmatteru sa pomijane.
+    Raises `FileNotFoundError` when the file does not exist, and
+    `RecordShapeError` when the frontmatter is not closed between two `---`
+    lines. Empty lines and lines starting with `#` inside the frontmatter are
+    skipped.
     """
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
 
     if not lines or lines[0].strip() != "---":
         raise RecordShapeError(
-            f"Rekord {path} nie zaczyna sie od separatora frontmatteru '---'."
+            f"The record {path} does not start with the frontmatter separator '---'."
         )
 
     fields: dict[str, str] = {}
@@ -110,8 +116,8 @@ def load_record(path: Path) -> tuple[dict[str, str], str]:
         if stripped and not stripped.startswith("#"):
             if ":" not in raw_line:
                 raise RecordShapeError(
-                    f"Rekord {path}, linia {idx + 1}: brak dwukropka we "
-                    f"frontmatterze ({raw_line!r})."
+                    f"The record {path}, line {idx + 1}: no colon in the "
+                    f"frontmatter ({raw_line!r})."
                 )
             key, _, value = raw_line.partition(":")
             fields[key.strip()] = value.strip()
@@ -119,7 +125,7 @@ def load_record(path: Path) -> tuple[dict[str, str], str]:
 
     if idx >= len(lines):
         raise RecordShapeError(
-            f"Rekord {path} nie ma zamykajacego separatora frontmatteru '---'."
+            f"The record {path} has no closing frontmatter separator '---'."
         )
 
     body = "\n".join(lines[idx + 1 :])
@@ -127,22 +133,20 @@ def load_record(path: Path) -> tuple[dict[str, str], str]:
 
 
 def _reviewer_is_invalid(reviewer: str) -> bool:
-    """Sprawdza pole `reviewer`: puste, wartosc zastepcza albo nazwa agenta.
+    """Checks the `reviewer` field: empty, a placeholder, or an agent name.
 
-    Czym ta funkcja NIE jest: dowodem, ze rozstrzygniecie podjal czlowiek.
-    Nazwa wpisana z klawiatury nie da sie odroznic od nazwy wpisanej przez
-    agenta, wiec kazdy taki sprawdzian jest progiem zwalniajacym, nie
-    kontrola. Faktyczna kontrola jest wyzej: rozstrzygniecie zapada na
-    checkpoincie `gate="blocking-human"`, ktory nie jest zatwierdzany
-    automatycznie w zadnym trybie. Tutaj lapiemy pomylke i wartosc
-    zastepcza, nie zdeterminowanego falszerza.
+    What this function is NOT: proof that a human made the decision. A name
+    typed on a keyboard cannot be told apart from a name typed by an agent, so
+    every such check is a release threshold, not a control. The actual control
+    sits higher up: the verdict is reached at a `gate="blocking-human"`
+    checkpoint, which is never approved automatically in any mode. Here we
+    catch a slip and a placeholder, not a determined forger.
 
-    Znana granica tej samej rodziny: tokenizacja
-    dzieli po granicy niealfanumerycznej, wiec "jakis-bot" i "jakis_bot" sa
-    lapane, ale zlepek bez separatora ("jakisbot", "JakisAgent") juz nie.
-    Swiadomie nie rozszerzamy tego o dopasowanie po podciagu - "agent"
-    wystepuje w prawdziwych nazwiskach, a falszywy alarm blokowalby
-    rozstrzygniecie czlowieka.
+    A known boundary of the same family: the tokenization splits on
+    non-alphanumeric boundaries, so "some-bot" and "some_bot" are caught, but
+    a run-together form ("somebot", "SomeAgent") is not. We deliberately do
+    not widen this to substring matching - "agent" occurs inside real
+    surnames, and a false alarm would block a human verdict.
     """
     if not reviewer:
         return True
@@ -156,20 +160,19 @@ def _reviewer_is_invalid(reviewer: str) -> bool:
     return False
 
 
-# Alias publiczny (zalozenie Z-102, plan 05-04): `scripts/check_history_audit_gate.py`
-# importuje kontrole pola autora Z TEJ bramki zamiast ja kopiowac - dwie
-# listy nazw agentowych w dwoch plikach rozjechalyby sie, dokladnie ta sama
-# zasada, ktora D-19 stosuje do wzorcow warstwy tozsamosciowej. Nazwa
-# prywatna (`_reviewer_is_invalid`) zostaje NIETKNIETA - to jest zmiana
-# WYLACZNIE dodajaca, zaden istniejacy kod wyjscia ani zachowanie tego
-# modulu sie nie zmienia.
+# Public alias (assumption Z-102, plan 05-04): `scripts/check_history_audit_gate.py`
+# imports the author-field check FROM THIS gate instead of copying it - two
+# lists of agent names in two files would drift apart, exactly the principle
+# D-19 applies to the patterns of the identity layer. The private name
+# (`_reviewer_is_invalid`) stays UNTOUCHED - this change is PURELY additive,
+# no existing exit code or behaviour of this module changes.
 reviewer_is_invalid = _reviewer_is_invalid
 
 
 def _body_has_blockquote(body: str) -> int | None:
-    """Zwraca numer pierwszej linii tresci zaczynajacej sie od cytatu
+    """Returns the number of the first body line starting with a markdown
 
-    blokowego markdown (`>`), albo `None`, gdy tresc jest czysta.
+    block quote (`>`), or `None` when the body is clean.
     """
     for line_no, line in enumerate(body.splitlines(), start=1):
         if line.strip().startswith(">"):
@@ -178,60 +181,60 @@ def _body_has_blockquote(body: str) -> int | None:
 
 
 def validate_record(fields: dict[str, str], body: str) -> tuple[int, str]:
-    """Sprawdza ksztalt rekordu i zwraca (kod_wyjscia, komunikat).
+    """Checks the shape of the record and returns (exit_code, message).
 
-    Kolejnosc sprawdzen ma znaczenie: brak pola i naruszenie regoly tresci
-    (cytat blokowy) sa naruszeniami ksztaltu i wygrywaja zawsze, takze na
-    rekordzie jeszcze nierozstrzygnietym (`pending`). Rozstrzygniecie
-    `pending` jest sprawdzane PRZED regulami pol `reviewer`/`reviewed_on`,
-    bo te pola sa w stanie poczatkowym celowo puste - to nie jest naruszenie
-    ksztaltu, to jest stan "jeszcze nie zdecydowano".
+    The order of the checks matters: a missing field and a breach of the body
+    rule (a block quote) are shape violations and always win, on a record that
+    is not yet resolved (`pending`) as well. The `pending` verdict is checked
+    BEFORE the rules for `reviewer`/`reviewed_on`, because those fields are
+    deliberately empty in the initial state - that is not a shape violation,
+    it is the state "not decided yet".
     """
     missing = [key for key in REQUIRED_KEYS if key not in fields]
     if missing:
         return (
             EXIT_INVALID_SHAPE,
-            f"Rekord niekompletny: brak pol {', '.join(missing)}.",
+            f"Record incomplete: missing fields {', '.join(missing)}.",
         )
 
     blockquote_line = _body_has_blockquote(body)
     if blockquote_line is not None:
         return (
             EXIT_INVALID_SHAPE,
-            f"Rekord zawiera cytat blokowy w linii {blockquote_line} tresci: "
-            f"rekord nie moze cytowac ani parafrazowac umowy.",
+            f"The record carries a block quote on line {blockquote_line} of the body: "
+            f"the record must neither quote nor paraphrase the agreement.",
         )
 
     verdict = fields["verdict"].strip()
     if verdict not in VALID_VERDICTS:
         return (
             EXIT_INVALID_SHAPE,
-            f"Pole verdict ma niedozwolona wartosc: {verdict!r}.",
+            f"The verdict field carries a disallowed value: {verdict!r}.",
         )
 
     if verdict == "pending":
         return (
             EXIT_PENDING,
-            "Rozstrzygniecie bramki PUB-01 jeszcze nie zapadlo (verdict=pending).",
+            "The PUB-01 gate verdict has not been reached yet (verdict=pending).",
         )
 
     reviewer = fields["reviewer"].strip()
     if _reviewer_is_invalid(reviewer):
         return (
             EXIT_INVALID_SHAPE,
-            "Pole reviewer jest puste, jest wartoscia zastepcza albo "
-            "wskazuje na agenta zamiast na czlowieka.",
+            "The reviewer field is empty, is a placeholder, or points at "
+            "an agent instead of a human.",
         )
 
     reviewed_on = fields["reviewed_on"].strip()
     if not reviewed_on:
-        return (EXIT_INVALID_SHAPE, "Pole reviewed_on jest puste.")
+        return (EXIT_INVALID_SHAPE, "The reviewed_on field is empty.")
     try:
         datetime.date.fromisoformat(reviewed_on)
     except ValueError:
         return (
             EXIT_INVALID_SHAPE,
-            f"Pole reviewed_on nie jest poprawna data ISO (YYYY-MM-DD): "
+            f"The reviewed_on field is not a valid ISO date (YYYY-MM-DD): "
             f"{reviewed_on!r}.",
         )
 
@@ -242,21 +245,21 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="check_pub_gate",
         description=(
-            "Bramka ksztaltu rekordu PUB-01: sprawdza, czy przeglad umowy "
-            "o prace jest zapisany w postaci maszynowo czytelnej."
+            "Shape gate for the PUB-01 record: checks whether the review of "
+            "the employment agreement is recorded in a machine-readable form."
         ),
     )
     parser.add_argument(
         "--record-path",
         default=DEFAULT_RECORD_PATH,
-        help=f"Sciezka do rekordu (domyslnie {DEFAULT_RECORD_PATH}).",
+        help=f"Path to the record (default {DEFAULT_RECORD_PATH}).",
     )
     parser.add_argument(
         "--require-go",
         action="store_true",
         help=(
-            "Wymus verdict=go: rekord z verdict=no-go konczy sie wtedy "
-            "kodem 1 zamiast 0."
+            "Force verdict=go: a record with verdict=no-go then exits with "
+            "code 1 instead of 0."
         ),
     )
     return parser
@@ -270,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         fields, body = load_record(record_path)
     except FileNotFoundError:
-        print(f"Brak pliku rekordu: {record_path}", file=sys.stderr)
+        print(f"No record file: {record_path}", file=sys.stderr)
         return EXIT_MISSING_FILE
     except RecordShapeError as exc:
         print(str(exc), file=sys.stderr)
@@ -283,8 +286,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"verdict={verdict}")
         if args.require_go and verdict != "go":
             print(
-                "Wymagano verdict=go (flaga --require-go), a rekord niesie "
-                f"rozstrzygniecie {verdict!r}.",
+                "verdict=go was required (the --require-go flag), and the record "
+                f"carries the verdict {verdict!r}.",
                 file=sys.stderr,
             )
             return EXIT_REQUIRE_GO_FAILED

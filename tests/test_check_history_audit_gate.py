@@ -1,12 +1,12 @@
-"""Testy jednostkowe PUB-05: bramka ksztaltu `scripts/check_history_audit_gate.py`.
+"""Unit tests for PUB-05: the shape gate `scripts/check_history_audit_gate.py`.
 
-Ten pakiet sprawdza WYLACZNIE ksztalt rekordu (obecnosc pol, dozwolone
-wartosci, parsowalnosc dat, regula pola `author`) i mapowanie ksztaltu na
-SZESC rozroznialnych kodow wyjscia, wzorem `tests/test_check_pub_gate.py`.
-Nie ma tu ani jednego testu wymuszajacego konkretny `result` na prawdziwym
-rekordzie repozytorium poza kontrola izolacji zaleznosciowej i kontrola
-ksztaltu - werdykt maszynowy nad prawdziwym stanem historii nalezy do
-`tests/test_history_audit.py` (znacznik wolny).
+This suite checks the SHAPE of the record ONLY (presence of the fields,
+allowed values, whether the dates parse, the rule for the `author` field) and
+the mapping of shape onto SIX distinguishable exit codes, following
+`tests/test_check_pub_gate.py`. There is not one test here forcing a
+particular `result` on the real repository record beyond the dependency
+isolation check and the shape check - the machine verdict over the real state
+of the history belongs to `tests/test_history_audit.py` (the slow marker).
 """
 
 from __future__ import annotations
@@ -35,18 +35,18 @@ def _valid_fields(**overrides: str) -> dict[str, str]:
         "exceptions_file": ".confidentiality-allow",
         "result": "clean",
         "author": "",
-        "confirmed_on": "",
+        "confirmed_on": "",  # empty on purpose: the pending state
     }
     fields.update(overrides)
     return fields
 
 
 VALID_BODY = (
-    "## Scope\n\nTrzy powierzchnie calej historii.\n\n"
-    "## Wynik\n\nBrak trafien poza wyjatkami.\n\n"
-    "## Wyjatki\n\nPatrz .confidentiality-allow.\n\n"
-    "## Kontrakt naprawy\n\ngit filter-repo przed publicznym pushem.\n\n"
-    "## Warunki rewizji\n\nZmiana zbioru wzorcow albo wyjatkow.\n"
+    "## Scope\n\nThree surfaces of the whole history.\n\n"
+    "## Result\n\nNo hits outside the exceptions.\n\n"
+    "## Exceptions\n\nSee .confidentiality-allow.\n\n"
+    "## Remediation contract\n\ngit filter-repo before a public push.\n\n"
+    "## Revision conditions\n\nA changed set of patterns or exceptions.\n"
 )
 
 
@@ -59,7 +59,7 @@ def _write_record(path: Path, fields: dict[str, str], body: str) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-# --- Kontrakt modulu i izolacja zaleznosciowa --------------------------------
+# --- Module contract and dependency isolation --------------------------------
 
 
 def test_module_defines_required_symbols():
@@ -79,11 +79,11 @@ def test_module_defines_required_symbols():
 
 
 def test_module_imports_only_standard_library_and_sibling_gate():
-    """Izolacja zaleznosciowa po drzewie skladniowym, wzorem
+    """Dependency isolation over the syntax tree, following
     `tests/test_check_pub_gate.py::test_module_imports_only_standard_library` -
-    ten modul dopuszcza dodatkowo WYLACZNIE `check_pub_gate` (siostrzana
-    bramka), bez ktorego importu ten modul kopiowalby jej kontrole pola
-    `author` zamiast jej uzywac."""
+    this module additionally allows `check_pub_gate` (the sibling gate) ONLY,
+    without which import it would be copying that gate's check of the `author`
+    field instead of using it."""
     import ast
 
     source = (SCRIPTS_DIR / "check_history_audit_gate.py").read_text(encoding="utf-8")
@@ -93,35 +93,35 @@ def test_module_imports_only_standard_library_and_sibling_gate():
         if isinstance(node, ast.Import):
             for alias in node.names:
                 top_level = alias.name.split(".")[0]
-                assert top_level in stdlib_names, f"Zewnetrzny import: {alias.name}"
+                assert top_level in stdlib_names, f"External import: {alias.name}"
         elif isinstance(node, ast.ImportFrom):
             if node.module is None:
                 continue
             top_level = node.module.split(".")[0]
-            assert top_level in stdlib_names, f"Zewnetrzny import: {node.module}"
+            assert top_level in stdlib_names, f"External import: {node.module}"
 
 
 def test_reviewer_check_is_the_same_object_as_sibling_gate():
-    """Kontrola pola `author` jest TYM SAMYM obiektem, ktorego uzywa bramka
-    rekordu bramki publikacyjnej - nie kopia o identycznym zachowaniu."""
+    """The check of the `author` field is THE SAME object the record gate of
+    the publication gate uses - not a copy behaving identically."""
     assert gate.check_pub_gate.reviewer_is_invalid is check_pub_gate.reviewer_is_invalid
 
 
-# --- main(): brak pliku -------------------------------------------------------
+# --- main(): the file is absent -----------------------------------------------
 
 
 def test_main_missing_file_exits_3(tmp_path):
-    missing = tmp_path / "nie-ma-takiego.md"
+    missing = tmp_path / "no-such-file.md"
     exit_code = gate.main(["--record", str(missing)])
     assert exit_code == 3
 
 
-# --- validate_record: brak separatorow frontmatteru (przez load_record) -----
+# --- validate_record: missing frontmatter separators (via load_record) -------
 
 
 def test_missing_opening_separator_exits_4(tmp_path):
     record = tmp_path / "record.md"
-    record.write_text("brak separatora otwierajacego\n---\ntresc\n", encoding="utf-8")
+    record.write_text("no opening separator\n---\nbody\n", encoding="utf-8")
     exit_code = gate.main(["--record", str(record)])
     assert exit_code == 4
 
@@ -133,7 +133,7 @@ def test_missing_closing_separator_exits_4(tmp_path):
     assert exit_code == 4
 
 
-# --- validate_record: pola niekompletne --------------------------------------
+# --- validate_record: incomplete fields --------------------------------------
 
 
 def test_missing_required_key_exits_4_shape_error():
@@ -152,7 +152,7 @@ def test_missing_required_key_via_main_exits_4(tmp_path):
     assert exit_code == 4
 
 
-# --- validate_record: result spoza zbioru ------------------------------------
+# --- validate_record: result outside the allowed set -------------------------
 
 
 def test_result_outside_valid_set_is_a_shape_error():
@@ -169,7 +169,7 @@ def test_result_outside_valid_set_via_main_exits_4(tmp_path):
     assert exit_code == 4
 
 
-# --- validate_record: lista powierzchni i regul ------------------------------
+# --- validate_record: the list of surfaces and rules -------------------------
 
 
 def test_incomplete_surfaces_list_is_a_shape_error():
@@ -184,22 +184,22 @@ def test_incomplete_rules_list_is_a_shape_error():
     assert errors != []
 
 
-# --- validate_record: data nieparsowalna -------------------------------------
+# --- validate_record: unparseable date ---------------------------------------
 
 
 def test_unparseable_audited_on_is_a_shape_error():
-    fields = _valid_fields(audited_on="wczoraj")
+    fields = _valid_fields(audited_on="yesterday")
     errors = gate.validate_record(fields, VALID_BODY)
     assert errors != []
 
 
 def test_unparseable_confirmed_on_is_a_shape_error_when_non_empty():
-    fields = _valid_fields(author="Jan Kowalski", confirmed_on="wczoraj")
+    fields = _valid_fields(author="Jane Doe", confirmed_on="yesterday")
     errors = gate.validate_record(fields, VALID_BODY)
     assert errors != []
 
 
-# --- validate_record: pole author --------------------------------------------
+# --- validate_record: the author field ---------------------------------------
 
 
 def test_empty_author_is_not_a_shape_error():
@@ -222,7 +222,7 @@ def test_agent_name_author_via_main_exits_4(tmp_path):
     assert exit_code == 4
 
 
-# --- main(): stan oczekujacy (pending) ---------------------------------------
+# --- main(): the pending state -----------------------------------------------
 
 
 def test_empty_author_via_main_exits_5_pending(tmp_path):
@@ -241,7 +241,7 @@ def test_empty_confirmed_on_via_main_exits_5_pending(tmp_path):
     assert exit_code == 5
 
 
-# --- main(): rozstrzygniete poprawnie, flaga --require-clean ----------------
+# --- main(): properly resolved, the --require-clean flag ---------------------
 
 
 def test_clean_signed_record_exits_0(tmp_path):
@@ -272,7 +272,7 @@ def test_hits_outside_exceptions_with_require_clean_exits_1(tmp_path):
     assert exit_code == 1
 
 
-# --- main(): flaga --require-current, rekord nieaktualny --------------------
+# --- main(): the --require-current flag, a stale record ----------------------
 
 
 def test_stale_head_sha_without_require_current_exits_0(tmp_path):
@@ -312,31 +312,31 @@ def test_current_head_sha_with_require_current_exits_0_with_both_flags(tmp_path)
     assert exit_code == 0
 
 
-# --- Dyscyplina tresci: rekord nigdy nie niesie fragmentu tresci historii ----
+# --- Body discipline: the record never carries a fragment of history ---------
 
 
 def test_failure_messages_never_carry_matched_content(tmp_path, capsys):
-    """Zaden komunikat porazki nie niesie fragmentu tresci historii ani
-    nazwy pliku z trafieniem - bramka rekordu widzi tylko pola frontmatteru,
-    nigdy trafienia skanu, wiec nie ma nawet z czego wyciec takiego
-    fragmentu; ten test dokumentuje tę wlasnosc wprost."""
+    """No failure message carries a fragment of the history content nor the
+    name of a file with a hit - the record gate sees only the frontmatter
+    fields, never the hits of a scan, so there is nothing for such a fragment
+    to leak from; this test documents that property outright."""
     fields = _valid_fields(rules_checked="identity-private-ipv4")
     record = tmp_path / "record.md"
     _write_record(record, fields, VALID_BODY)
     exit_code = gate.main(["--record", str(record)])
     assert exit_code == 4
     captured = capsys.readouterr()
-    assert "TAJNE-TRAFIENIE-NIE-POWTORZ" not in captured.err
+    assert "SECRET-HIT-DO-NOT-REPEAT" not in captured.err
 
 
-# --- Rekord z repozytorium: tylko ksztalt, nigdy wymuszony wynik -------------
+# --- The repository record: shape only, never a forced result ----------------
 
 
 def test_repository_record_has_valid_shape_or_is_pending():
-    """Rekord w repozytorium ma byc zawsze dobrze uformowany. Stan
-    oczekujacy (kod 5, pola czlowieka puste) i stan rozstrzygniety (kod 0)
-    sa oba akceptowalne - to, czy podpis juz zapadl, nie jest wlasnoscia,
-    ktora ten pakiet testow wymusza."""
+    """The record in the repository is meant to be well formed at all times.
+    The pending state (code 5, the human fields empty) and the resolved state
+    (code 0) are both acceptable - whether the signature has been given is not
+    a property this test suite forces."""
     result = subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / "check_history_audit_gate.py")],
         cwd=REPO_ROOT,

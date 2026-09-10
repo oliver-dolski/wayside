@@ -1,11 +1,11 @@
-"""Testy jednostkowe PUB-01: bramka ksztaltu `scripts/check_pub_gate.py`.
+"""Unit tests for PUB-01: the shape gate `scripts/check_pub_gate.py`.
 
-Ten pakiet sprawdza WYLACZNIE ksztalt rekordu (obecnosc pol, parsowalnosc
-daty, brak cytatu blokowego, reguly pola `reviewer`) i mapowanie ksztaltu na
-kody wyjscia. Nie ma tu ani jednego testu wymuszajacego konkretna wartosc
-`verdict` (`go` albo `no-go`) na prawdziwym rekordzie repozytorium - to jest
-decyzja czlowieka, nie wlasnosc sprawdzana przez pakiet testow (patrz
-`test_repository_record_has_valid_shape` nizej).
+This suite checks the SHAPE of the record ONLY (presence of the fields,
+whether the date parses, absence of a block quote, the rules for the
+`reviewer` field) and the mapping of shape onto exit codes. There is not one
+test here forcing a particular `verdict` value (`go` or `no-go`) on the real
+repository record - that is a human decision, not a property checked by a
+test suite (see `test_repository_record_has_valid_shape` below).
 """
 
 from __future__ import annotations
@@ -22,13 +22,13 @@ if str(SCRIPTS_DIR) not in sys.path:
 import check_pub_gate as gate  # noqa: E402
 
 VALID_BODY = (
-    "## Scope przegladu\n\nWlasnosc intelektualna i dzialalnosc konkurencyjna.\n\n"
-    "## Wniosek\n\nWniosek wymyslony na potrzeby testu.\n\n"
-    "## Skutki dla projektu\n\nOpis obu galezi.\n\n"
-    "## Warunki rewizji\n\nZmiana umowy, zmiana pracodawcy, zmiana zakresu.\n"
+    "## Scope of the review\n\nIntellectual property and competing activity.\n\n"
+    "## Conclusion\n\nA conclusion invented for the purposes of the test.\n\n"
+    "## Consequences for the project\n\nA description of both branches.\n\n"
+    "## Revision conditions\n\nA changed agreement, employer or scope.\n"
 )
 
-QUOTED_BODY = VALID_BODY + "\n> Cytat z umowy, ktory nie powinien tu byc.\n"
+QUOTED_BODY = VALID_BODY + "\n> A quote from the agreement that should not be here.\n"
 
 
 def _valid_fields(**overrides: str) -> dict[str, str]:
@@ -36,14 +36,14 @@ def _valid_fields(**overrides: str) -> dict[str, str]:
         "requirement": "PUB-01",
         "scope": "employment-contract-ip-and-non-compete",
         "reviewed_on": "2026-09-02",
-        "reviewer": "Jan Kowalski",
+        "reviewer": "Jane Doe",
         "verdict": "go",
     }
     fields.update(overrides)
     return fields
 
 
-# --- Kontrakt modulu ---------------------------------------------------------
+# --- Module contract ---------------------------------------------------------
 
 
 def test_module_defines_required_symbols():
@@ -53,9 +53,9 @@ def test_module_defines_required_symbols():
 
 
 def test_reviewer_is_invalid_public_alias_is_the_same_object_as_private_name():
-    """Zalozenie Z-102 (plan 05-04): `scripts/check_history_audit_gate.py`
-    importuje ta kontrole zamiast ja kopiowac - alias musi wskazywac
-    DOKLADNIE TEN SAM obiekt funkcji, nie kopie o identycznym zachowaniu."""
+    """Assumption Z-102 (plan 05-04): `scripts/check_history_audit_gate.py`
+    imports this check instead of copying it - the alias must point at
+    EXACTLY THE SAME function object, not at a copy behaving identically."""
     assert gate.reviewer_is_invalid is gate._reviewer_is_invalid
 
 
@@ -75,24 +75,24 @@ def test_module_imports_only_standard_library():
         if isinstance(node, ast.Import):
             for alias in node.names:
                 top_level = alias.name.split(".")[0]
-                assert top_level in stdlib_names, f"Zewnetrzny import: {alias.name}"
+                assert top_level in stdlib_names, f"External import: {alias.name}"
         elif isinstance(node, ast.ImportFrom):
             if node.module is None:
                 continue
             top_level = node.module.split(".")[0]
-            assert top_level in stdlib_names, f"Zewnetrzny import: {node.module}"
+            assert top_level in stdlib_names, f"External import: {node.module}"
 
 
-# --- load_record: brak pliku -------------------------------------------------
+# --- load_record: the file is absent -----------------------------------------
 
 
 def test_main_missing_file_exits_3(tmp_path):
-    missing = tmp_path / "nie-ma-takiego.md"
+    missing = tmp_path / "no-such-file.md"
     exit_code = gate.main(["--record-path", str(missing)])
     assert exit_code == 3
 
 
-# --- validate_record: pola niekompletne -------------------------------------
+# --- validate_record: incomplete fields --------------------------------------
 
 
 def test_missing_required_key_exits_4():
@@ -109,11 +109,11 @@ def test_missing_verdict_key_exits_4():
     assert code == 4
 
 
-# --- validate_record: data nieparsowalna -------------------------------------
+# --- validate_record: unparseable date ---------------------------------------
 
 
 def test_unparseable_date_exits_4():
-    fields = _valid_fields(reviewed_on="wczoraj")
+    fields = _valid_fields(reviewed_on="yesterday")
     code, _message = gate.validate_record(fields, VALID_BODY)
     assert code == 4
 
@@ -124,7 +124,7 @@ def test_wrong_date_format_exits_4():
     assert code == 4
 
 
-# --- validate_record: pole reviewer ------------------------------------------
+# --- validate_record: the reviewer field -------------------------------------
 
 
 def test_empty_reviewer_on_resolved_record_exits_4():
@@ -151,7 +151,7 @@ def test_agent_name_reviewer_case_insensitive_exits_4():
     assert code == 4
 
 
-# --- validate_record: cytat blokowy ------------------------------------------
+# --- validate_record: block quote --------------------------------------------
 
 
 def test_blockquote_line_in_body_exits_4():
@@ -163,8 +163,9 @@ def test_blockquote_line_in_body_exits_4():
 def test_blockquote_line_flags_even_when_verdict_pending_exits_4():
     fields = _valid_fields(verdict="pending", reviewed_on="", reviewer="")
     code, _message = gate.validate_record(fields, QUOTED_BODY)
-    # Regula tresci dziala niezaleznie od stanu rozstrzygniecia: rekord
-    # niesie sam wniosek, nigdy cytat, takze zanim rozstrzygniecie zapadnie.
+    # The body rule applies regardless of the state of the verdict: the record
+    # carries the conclusion alone, never a quote, before the verdict is
+    # reached as well.
     assert code == 4
 
 
@@ -177,7 +178,7 @@ def test_pending_verdict_exits_5():
     assert code == 5
 
 
-# --- validate_record: rozstrzygniete poprawnie -------------------------------
+# --- validate_record: properly resolved --------------------------------------
 
 
 def test_complete_go_record_exits_0_and_reports_verdict():
@@ -200,7 +201,7 @@ def test_invalid_verdict_value_exits_4():
     assert code == 4
 
 
-# --- main(): stdout i flaga --require-go -------------------------------------
+# --- main(): stdout and the --require-go flag --------------------------------
 
 
 def _write_record(path: Path, fields: dict[str, str], body: str) -> None:
@@ -246,14 +247,14 @@ def test_main_pending_record_exits_5(tmp_path):
     assert exit_code == 5
 
 
-# --- Rekord z repozytorium: tylko ksztalt, nigdy wymuszone rozstrzygniecie --
+# --- The repository record: shape only, never a forced verdict ---------------
 
 
 def test_repository_record_has_valid_shape():
-    """Rekord ma byc zawsze dobrze uformowany. To, czy rozstrzygniecie juz
+    """The record is meant to be well formed at all times. Whether the verdict
 
-    zapadlo, nie jest wlasnoscia sprawdzana przez ten pakiet testow - kod 0
-    (rozstrzygniete) i kod 5 (pending) sa oba akceptowalne.
+    has been reached is not a property checked by this test suite - code 0
+    (resolved) and code 5 (pending) are both acceptable.
     """
     result = subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / "check_pub_gate.py")],

@@ -1,16 +1,15 @@
-"""Bramka maszynowa PROTO-05: kontrakt manifestu dissectora, loader plikowy,
-sortowanie deterministyczne rejestru, oraz kryterium 2 fazy (dissector probny
-bez zmiany zadnego pliku rdzenia).
+"""Machine gate PROTO-05: the dissector manifest contract, the file loader,
+the deterministic sorting of the registry, and criterion 2 of the phase (a
+probe dissector without a change to any core file).
 
-Testy kontraktu schematu i sortowania wolaja `discover_dissectors` na
-katalogu TYMCZASOWYM (`tmp_path`) - loader oparty o `spec_from_file_location`
-dziala na dowolnej sciezce, wiec te testy nigdy nie dotykaja prawdziwego
-pakietu.
+The schema contract and sorting tests call `discover_dissectors` over a
+TEMPORARY directory (`tmp_path`) - the loader built on `spec_from_file_location`
+works over any path, so those tests never touch the real package.
 
-Test kryterium 2 fazy wpisuje dissector PROBNY do PRAWDZIWEGO katalogu
-`src/wayside/protocols/dissectors/` i sprzata po sobie - dokladnie to
-dowodzi, ze nowy protokol wchodzi bez zmiany zadnego pliku rdzenia (ten sam
-wzorzec co
+The criterion 2 test writes a PROBE dissector into the REAL
+`src/wayside/protocols/dissectors/` directory and cleans up after itself -
+that is exactly what proves a new protocol enters without a change to any core
+file (the same pattern as
 `tests/test_check_engine.py::test_new_check_discovered_without_engine_change`).
 """
 
@@ -98,8 +97,8 @@ def _write_dissector(
 
 
 def _spec(*, dissector_id: str, confidence: str, dissect) -> registry.DissectorSpec:
-    """Buduje `DissectorSpec` w pamieci, bez zapisu na dysk - wystarczajace
-    dla testow `run_dissectors`, ktore nie zaleza od loadera plikowego."""
+    """Builds a `DissectorSpec` in memory, without writing to disk - enough for
+    the `run_dissectors` tests, which do not depend on the file loader."""
     return registry.DissectorSpec(
         path=Path(f"/fake/{dissector_id}/manifest.yaml"),
         spec={"id": dissector_id, "confidence": confidence, "dissector": "fake:dissect"},
@@ -400,28 +399,31 @@ def test_rtu_over_tcp_fixture_gives_empty_protocol_events_and_two_low_confidence
         assert event["protocol"] == "modbus-rtu-over-tcp"
 
 
-# --- Kryterium 2 fazy: dissector probny bez zmiany zadnego pliku rdzenia ---
+# --- Criterion 2 of the phase: a probe dissector without a core file change ---
 #
-# Wzorowane linia po linii na
+# Modelled line for line on
 # `tests/test_check_engine.py::test_new_check_discovered_without_engine_change`.
-# Ten test tymczasowo dodaje dissector PROBNY do PRAWDZIWEGO katalogu
-# `src/wayside/protocols/dissectors/` (nie do `tmp_path`), bo dokladnie to
-# bada kryterium 2 fazy: nowy protokol w czasie dzialania, bez zmiany zadnego
-# pliku rdzenia. Fixture `probe_dissector_dir` sprzata w bloku `finally`, a
-# autouse fixture modulu sprzata takze wtedy, gdy setup padnie przed `yield`.
+# This test temporarily adds a PROBE dissector to the REAL
+# `src/wayside/protocols/dissectors/` directory (not to `tmp_path`), because
+# that is exactly what criterion 2 of the phase examines: a new protocol at run
+# time, without a change to any core file. The `probe_dissector_dir` fixture
+# cleans up in a `finally` block, and the module autouse fixture cleans up even
+# when the setup fails before its `yield`.
 
-# Nazwa stala, nie losowa - nieudany wczesniejszy przebieg zostawilby wtedy
-# slad zmieniajacy wynik innych testow (ten sam powod co w pliku wzorcowym).
-# Identyfikator protokolu probnego jest "probe-extensibility-protocol" -
-# nazwany tu wprost, zeby komunikat bledu asercji nizej mial czytelne zrodlo.
+# A constant name, not a random one - a failed earlier run would otherwise
+# leave a trace changing the result of other tests (the same reason as in the
+# file this one is modelled on). The probe protocol identifier is
+# "probe-extensibility-protocol" - named here outright, so that the assertion
+# failure message below has a readable source.
 PROBE_DISSECTOR_DIR_NAME = "probe_extensibility_protocol"
 PROBE_DISSECTOR_DIR = DISSECTORS_ROOT / PROBE_DISSECTOR_DIR_NAME
 PROBE_PROTOCOL_ID = "probe-extensibility-protocol"
 
-# Lista dluzsza niz jednoelementowa lista pliku wzorcowego (`engine.py`
-# samego), bo PROTO-05 dotyka wiecej warstw niz CHECK-01 dotykal: rejestr,
-# potok, macierz komunikacji, model i raport - kazdy z nich zmieniony przez
-# Task 1 i Task 2 tego planu, plus konfiguracja projektu.
+# A longer list than the single-element list of the file this one is modelled
+# on (`engine.py` alone), because PROTO-05 touches more layers than CHECK-01
+# did: the registry, the pipeline, the communication matrix, the model and the
+# report - each of them changed by Task 1 and Task 2 of this plan, plus the
+# project configuration.
 CORE_PATHS: tuple[Path, ...] = (
     REPO_ROOT / "src" / "wayside" / "pipeline.py",
     REPO_ROOT / "src" / "wayside" / "decode.py",
@@ -432,10 +434,10 @@ CORE_PATHS: tuple[Path, ...] = (
     REPO_ROOT / "pyproject.toml",
 )
 
-# Dissector probny: jedno zdarzenie dla PIERWSZEGO segmentu na wejsciu, lista
-# pusta dla wejscia pustego. Zdarzenie niesie wylacznie packet_number i
-# session_id - pola protocol i confidence dopisuje rejestr, a to jest czesc
-# tego, co ten test ma udowodnic.
+# The probe dissector: one event for the FIRST segment of the input, an empty
+# list for empty input. The event carries only packet_number and session_id -
+# the protocol and confidence fields are added by the registry, and that is
+# part of what this test is meant to prove.
 PROBE_EXTENSIBILITY_DISSECTOR_SOURCE = textwrap.dedent(
     """
     from __future__ import annotations
@@ -452,15 +454,15 @@ PROBE_EXTENSIBILITY_DISSECTOR_SOURCE = textwrap.dedent(
 
 
 def _sha256(path: Path) -> str:
-    """Wzorzec `_sha256` z `tests/test_check_engine.py`."""
+    """The `_sha256` pattern from `tests/test_check_engine.py`."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 @pytest.fixture(autouse=True, scope="module")
 def _cleanup_probe_dissector_dir_after_module():
-    """Sprzata katalog dissectora probnego takze wtedy, gdy test padnie w
-    polowie i wlasny `finally` fixture `probe_dissector_dir` nie zdazy
-    zadzialac (np. blad w setupie przed jego wlasnym `yield`)."""
+    """Cleans up the probe dissector directory even when a test fails halfway
+    and the `finally` block of the `probe_dissector_dir` fixture does not get
+    to run (say an error in the setup before its own `yield`)."""
     yield
     if PROBE_DISSECTOR_DIR.exists():
         shutil.rmtree(PROBE_DISSECTOR_DIR)
@@ -469,8 +471,8 @@ def _cleanup_probe_dissector_dir_after_module():
 @pytest.fixture
 def probe_dissector_dir():
     assert not PROBE_DISSECTOR_DIR.exists(), (
-        f"{PROBE_DISSECTOR_DIR} juz istnieje - poprzedni przebieg testu nie "
-        "posprzatal po sobie."
+        f"{PROBE_DISSECTOR_DIR} already exists - an earlier test run did not "
+        "clean up after itself."
     )
     _write_dissector(
         DISSECTORS_ROOT,
@@ -497,23 +499,23 @@ def test_probe_dissector_discovered_without_core_file_change(probe_dissector_dir
 
     for path in CORE_PATHS:
         after = _sha256(path)
-        assert after == before[path], f"plik rdzenia zmieniony przez dissector probny: {path}"
+        assert after == before[path], f"core file changed by the probe dissector: {path}"
 
     analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
     probe_events = [
         e for e in analysis["protocol_events"] if e["protocol"] == PROBE_PROTOCOL_ID
     ]
-    assert probe_events, "zdarzenie dissectora probnego nie pojawilo sie w analysis.json"
+    assert probe_events, "no probe dissector event appeared in analysis.json"
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
-    assert PROBE_PROTOCOL_ID in report_text, "raport.md nie wymienia dissectora probnego"
+    assert PROBE_PROTOCOL_ID in report_text, "report.md does not mention the probe dissector"
 
 
 def test_probe_dissector_session_gets_matrix_label_from_its_manifest(
     probe_dissector_dir, tmp_path
 ):
-    """Domyka dowod, ze genericyzacja `flow.py` z Task 2 dziala nad
-    protokolem, ktorego nazwa nie wystepuje w zadnym pliku pod
+    """Completes the proof that the generalization of `flow.py` from Task 2
+    works over a protocol whose name occurs in no file under
     `src/wayside/`."""
     result = _run_analyze(FIXTURE_RELATIVE, tmp_path)
     assert result.returncode == 0, result.stderr
@@ -524,14 +526,15 @@ def test_probe_dissector_session_gets_matrix_label_from_its_manifest(
 
 
 def test_protocol_events_unaffected_after_probe_dissector_removed(tmp_path):
-    """Bez tego testu bramka dowodzilaby, ze dissector wchodzi, a nie ze
-    wychodzi bez sladu - a to drugie jest warunkiem, zeby pozostale testy
-    pakietu nadal liczyly to, co licza. Wola PO tym, jak `probe_dissector_dir`
-    (function-scoped) juz posprzatal w bloku `finally` po poprzednich dwoch
-    testach - pytest uruchamia testy tego pliku w kolejnosci zapisu."""
+    """Without this test the gate would prove that a dissector enters, not that
+    it leaves without a trace - and the latter is the condition for the rest of
+    the suite to keep counting what it counts. It runs AFTER the
+    function-scoped `probe_dissector_dir` has already cleaned up in its
+    `finally` block following the previous two tests - pytest runs the tests of
+    this file in the order they are written."""
     assert not PROBE_DISSECTOR_DIR.exists(), (
-        "katalog dissectora probnego wciaz istnieje - kolejnosc testow w tym "
-        "module jest zlamana."
+        "the probe dissector directory still exists - the order of the tests in "
+        "this module is broken."
     )
 
     result = _run_analyze(FIXTURE_RELATIVE, tmp_path)

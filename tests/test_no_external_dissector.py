@@ -1,17 +1,17 @@
-"""Bramka maszynowa decyzji LOCK-01 (FOUND-01): brak zaleznosci od zewnetrznego
-dekodera pakietow.
+"""Machine gate for decision LOCK-01 (FOUND-01): no dependency on an external
+packet decoder.
 
-Zakres skanu (`SCAN_SCOPE`) celowo pomija `docs/` i `.planning/` - to tam
-stoi zapis decyzji `docs/decisions/0001-decoding-engine-v1.md`, ktory
-musi wolno nazwac po imieniu narzedzia, ktorych kod projektu nie uzywa.
-Gdyby te katalogi byly w zakresie, sam dokument opisujacy decyzje lamalby
-wlasna bramke.
+The scan scope (`SCAN_SCOPE`) deliberately skips `docs/` and `.planning/` -
+that is where the decision record `docs/decisions/0001-decoding-engine-v1.md`
+lives, and it has to be free to name the tools the project's code does not
+use. If those directories were in scope, the very document describing the
+decision would break its own gate.
 
-Import `scapy.all` jest sprawdzany osobno, przez AST, a nie przez wzorzec
-tekstowy: `src/wayside/pcap.py` opisuje w docstringu, ze modul NIE importuje
-`scapy.all`, wiec naiwny skan podciagu zlapalby ten opis jako falszywy
-alarm. AST widzi rzeczywiste instrukcje importu, nie prozaiczne wzmianki
-o nich.
+The `scapy.all` import is checked separately, through the AST rather than
+through a text pattern: `src/wayside/pcap.py` states in its docstring that the
+module does NOT import `scapy.all`, so a naive substring scan would catch that
+description as a false alarm. The AST sees actual import statements, not prose
+mentions of them.
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 DECISION_DOC = "docs/decisions/0001-decoding-engine-v1.md"
 
-# Zakres skanu jest czescia kontraktu tej bramki (Task 2, plan 01-03).
-# `.github/workflows` powstaje dopiero w planie 01-05 - `scan_tree` jest
-# wolany na nim warunkowo, tylko gdy istnieje.
+# The scan scope is part of this gate's contract (Task 2, plan 01-03).
+# `.github/workflows` only comes into being in plan 01-05 - `scan_tree` is
+# called on it conditionally, only when it exists.
 SCAN_SCOPE: tuple[str, ...] = (
     "src",
     "scripts",
@@ -35,10 +35,10 @@ SCAN_SCOPE: tuple[str, ...] = (
     ".github/workflows",
 )
 
-# Nazwy binarek zewnetrznego dysektora oraz nazwa pakietu, ktory je opakowuje.
-# `pyshark` jest realistyczna droga cichego powrotu: instaluje sie jak zwykla
-# biblioteka PyPI, a w srodku uruchamia `tshark`. Dopasowanie bez rozrozniania
-# wielkosci liter (patrz `scan_tree`).
+# The binary names of the external dissector plus the name of the package that
+# wraps them. `pyshark` is the realistic route of a silent return: it installs
+# like an ordinary PyPI library and runs `tshark` on the inside. Matching is
+# case insensitive (see `scan_tree`).
 EXTERNAL_DISSECTOR_PATTERNS: tuple[str, ...] = (
     "tshark",
     "wireshark",
@@ -47,13 +47,12 @@ EXTERNAL_DISSECTOR_PATTERNS: tuple[str, ...] = (
 
 
 def scan_tree(root: Path, patterns: tuple[str, ...]) -> list[tuple[Path, int, str]]:
-    """Skanuje pliki tekstowe pod `root` w poszukiwaniu `patterns`.
+    """Scans the text files under `root` for `patterns`.
 
-    `root` moze byc plikiem albo katalogiem; katalog jest przeszukiwany
-    rekurencyjnie. Dopasowanie jest dopasowaniem podciagu bez rozrozniania
-    wielkosci liter. Pliki, ktorych nie da sie zdekodowac jako tekst (np.
-    binarki, `.pyc`), sa pomijane. Zwraca liste (sciezka, numer_linii,
-    dopasowany_wzorzec) - jedna krotke na kazde trafienie.
+    `root` may be a file or a directory; a directory is searched recursively.
+    Matching is case-insensitive substring matching. Files that cannot be
+    decoded as text (binaries, `.pyc` and the like) are skipped. Returns a list
+    of (path, line_number, matched_pattern) - one tuple per hit.
     """
     compiled = [(pattern, re.compile(re.escape(pattern), re.IGNORECASE)) for pattern in patterns]
 
@@ -88,10 +87,11 @@ def scan_scope_for_external_dissector(scope_root: Path = REPO_ROOT) -> list[tupl
 
 
 def find_scapy_all_imports(root: Path) -> list[Path]:
-    """Zwraca pliki `.py` pod `root`, ktore importuja `scapy.all` (import lub from-import).
+    """Returns the `.py` files under `root` that import `scapy.all` (import or from-import).
 
-    Uzywa AST, nie dopasowania tekstowego, wlasnie zeby nie zlapac prozaicznej
-    wzmianki o `scapy.all` w komentarzu albo w docstringu (patrz naglowek modulu).
+    It uses the AST rather than text matching, precisely so as not to catch a
+    prose mention of `scapy.all` in a comment or a docstring (see the module
+    header).
     """
     if not root.exists():
         return []
@@ -199,12 +199,12 @@ def test_find_scapy_all_imports_detects_from_import(tmp_path):
 
 
 def test_find_scapy_all_imports_ignores_docstring_mention(tmp_path):
-    # Dokladnie ten przypadek istnieje naprawde w `src/wayside/pcap.py`: modul
-    # opisuje w docstringu, ze NIE importuje `scapy.all`. Naiwny skan tekstowy
-    # zlapalby to jako falszywy alarm.
+    # Exactly this case really exists in `src/wayside/pcap.py`: the module
+    # states in its docstring that it does NOT import `scapy.all`. A naive text
+    # scan would catch that as a false alarm.
     clean = tmp_path / "clean.py"
     clean.write_text(
-        '"""Ten modul nigdy nie importuje scapy.all, tylko scapy.utils."""\n'
+        '"""This module never imports scapy.all, only scapy.utils."""\n'
         "from scapy.utils import rdpcap\n",
         encoding="utf-8",
     )

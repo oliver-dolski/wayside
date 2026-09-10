@@ -1,13 +1,14 @@
-"""Bramka maszynowa REPORT-05: przykladowy raport wygenerowany z podzbioru
-zbioru publicznego 4SICS (rekord decyzji `0005`).
+"""Machine gate REPORT-05: the example report generated from a slice of the
+public 4SICS capture set (decision record `0005`).
 
-Podzial, na ktorym stoi caly ten plik: WSZYSTKIE testy PONIZEJ grupy
-odtwarzalnosci chodza bez dostepu do sieci i bez pobranego zbioru - sprawdzaja
-artefakty juz lezace w repozytorium (`examples/4sics/*`) i ksztalt wpisu
-manifestu. Jeden test, ten o odtwarzalnosci (grupa osma), wymaga pliku
-podzbioru na maszynie i jest pomijany z jawnym powodem, gdy go nie ma. Bez
-tego podzialu caly ten plik bylby pomijany na czystym klonie i bramka
-REPORT-05 nie istnialaby w praktyce.
+The division this whole file rests on: EVERY test OTHER than the
+reproducibility group runs without network access and without the downloaded
+capture set - they check the artifacts already sitting in the repository
+(`examples/4sics/*`) and the shape of the manifest entry. One test, the one
+about reproducibility (group eight), needs the slice file on the machine and
+is skipped with an explicit reason when it is absent. Without that division
+this whole file would be skipped on a clean clone and the REPORT-05 gate would
+not exist in practice.
 """
 
 from __future__ import annotations
@@ -26,10 +27,10 @@ REPORT_MD_PATH = EXAMPLE_DIR / "report.md"
 REPORT_PDF_PATH = EXAMPLE_DIR / "report.pdf"
 MANIFEST_PATH = REPO_ROOT / "tests" / "fixtures" / "pcap" / "manifest.yaml"
 
-# Stale skryptu pobierajacego i skryptu generujacego zaimportowane, nie
-# powielone - dwie kopie tej samej nazwy/wartosci rozjadaby sie przy
-# pierwszej korekcie (dokladnie tak jak tests/test_standards_catalog.py
-# importuje bramke poufnosci ze scripts/).
+# The constants of the fetch script and of the generator script are imported
+# rather than duplicated - two copies of the same name or value would drift
+# apart at the first correction (exactly as tests/test_standards_catalog.py
+# imports the confidentiality gate from scripts/).
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -37,9 +38,10 @@ if str(SCRIPTS_DIR) not in sys.path:
 import fetch_4sics_sample as fetch_sample  # noqa: E402
 import gen_example_report as gen_report  # noqa: E402
 
-# Funkcje wyciagajace warstwe tekstowa PDF i wyrazenie regularne wyciagajace
-# identyfikatory checkow sa juz funkcjami modulowymi w tests/test_report_pdf.py
-# - zaimportowane stad, nie wydzielone drugi raz (plan Task 3, 04-06-PLAN.md).
+# The functions extracting the text layer of a PDF and the regular expression
+# extracting check identifiers are already module-level functions in
+# tests/test_report_pdf.py - imported from there rather than extracted a second
+# time (plan Task 3, 04-06-PLAN.md).
 TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
@@ -85,13 +87,13 @@ def _git_tracked_files() -> list[str]:
     return [line for line in result.stdout.splitlines() if line]
 
 
-# --- Grupa pierwsza: istnienie i ksztalt trzech artefaktow -------------------
+# --- Group one: existence and shape of the three artifacts -----------------
 
 
 def test_three_artifacts_exist_and_have_nonzero_length():
     for path in (ANALYSIS_PATH, REPORT_MD_PATH, REPORT_PDF_PATH):
-        assert path.is_file(), f"Artefakt nie istnieje: {path}"
-        assert path.stat().st_size > 0, f"Artefakt ma zerowa dlugosc: {path}"
+        assert path.is_file(), f"Artifact does not exist: {path}"
+        assert path.stat().st_size > 0, f"Artifact has zero length: {path}"
 
 
 def test_report_pdf_has_valid_format_signature():
@@ -105,7 +107,7 @@ def test_analysis_json_has_at_least_one_finding():
     assert len(analysis["findings"]) >= 1
 
 
-# --- Grupa druga: parytet trzech artefaktow ----------------------------------
+# --- Group two: parity of the three artifacts ------------------------------
 
 
 def test_check_id_set_is_identical_across_three_artifacts():
@@ -123,9 +125,9 @@ def test_check_id_set_is_identical_across_three_artifacts():
     assert ids_from_model == ids_from_markdown == ids_from_pdf
 
 
-# --- Grupa trzecia: warstwa normatywna przykladu (powtorzenie bramki --------
-# --- STD-03/STD-05 nad artefaktem lezacym w repozytorium, nie wygenerowanym -
-# --- w trakcie testu) --------------------------------------------------------
+# --- Group three: the normative layer of the example (the STD-03/STD-05 ----
+# --- gate repeated over an artifact sitting in the repository rather than ---
+# --- one generated during the test) -----------------------------------------
 
 
 def _example_findings() -> list[dict]:
@@ -138,7 +140,7 @@ def _example_findings() -> list[dict]:
 def test_every_finding_has_nonempty_standard_refs():
     for finding in _example_findings():
         assert finding["standard_refs"], (
-            f"Finding {finding['check_id']} nie niesie ani jednego powolania."
+            f"Finding {finding['check_id']} carries not a single citation."
         )
 
 
@@ -146,40 +148,41 @@ def test_every_finding_has_iec_62443_3_3_reference():
     for finding in _example_findings():
         standards = {ref["standard"] for ref in finding["standard_refs"]}
         assert "IEC-62443-3-3" in standards, (
-            f"Finding {finding['check_id']} nie niesie powolania na IEC-62443-3-3: {standards}"
+            f"Finding {finding['check_id']} carries no IEC-62443-3-3 citation: {standards}"
         )
 
 
 def test_every_reference_has_nonempty_edition():
     for finding in _example_findings():
         for ref in finding["standard_refs"]:
-            assert ref["edition"], f"Powolanie findingu {finding['check_id']} bez edycji."
+            assert ref["edition"], f"A citation of finding {finding['check_id']} has no edition."
 
 
-# --- G-04-5: fakt analityczny widoczny w samym raporcie, nie tylko w README -
+# --- G-04-5: the analytical fact visible in the report itself, not only ----
+# --- in the README ----------------------------------------------------------
 
 
 def _endpoint_host(endpoint: str) -> str:
-    """Adres bez portu z punktu koncowego w postaci `adres:port`."""
+    """The address without the port, out of an endpoint of the form `address:port`."""
     return endpoint.rsplit(":", 1)[0]
 
 
 def test_unauthenticated_industrial_protocol_findings_share_one_source_host_and_have_distinct_targets():
-    """Maszynowy zapis jedynego faktu analitycznego tego przebiegu (Task 3,
-    04-09-PLAN.md): jeden host odpytujacy piec roznych serwerow Modbus/TCP.
-    Test czyta plik z repozytorium, wiec nie potrzebuje pliku podzbioru i nie
-    ma warunku pominiecia - nie dopisuj mu pominiecia przez analogie do testu
-    odtwarzalnosci (grupa osma nizej).
+    """The machine record of the single analytical fact of this run (Task 3,
+    04-09-PLAN.md): one host polling five different Modbus/TCP servers. The
+    test reads a file from the repository, so it needs no slice file and has no
+    skip condition - do not add one to it by analogy with the reproducibility
+    test (group eight below).
 
-    Porownanie idzie po ADRESIE hosta zrodlowego, nie po pelnym punkcie
-    koncowym `adres:port` (deviation, znaleziona empirycznie w tym zadaniu):
-    klient otwiera osobne polaczenie TCP do kazdego serwera, wiec port
-    efemeryczny rozni sie miedzy sesjami mimo tego samego adresu IP - to jest
-    normalne zachowanie TCP, nie defekt. Fakt analityczny ("jeden host")
-    dotyczy adresu hosta, a nie krotki (adres, port); pary docelowe
-    porownywane sa jako pelne punkty koncowe, bo to WLASNIE port docelowy
-    (502) odroznia je od portu bramy `44818` widocznego gdzie indziej
-    w macierzy komunikacji tego samego przebiegu."""
+    The comparison goes by the ADDRESS of the source host, not by the full
+    `address:port` endpoint (a deviation found empirically in this task): the
+    client opens a separate TCP connection to every server, so the ephemeral
+    port differs between sessions despite the same IP address - that is normal
+    TCP behaviour, not a defect. The analytical fact ("one host") concerns the
+    host address, not the (address, port) tuple; the target pairs are compared
+    as full endpoints, because it is PRECISELY the destination port (502) that
+    tells them apart from the gateway port `44818` visible elsewhere in the
+    communication matrix of the same run."""
     findings = [
         f for f in _example_findings() if f["check_id"] == "unauthenticated-industrial-protocol"
     ]
@@ -192,10 +195,10 @@ def test_unauthenticated_industrial_protocol_findings_share_one_source_host_and_
 
 
 def test_remediations_section_row_count_equals_distinct_remediation_count():
-    """Liczba wierszy sekcji zbiorczej zalecen jest rowna liczbie roznych
-    zalecen wsrod findingow tego przykladu - liczba bierze sie z pliku
-    analizy, nie ze stalej wpisanej tutaj (rozjechalaby sie przy pierwszej
-    zmianie zbioru checkow)."""
+    """The number of rows of the aggregated remediation section equals the
+    number of distinct remediations among the findings of this example - the
+    number comes from the analysis file rather than from a constant typed here
+    (which would drift at the first change to the set of checks)."""
     findings = _example_findings()
     expected_row_count = len({f["remediation"] for f in findings})
 
@@ -207,7 +210,7 @@ def test_remediations_section_row_count_equals_distinct_remediation_count():
     assert len(rows) == len(set(rows)), rows
 
 
-# --- Grupa czwarta: ksztalt wpisu zbioru zewnetrznego ------------------------
+# --- Group four: the shape of the external capture set entry ---------------
 
 
 def test_external_datasets_block_has_exactly_one_entry():
@@ -231,8 +234,8 @@ def test_external_dataset_fetch_script_points_to_existing_file():
     assert (REPO_ROOT / entry["fetch_script"]).is_file()
 
 
-# --- Grupa piata: atrybucja licencyjna (bramka warunku licencyjnego, nie ----
-# --- kontrola redakcyjna) ----------------------------------------------------
+# --- Group five: licence attribution (a gate on a licensing condition, ----
+# --- not an editorial check) ------------------------------------------------
 
 
 def test_attribution_string_present_in_both_readmes():
@@ -241,10 +244,11 @@ def test_attribution_string_present_in_both_readmes():
     example_readme = (EXAMPLE_DIR / "README.md").read_text(encoding="utf-8")
     main_readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
-    # Manifest niesie tresc jako blok zlozony (`>-`), README powtarza ja z
-    # dowolnym zawijaniem bialych znakow - porownanie idzie po zwinieciu
-    # kazdej sekwencji bialych znakow do pojedynczej spacji, jedno zrodlo
-    # prawdy (pole manifestu), nie literal powielony w tym tescie.
+    # The manifest carries the text as a folded block (`>-`), the README
+    # repeats it with arbitrary whitespace wrapping - the comparison happens
+    # after collapsing every whitespace run into a single space, with one
+    # source of truth (the manifest field) rather than a literal duplicated in
+    # this test.
     def _collapse_whitespace(text: str) -> str:
         return " ".join(text.split())
 
@@ -281,8 +285,8 @@ def test_domain_boundary_sentence_present_in_example_readme():
     assert marker in " ".join(example_readme.split())
 
 
-# --- Grupa szosta: brak zrzutu w drzewie sledzonym, katalog pobrania -------
-# --- ignorowany --------------------------------------------------------------
+# --- Group six: no capture in the tracked tree, the download directory -----
+# --- ignored ----------------------------------------------------------------
 
 
 def test_no_pcap_dump_file_tracked_outside_fixture_directory():
@@ -293,24 +297,24 @@ def test_no_pcap_dump_file_tracked_outside_fixture_directory():
         if (path.endswith(".pcap") or path.endswith(".pcapng"))
         and not path.startswith("tests/fixtures/pcap/")
     ]
-    assert hits == [], f"Plik zrzutu sledzony poza katalogiem fixture'ow: {hits}"
+    assert hits == [], f"A capture file tracked outside the fixture directory: {hits}"
 
 
 def test_dataset_download_directory_is_gitignored():
-    # Ukosnik koncowy jest wymagany: bez niego `git check-ignore` na
-    # sciezce, ktora nie istnieje jeszcze na dysku (czysty klon, przed
-    # pierwszym uruchomieniem skryptu pobierajacego), nie wie, czy sciezka
-    # jest katalogiem, i zwraca kod niezerowy niezaleznie od reguly w
-    # .gitignore - zmierzone 2026-09-06, ten test ma dzialac takze na
-    # czystym klonie, nie tylko po pobraniu zbioru.
+    # The trailing slash is required: without it `git check-ignore` over a
+    # path that does not exist on disk yet (a clean clone, before the first run
+    # of the fetch script) does not know whether the path is a directory and
+    # returns a non-zero code regardless of the rule in .gitignore - measured
+    # 2026-09-06; this test is meant to work on a clean clone too, not only
+    # after the capture set has been downloaded.
     result = subprocess.run(
         ["git", "check-ignore", "-q", "datasets/"],
         cwd=REPO_ROOT,
     )
-    assert result.returncode == 0, "Katalog 'datasets' nie jest ignorowany przez gita"
+    assert result.returncode == 0, "The 'datasets' directory is not ignored by git"
 
 
-# --- Grupa siodma: reguly atrybutow gita dla trzech artefaktow --------------
+# --- Group seven: the git attribute rules for the three artifacts ---------
 
 
 def _git_check_attr(attribute: str, path: str) -> str:
@@ -336,29 +340,29 @@ def test_report_pdf_has_binary_attribute_set():
     assert value == "set", f"report.pdf: atrybut binary = {value!r}, oczekiwano 'set'"
 
 
-# --- Grupa osma: odtwarzalnosc bajtowa, pomijana warunkowo -------------------
+# --- Group eight: byte reproducibility, skipped conditionally --------------
 
 
 def test_example_artifacts_are_byte_reproducible_from_slice(tmp_path):
     slice_path = fetch_sample.DATASET_DIR / fetch_sample.SLICE_FILENAME
     if not slice_path.is_file():
         pytest.skip(
-            f"Plik podzbioru {slice_path} nie lezy na maszynie - zbuduj go "
-            "poleceniem: uv run python scripts/fetch_4sics_sample.py"
+            f"The slice file {slice_path} is not on this machine - build it "
+            "with: uv run python scripts/fetch_4sics_sample.py"
         )
 
     analysis_path, report_path, pdf_path = gen_report.generate(slice_path, tmp_path)
 
     assert analysis_path.read_bytes() == ANALYSIS_PATH.read_bytes()
     assert report_path.read_bytes() == REPORT_MD_PATH.read_bytes()
-    # Kontrakt PDF: pomiar determinizmu bajtowego z 04-03-SUMMARY.md wypadl
-    # POZYTYWNIE (dwa fixture'y, cztery wartosci PYTHONHASHSEED) - kryterium
-    # 5 fazy nie wymaga zwezenia dla PDF, wiec porownanie idzie bajtowo tak
-    # samo jak dla dwoch artefaktow tekstowych.
+    # The PDF contract: the byte determinism measurement of 04-03-SUMMARY.md
+    # came out POSITIVE (two fixtures, four PYTHONHASHSEED values) - criterion
+    # 5 of the phase demands no narrowing for the PDF, so the comparison goes
+    # byte for byte just as it does for the two text artifacts.
     assert pdf_path.read_bytes() == REPORT_PDF_PATH.read_bytes()
 
 
-# --- AST: brak zaleznosci sieciowej w tym pliku testowym --------------------
+# --- AST: no network dependency in this test file --------------------------
 
 
 def test_this_test_module_imports_no_network_library():

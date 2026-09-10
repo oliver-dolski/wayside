@@ -1,24 +1,25 @@
-"""Test kontraktowy FOUND-02: cache scapy nigdy nie ladzie w katalogu domowym.
+"""Contract test FOUND-02: the scapy cache never lands in the home directory.
 
-Skad ten test. `scapy.data.scapy_data_cache` sprawdza `cachepath.exists()` bez
-obslugi wyjatku, a `pathlib.Path.exists()` przy `EACCES` podnosi
-`PermissionError`, zamiast zwrocic `False` (ignoruje tylko ENOENT/ENOTDIR/
-EBADF/ELOOP). Na maszynie autora `~/.cache/scapy` mial ACL zabraniajacy
-przejscia - typowo slad po uruchomieniu scapy z podniesionymi uprawnieniami -
-i kazdy import `wayside.pcap` konczyl sie wyjatkiem, mimo ze sam odczyt pcap
-nie potrzebuje tego cache'u do niczego.
+Where this test comes from. `scapy.data.scapy_data_cache` calls
+`cachepath.exists()` without handling exceptions, and on `EACCES`
+`pathlib.Path.exists()` raises `PermissionError` instead of returning `False`
+(it ignores only ENOENT/ENOTDIR/EBADF/ELOOP). On the author's machine
+`~/.cache/scapy` carried an ACL forbidding traversal - typically a leftover of
+running scapy with elevated privileges - and every import of `wayside.pcap`
+ended in an exception, even though reading a pcap needs that cache for
+nothing.
 
-Czego ten test NIE robi i dlaczego. Nie odtwarza niedostepnego katalogu:
-katalog istniejacy i zabraniajacy przejscia wymaga `icacls` na Windows albo
-`chmod 000` na POSIX, wiec taki test nie jest przenosny (a pod pustym
-katalogiem domowym scapy po prostu tworzy `~/.cache` od nowa i defekt sie
-nie ujawnia - sprawdzone). Test pilnuje wiec mechanizmu obrony, nie
-srodowiska: skoro `wayside.pcap` w ogole nie kieruje cache'u scapy do `~`,
-stan tego katalogu przestaje miec znaczenie.
+What this test does NOT do and why. It does not recreate an inaccessible
+directory: an existing directory forbidding traversal requires `icacls` on
+Windows or `chmod 000` on POSIX, so such a test is not portable (and under an
+empty home directory scapy simply creates `~/.cache` afresh and the defect
+does not surface - checked). The test therefore guards the defence mechanism
+rather than the environment: since `wayside.pcap` never points the scapy cache
+at `~` at all, the state of that directory stops mattering.
 
-Kontrakt jest sprawdzany w podprocesie, bo `scapy.main` wylicza
-`SCAPY_CACHE_FOLDER` raz, przy imporcie - w procesie testowym scapy moze byc
-zaimportowane wczesniej przez inny test i wynik nie mowilby nic.
+The contract is checked in a subprocess, because `scapy.main` computes
+`SCAPY_CACHE_FOLDER` once, at import - in the test process scapy may have been
+imported earlier by another test and the result would say nothing.
 """
 
 from __future__ import annotations
@@ -32,13 +33,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Importuje cala sciezke odczytu tej fazy (nie tylko `wayside.pcap`), a
-# potem odczytuje faktyczna decyzje scapy. `scapy.main` jest w tym momencie
-# zaimportowane juz tranzytywnie przez `scapy.data`, wiec ten import nie
-# dodaje nowej zaleznosci. Rozszerzenie o `wayside.decode` i
-# `wayside.protocols.modbus_tcp` domyka Pitfall 4 z 02-RESEARCH.md: przed
-# tym rozszerzeniem import `scapy.layers.*`/`scapy.contrib.modbus` w
-# sciezce ODCZYTU nie byl objety zadna bramka maszynowa poza `scapy.all`.
+# It imports the whole read path of this phase (not only `wayside.pcap`) and
+# then reads scapy's actual decision. At that point `scapy.main` has already
+# been imported transitively by `scapy.data`, so this import adds no new
+# dependency. Widening it to `wayside.decode` and
+# `wayside.protocols.modbus_tcp` closes Pitfall 4 of 02-RESEARCH.md: before
+# that widening, the `scapy.layers.*`/`scapy.contrib.modbus` import on the READ
+# path was covered by no machine gate other than `scapy.all`.
 _PROBE = (
     "import json, os, sys;"
     "import wayside.pcap;"
@@ -83,9 +84,9 @@ def test_cache_lands_outside_dot_cache_when_xdg_unset():
     expected_root = (Path(tempfile.gettempdir()) / "wayside-scapy-cache").resolve()
 
     assert cache_folder.is_relative_to(expected_root)
-    # Broniona granica to `~/.cache`, nie caly katalog domowy: na Windows
-    # per-user temp lezy pod `~` (`AppData\Local\Temp`) i jest wlasciwym
-    # miejscem na cache. Defekt dotyczy wylacznie `~/.cache/scapy`.
+    # The defended boundary is `~/.cache`, not the whole home directory: on
+    # Windows the per-user temp lives under `~` (`AppData\Local\Temp`) and is
+    # the right place for a cache. The defect concerns `~/.cache/scapy` only.
     assert not cache_folder.is_relative_to((Path.home() / ".cache").resolve())
 
 
@@ -102,41 +103,42 @@ def test_import_does_not_leak_xdg_cache_home():
     assert probe["xdg_after_import"] is None
 
 
-# --- Rozszerzenie sciezki odczytu (Faza 2): decode.py + protocols/modbus_tcp.py ---
+# --- Widening the read path (Phase 2): decode.py + protocols/modbus_tcp.py ---
 
 
 def test_scapy_all_not_imported_after_extended_read_path():
-    """D-04/LOCK-01 nadal obowiazuje: rozszerzenie sciezki odczytu o
-    `wayside.decode` i `wayside.protocols.modbus_tcp` nie wciaga `scapy.all`."""
+    """D-04/LOCK-01 still holds: widening the read path with `wayside.decode`
+    and `wayside.protocols.modbus_tcp` does not pull in `scapy.all`."""
     probe = _probe({"XDG_CACHE_HOME": None})
     assert probe["scapy_all_imported"] is False
 
 
 def test_scapy_arch_libpcap_import_is_conscious_widening():
-    """Import `scapy.layers.*`/`scapy.contrib.modbus` w sciezce odczytu
-    laduje transitywnie `scapy.arch.libpcap` (02-RESEARCH.md, sekcja
-    "Konflikt z ARCHITECTURE.md" oraz Pitfall 4). Zweryfikowane odczytem
-    `scapy/arch/libpcap.py`: brak Npcap degraduje sie przez przechwycony
-    `OSError` do `conf.use_pcap = False`, nie do wyjatku - wiec ta obecnosc
-    jest swiadomym poszerzeniem tej fazy, nie regresja."""
+    """The `scapy.layers.*`/`scapy.contrib.modbus` import on the read path
+    loads `scapy.arch.libpcap` transitively (02-RESEARCH.md, the section on the
+    conflict with ARCHITECTURE.md, and Pitfall 4). Verified by reading
+    `scapy/arch/libpcap.py`: an absent Npcap degrades through a caught
+    `OSError` into `conf.use_pcap = False` rather than into an exception - so
+    this presence is a conscious widening of this phase, not a regression."""
     probe = _probe({"XDG_CACHE_HOME": None})
     assert probe["scapy_libpcap_imported"] is True
 
 
 def test_read_path_never_queries_system_routing_table():
-    """Sciezka odczytu nie odpytuje systemu o tablice routingu.
+    """The read path never queries the system for the routing table.
 
-    `scapy.route` przy imporcie wykonuje `conf.route = Route()`, a `Route`
-    z domyslnym `conf.route_autoload` woala systemowy odczyt tras. Na Windows
-    idzie to przez `GetIpForwardTable2` i konczylo sie niedeterministycznym
-    naruszeniem ochrony pamieci (0xC0000005) w `scapy.arch.windows._extract_ip`,
-    ubijajac mniej wiecej co trzeci pelny przebieg pakietu testow w losowym
-    miejscu. Modul `wayside.pcap` gasi obie flagi przed pierwszym importem
-    warstwy - ten test pilnuje, ze gasi je skutecznie i ze zaden przyszly
-    import nie wejdzie przed niego.
+    On import `scapy.route` executes `conf.route = Route()`, and `Route` with
+    the default `conf.route_autoload` called the system route read. On Windows
+    that goes through `GetIpForwardTable2` and used to end in a
+    non-deterministic access violation (0xC0000005) in
+    `scapy.arch.windows._extract_ip`, killing roughly every third full run of
+    the test suite at a random place. The `wayside.pcap` module clears both
+    flags before the first layer import - this test guards that it clears them
+    effectively and that no future import gets in ahead of it.
 
-    Poza stabilnoscia jest to tez granica projektowa: narzedzie jest pasywne,
-    wiec nie ma powodu, zeby pytalo system o cokolwiek zwiazanego z wysylka.
+    Beyond stability this is also a design boundary: the tool is passive, so
+    there is no reason for it to ask the system about anything to do with
+    sending.
     """
     probe = _probe({"XDG_CACHE_HOME": None})
 
@@ -146,8 +148,9 @@ def test_read_path_never_queries_system_routing_table():
 
 
 def test_decode_full_fixture_in_subprocess_exits_zero():
-    """Dowod, ze import warstw nie tylko przechodzi, ale ze odczyt na nich
-    faktycznie dziala: dekoduje istniejacy fixture Fazy 1 w podprocesie."""
+    """Proof that importing the layers not only succeeds but that reading over
+    them actually works: it decodes an existing Phase 1 fixture in a
+    subprocess."""
     script = (
         "import sys;"
         "from pathlib import Path;"

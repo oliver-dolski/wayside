@@ -1,11 +1,11 @@
-"""Bramka maszynowa REPORT-01: raport markdown szesciosekcyjny (plan 02-04).
+"""Machine gate REPORT-01: the six-section markdown report (plan 02-04).
 
-Model wejsciowy jest budowany recznie w tym pliku, przez funkcje pomocnicze
-`_render` i `_finding` - `render_markdown` jest funkcja nad slownikiem, a
-dowod przez caly potok (plik pcap -> CLI -> report.md) juz istnieje w
-`tests/test_analyze_pipeline.py`. `test_six_sections_present` i
-`test_report_makes_no_compliance_claim` sa czescia kontraktu wymaganie
-na test z `02-VALIDATION.md`, nazwy nie sa zmieniane.
+The input model is built by hand in this file, through the `_render` and
+`_finding` helpers - `render_markdown` is a function over a dictionary, and the
+proof through the whole pipeline (pcap file -> CLI -> report.md) already exists
+in `tests/test_analyze_pipeline.py`. `test_six_sections_present` and
+`test_report_makes_no_compliance_claim` are part of the requirement-to-test
+contract of `02-VALIDATION.md`, their names do not change.
 """
 
 from __future__ import annotations
@@ -41,8 +41,11 @@ FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "pcap"
 
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-# Slowa werdyktu, jako dane testowe - nie literaly rozsiane po asercjach.
-# Zawiera tez rdzenie polskie, ktore lapia odmiane ("zgodnosci", "niezgodne").
+# Verdict words as test data - not literals scattered across the assertions.
+# The list stays bilingual: the Polish stems catch inflected forms
+# ("zgodnosci", "niezgodne") and stay in place as a regression guard now that
+# the report itself is English, the same reasoning that keeps
+# `NORMATIVE_MODAL_TERMS` bilingual.
 VERDICT_WORDS: tuple[str, ...] = (
     "zgodny",
     "niezgodny",
@@ -52,21 +55,21 @@ VERDICT_WORDS: tuple[str, ...] = (
     "non-compliant",
 )
 
-# Wzorzec zbiorczego wskaznika liczbowego w postaci "liczba / 100".
+# Pattern of an aggregate numeric indicator of the form "number / 100".
 NUMERIC_SCORE_PATTERN = re.compile(r"\b\d{1,3}\s*/\s*100\b")
 
 HEADER_PATTERN = re.compile(r"^## (.+)$", flags=re.MULTILINE)
 
 
 def _finding(**overrides) -> dict:
-    """Buduje jeden finding w ksztalcie slownika, dokladnie jak
-    `dataclasses.asdict(model.Finding(...))` w `pipeline.py`."""
+    """Builds one finding in dictionary shape, exactly as
+    `dataclasses.asdict(model.Finding(...))` does in `pipeline.py`."""
     base = {
         "check_id": "modbus-unauthenticated-write",
-        "title": "Operacja zapisu do sterownika przez Modbus/TCP bez uwierzytelnienia",
+        "title": "Write operation to a controller over Modbus/TCP with no authentication at all",
         "severity": "high",
         "risk": "serious",
-        "rationale": "Wlasna analiza zaobserwowanego ruchu, nie cytat z normy.",
+        "rationale": "Our own analysis of the observed traffic, not a quote of a standard.",
         "standard_refs": [
             {
                 "standard": "IEC-62443-3-3",
@@ -74,9 +77,9 @@ def _finding(**overrides) -> dict:
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
                 "clause_title_source": "copy",
-                "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
+                "paraphrase": "Paraphrase of the clause, not a quote of the original.",
                 "verified": False,
-                "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
+                "verification_note": "Provisional numbering, awaiting comparison against a lawfully obtained copy of the standard.",
             }
         ],
         "evidence": {
@@ -104,8 +107,8 @@ def _headers(text: str) -> list[str]:
 
 
 def _section_bodies(text: str) -> list[str]:
-    """Zwraca tresc kazdej sekcji (miedzy jednym naglowkiem a nastepnym,
-    a dla ostatniej sekcji do konca tekstu), po odcieciu bialych znakow."""
+    """Returns the body of every section (between one header and the next, and
+    for the last section up to the end of the text), whitespace stripped."""
     matches = list(HEADER_PATTERN.finditer(text))
     bodies: list[str] = []
     for i, match in enumerate(matches):
@@ -134,7 +137,7 @@ def test_no_duplicate_section_headers():
     assert len(headers) == len(set(headers))
 
 
-# --- REPORT-01, edge: adjacency - zadna sekcja nie zostaje pusta -----------
+# --- REPORT-01, edge: adjacency - no section is left empty -----------------
 
 
 def test_no_section_is_left_without_content():
@@ -144,7 +147,7 @@ def test_no_section_is_left_without_content():
 
     assert len(bodies) == len(SECTIONS)
     for section_name, body in zip(SECTIONS, bodies):
-        assert body, f"Sekcja '{section_name}' jest pusta"
+        assert body, f"Section '{section_name}' is empty"
 
 
 def test_no_section_is_left_without_content_when_no_findings():
@@ -154,10 +157,10 @@ def test_no_section_is_left_without_content_when_no_findings():
 
     assert len(bodies) == len(SECTIONS)
     for section_name, body in zip(SECTIONS, bodies):
-        assert body, f"Sekcja '{section_name}' jest pusta"
+        assert body, f"Section '{section_name}' is empty"
 
 
-# --- REPORT-01, edge: empty - raport bez findingow ma jawne zdanie --------
+# --- REPORT-01, edge: empty - a report with no findings says so outright --
 
 
 def test_empty_findings_list_still_has_all_six_sections_and_explicit_statement():
@@ -182,7 +185,7 @@ def test_one_finding_section_carries_evidence_clause_and_unverified_marker():
     assert "session no. 0" in findings_body
     assert "SR 1.1" in findings_body
     assert "Human user identification and authentication" in findings_body
-    assert "Parafraza punktu normy" in findings_body
+    assert "Paraphrase of the clause" in findings_body
     assert "PROVISIONAL" in findings_body
     assert "UNVERIFIED" in findings_body
 
@@ -242,7 +245,7 @@ def _ref(**overrides) -> dict:
     base = {
         "standard": "IEC-62443-3-3",
         "clause": "SR 1.1",
-        "clause_title": "Tytul punktu",
+        "clause_title": "Clause title",
         "clause_title_source": "copy",
     }
     base.update(overrides)
@@ -254,7 +257,7 @@ def test_citation_line_carries_title_for_copy_provenance():
 
     assert "IEC-62443-3-3" in line
     assert "SR 1.1" in line
-    assert "Tytul punktu" in line
+    assert "Clause title" in line
 
 
 def test_citation_line_omits_title_for_own_provenance():
@@ -262,7 +265,7 @@ def test_citation_line_omits_title_for_own_provenance():
 
     assert "IEC-62443-3-3" in line
     assert "SR 1.1" in line
-    assert "Tytul punktu" not in line
+    assert "Clause title" not in line
 
 
 def test_citation_scope_line_is_none_for_copy_provenance():
@@ -274,23 +277,24 @@ def test_citation_scope_line_carries_label_and_title_for_own_provenance():
 
     assert line is not None
     assert CITATION_SCOPE_LABEL in line
-    assert "Tytul punktu" in line
+    assert "Clause title" in line
 
 
 def test_own_provenance_finding_has_no_line_with_both_clause_and_title():
-    """Zbiorowy dowod na modelu recznym: wpis o prowieniencji wlasnej nie ma
-    ani jednej linii niosacej jednoczesnie numer punktu i tytul (G-04-3c)."""
+    """A collective proof over the hand-built model: an entry of own provenance
+    has not a single line carrying both a clause number and a title
+    (G-04-3c)."""
     finding = _finding(
         standard_refs=[
             {
                 "standard": "IEC-62443-3-3",
                 "edition": "2013",
                 "clause": "SR 1.1",
-                "clause_title": "Tytul opisu wlasnego",
+                "clause_title": "Title of our own description",
                 "clause_title_source": "own",
-                "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
+                "paraphrase": "Paraphrase of the clause, not a quote of the original.",
                 "verified": False,
-                "verification_note": "Numeracja prowizoryczna.",
+                "verification_note": "Provisional numbering.",
             }
         ]
     )
@@ -299,9 +303,9 @@ def test_own_provenance_finding_has_no_line_with_both_clause_and_title():
 
     for line in findings_body.splitlines():
         if "SR 1.1" in line:
-            assert "Tytul opisu wlasnego" not in line
+            assert "Title of our own description" not in line
     assert CITATION_SCOPE_LABEL in findings_body
-    assert "Tytul opisu wlasnego" in findings_body
+    assert "Title of our own description" in findings_body
 
 
 # --- Sekcja metodyki niesie tresc kazdego kryterium rubryki ----------------
@@ -507,8 +511,8 @@ def test_limitations_section_states_explicitly_when_nothing_is_undetermined():
 
 
 def test_report_makes_no_completeness_claim():
-    """Bramka maszynowa FLOW-03. Lista czytana z modulu produkcyjnego, nie
-    przepisana tutaj: kopia rozjedzie sie przy pierwszym dopisanym wpisie."""
+    """Machine gate FLOW-03. The list is read from the production module rather
+    than retyped here: a copy would drift at the first entry added."""
     analysis = {
         "capture": {"filename": "x.pcap", "packet_count": 2},
         "findings": [],
@@ -530,7 +534,7 @@ def test_report_makes_no_completeness_claim():
         assert term.lower() not in text
 
 
-# --- G-04-5a: sekcja zbiorcza zalecen bez powtorzen ------------------------
+# --- G-04-5a: the aggregated remediation section without repetitions -------
 
 
 def test_aggregated_remediations_collapses_identical_remediations_with_count():
@@ -550,17 +554,17 @@ def test_aggregated_remediations_keeps_first_occurrence_order():
 
 
 def test_aggregated_remediations_treats_shared_prefix_as_two_distinct_entries():
-    """Zalozenie Z-94: dwa zalecenia rozniace sie samym koncem sa dwoma
-    roznymi wpisami - dedupikacja idzie po pelnym lancuchu, nigdy po
-    prefiksie."""
+    """Assumption Z-94: two remediations differing only in their ending are two
+    distinct entries - deduplication goes by the whole string, never by a
+    prefix."""
     findings = [
-        {"remediation": "Ala ma kota"},
-        {"remediation": "Ala ma kota i psa"},
+        {"remediation": "Segment the network"},
+        {"remediation": "Segment the network and the conduit"},
     ]
 
     assert aggregated_remediations(findings) == [
-        ("Ala ma kota", 1),
-        ("Ala ma kota i psa", 1),
+        ("Segment the network", 1),
+        ("Segment the network and the conduit", 1),
     ]
 
 
@@ -581,8 +585,8 @@ def test_finding_genitive_phrase_plural_for_every_other_count():
 
 
 def _analyzable_fixtures() -> list[Path]:
-    """Wzorzec `tests/test_report_forbidden_phrases.py::_analyzable_fixtures` -
-    lista budowana GLOBEM, nie recznym wyliczeniem nazw."""
+    """The `tests/test_report_forbidden_phrases.py::_analyzable_fixtures`
+    pattern - the list is built by GLOB, not by naming the files by hand."""
     return sorted(FIXTURE_DIR.glob("*.pcap")) + sorted(FIXTURE_DIR.glob("*.pcapng"))
 
 
@@ -590,7 +594,7 @@ def _analyze_or_skip(fixture: Path, out_dir: Path):
     try:
         return analyze(fixture, out_dir=out_dir, generated_at=GENERATED_AT)
     except (CaptureTruncatedError, CaptureFormatError):
-        pytest.skip(f"fixture {fixture.name} nie produkuje artefaktow (brama D-01)")
+        pytest.skip(f"fixture {fixture.name} produces no artifacts (the D-01 gate)")
 
 
 def _remediation_section_rows(report_markdown: str) -> list[str]:

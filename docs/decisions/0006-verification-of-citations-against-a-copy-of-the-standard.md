@@ -1,116 +1,113 @@
 ---
 decision_date: 2026-09-04
-resolved_option: kupno-tylko-iec62443-3-3
+resolved_option: buy-iec62443-3-3-only
 ---
 
-# 0006: Ktore powolania sa weryfikowane wobec legalnego egzemplarza normy
+# 0006: Which citations are verified against a legal copy of the standard
 
-## Kontekst
+## Context
 
-STD-03 (rejestrze wymagan projektu) wymaga, zeby kazdy finding mial powolanie
-na punkt IEC 62443-3-3. STD-05 dorzuca warunek weryfikowalnosci: kazde
-powolanie podaje edycje albo rok normy. Oba wymagania trzymaja sie tylko
-wtedy, gdy numeracja i tresc cytowanych punktow zostaly sprawdzone wobec
-legalnego egzemplarza dokumentu - inaczej narzedzie podaje numer punktu,
-ktorego nikt nie widzial, jako fakt.
+STD-03 (the project requirements register) requires every finding to carry a
+citation to a clause of IEC 62443-3-3. STD-05 adds the verifiability condition:
+every citation states the edition or year of the standard. Both requirements
+hold only if the numbering and text of the cited clauses have been checked
+against a legal copy of the document - otherwise the tool states a clause number
+nobody has seen as a fact.
 
-Oba dokumenty sa platne. Egzemplarze pracodawcy nie sa wlasciwa podstawa,
-bo projekt jest prywatny i ma byc publiczny (PUB-01 rozstrzygnieta na `go`,
-2026-09-02). Rejestr ryzyk ROADMAP nazywal ten dostep jako pozycje do
-rozstrzygniecia przed faza 4.
+Both documents are paid for. The employer's copies are not a proper basis,
+because the project is private and is to become public (PUB-01 resolved to `go`,
+2026-09-02). The ROADMAP risk register named that access as an item to settle
+before phase 4.
 
-Ceny ustalone 2026-09-04:
+Prices established on 2026-09-04:
 
-- IEC 62443-3-3, edycja pierwsza z 2013, w IEC Webstore: CHF 380.
-- Ten sam dokument w wersji ISA (ANSI/ISA-62443-3-3-2013): 403 USD, czyli
-  droga przez IEC jest tansza.
-- CLC/TS 50701:2023 przez krajowa jednostke normalizacyjna: rzad kilkuset
-  euro. Dokladnej ceny w PKN nie ustalono, bo sklep nie przechodzi
-  weryfikacji certyfikatu przez narzedzie pobierajace.
+- IEC 62443-3-3, first edition from 2013, in the IEC Webstore: CHF 380.
+- The same document in the ISA version (ANSI/ISA-62443-3-3-2013): USD 403, so
+  the route through IEC is cheaper.
+- CLC/TS 50701:2023 through the national standards body: in the order of a few
+  hundred euro. The exact price at PKN was not established, because the shop
+  does not pass certificate verification in the fetching tool.
 
-Sygnatura i edycja dokumentu kolejowego sa rozstrzygniete osobno - rekord
-`0004`. Ten rekord dotyczy wylacznie dostepu do TRESCI.
+The designation and edition of the railway document are settled separately -
+record `0004`. This record concerns access to the CONTENT only.
 
-## Rozstrzygniecie
+## Ruling
 
-Wybrana opcja (Oliver, 2026-09-04): kupno jednego egzemplarza,
-IEC 62443-3-3. Powolania na CLC/TS 50701:2023 wchodza do v1 z jawnym
-znacznikiem `verified: no`.
+The option chosen (Oliver, 2026-09-04): buying one copy, IEC 62443-3-3.
+Citations to CLC/TS 50701:2023 enter v1 with an explicit `verified: no` marker.
 
-Podzial obowiazuje wiec tak:
+The split therefore holds as follows:
 
-- IEC 62443-3-3 - numeracja i tresc punktow weryfikowane wobec kupionego
-  egzemplarza, docelowo `verified: yes`.
-- CLC/TS 50701:2023 - sygnatura i edycja potwierdzone u zrodla (rekord
-  `0004`), numeracja punktow niepotwierdzona, `verified: no` widoczne
-  w katalogu, w raporcie i w README.
+- IEC 62443-3-3 - clause numbering and text verified against the purchased copy,
+  ultimately `verified: yes`.
+- CLC/TS 50701:2023 - designation and edition confirmed at the source (record
+  `0004`), clause numbering unconfirmed, `verified: no` visible in the
+  catalogue, in the report and in the README.
 
-Odrzucone alternatywy: kupno obu egzemplarzy (okolo 3300 PLN - odrzucone,
-bo w fazie 4 rola dokumentu kolejowego jest architektoniczna, patrz
-uzasadnienie); zero zakupow (odrzucone, bo STD-03 stawia IEC 62443-3-3 pod
-KAZDYM findingiem v1, a nie pod czescia).
+The rejected alternatives: buying both copies (about PLN 3300 - rejected,
+because in phase 4 the role of the railway document is architectural, see the
+justification); zero purchases (rejected, because STD-03 puts IEC 62443-3-3
+under EVERY v1 finding, not under some of them).
 
-## Uzasadnienie
+## Justification
 
-Te dwa dokumenty nie niosa w fazie 4 tego samego ciezaru.
+These two documents do not carry the same weight in phase 4.
 
-IEC 62443-3-3 stoi pod kazdym findingiem, jaki narzedzie produkuje.
-Niezweryfikowany numer punktu w tym miejscu podkopuje glowna obietnice
-projektu ("kazdy finding stoi na punkcie normy") w kazdym pojedynczym
-wierszu raportu, a nie na jego marginesie. Tu weryfikacja jest warta swojej
-ceny.
+IEC 62443-3-3 stands under every finding the tool produces. An unverified clause
+number in that position undermines the project's main promise ("every finding
+stands on a standard clause") in every single row of the report, not at its
+margin. Verification is worth its price there.
 
-Rola CLC/TS 50701 w fazie 4 jest architektoniczna. Kryterium 4 tej fazy
-dowodzi, ze DRUGA norma wchodzi do katalogu jako plik danych, przy zerowym
-diffie na plikach `.py`. To twierdzenie o architekturze i jest prawdziwe
-niezaleznie od tego, czy punkty tej normy zostaly potwierdzone wobec
-egzemplarza. Znacznik `verified` istnieje w katalogu wlasnie po to, zeby
-roznica miedzy "sprawdzone" i "niesprawdzone" byla widoczna w danych; jego
-podniesienie po pozniejszym zakupie jest edycja pliku YAML, nie zmiana kodu -
-dokladnie ta wlasnosc, ktorej dowodzi kryterium 4.
+The role of CLC/TS 50701 in phase 4 is architectural. Criterion 4 of that phase
+proves that a SECOND standard enters the catalogue as a data file, with a zero
+diff on `.py` files. That is a claim about the architecture and it is true
+regardless of whether the clauses of that standard have been confirmed against a
+copy. The `verified` marker exists in the catalogue precisely so that the
+difference between "checked" and "unchecked" is visible in the data; raising it
+after a later purchase is an edit to a YAML file, not a code change - exactly
+the property criterion 4 proves.
 
-## Ryzyko rezydualne, nazwane wprost
+## Residual risk, named outright
 
-- Zakup IEC 62443-3-3 NIE MIAL jeszcze miejsca w chwili zapisu tego rekordu.
-  Do momentu, w ktorym egzemplarz jest w rekach autora i punkty zostaly
-  wobec niego przeczytane, powolania na IEC 62443-3-3 pozostaja
-  `verified: no` tak samo jak kolejowe. Ten rekord rozstrzyga zamiar
-  i podzial, nie stan.
-- Wyroznik projektu w kolejnictwie wchodzi do v1 czesciowo
-  niezweryfikowany. Recenzent z sektora kolejowego, ktory zna
-  CLC/TS 50701, zobaczy numer punktu ze znacznikiem `verified: no`.
-  To jest uczciwe i zamierzone, ale slabsze niz powolanie potwierdzone.
-- Znacznik `verified: no` musi byc widoczny w KAZDYM miejscu, gdzie
-  powolanie sie pojawia, nie tylko w pliku katalogu. Powolanie, ktore
-  w raporcie wyglada jak pewne, a w katalogu ma `verified: no`, jest
-  gorszym trybem porazki niz brak drugiej normy w ogole.
+- The purchase of IEC 62443-3-3 HAD NOT yet happened at the time this record was
+  written. Until the copy is in the author's hands and the clauses have been read
+  against it, citations to IEC 62443-3-3 stay `verified: no` just like the
+  railway ones. This record settles the intent and the split, not the state.
+- The project's distinguishing feature in the railway domain enters v1 partly
+  unverified. A reviewer from the railway sector who knows CLC/TS 50701 will see
+  a clause number with a `verified: no` marker. That is honest and intended, but
+  weaker than a confirmed citation.
+- The `verified: no` marker has to be visible EVERYWHERE a citation appears, not
+  only in the catalogue file. A citation that looks confident in the report while
+  carrying `verified: no` in the catalogue is a worse failure mode than the
+  absence of a second standard altogether.
 
-## Konsekwencje dla uzytkownika
+## Consequences for the user
 
-Raport podaje przy kazdym powolaniu, czy punkt zostal sprawdzony wobec
-egzemplarza normy. README nazywa ten stan wprost, razem z powodem
-(dokumenty sa platne) i z droga podniesienia znacznika. Czytelnik wie,
-ktoremu powolaniu moze zaufac bez wlasnej weryfikacji, a ktore ma sprawdzic
-u siebie.
+The report states, next to every citation, whether the clause has been checked
+against a copy of the standard. The README names that state outright, together
+with the reason (the documents are paid for) and with the path to raising the
+marker. A reader knows which citation they can trust without their own
+verification and which they should check for themselves.
 
-## Sposob egzekwowania
+## How it is enforced
 
-Bramka maszynowa dla tego rozstrzygniecia NIE ISTNIEJE w chwili zapisu tego
-rekordu - powstaje razem z planem fazy 4. Plan fazy 4 ma dolozyc: test
-odrzucajacy powolanie bez pola `verified`, test sprawdzajacy, ze wpis
-`verified: no` przenosi sie do wygenerowanego raportu jako widoczne
-zastrzezenie (a nie tylko do `analysis.json`), oraz zapis w README
-opisujacy ten stan. Weryfikacja numeracji punktow IEC 62443-3-3 wobec
-kupionego egzemplarza jest zadaniem dla czlowieka, wiec plan stawia ja jako
-checkpoint blokujacy - wykonawca nie moze podniesc znacznika `verified`
-wlasna ocena, bo egzemplarza nie widzi.
+A machine gate for this ruling DOES NOT EXIST at the time this record is written
+- it comes into being with the phase 4 plan. The phase 4 plan is to add: a test
+rejecting a citation without a `verified` field, a test checking that a
+`verified: no` entry carries through into the generated report as a visible
+caveat (not only into `analysis.json`), and a README passage describing that
+state. Verifying the IEC 62443-3-3 clause numbering against the purchased copy is
+a task for a human, so the plan sets it as a blocking checkpoint - an executor
+cannot raise the `verified` marker on their own judgement, because they do not
+see the copy.
 
-## Droga rewizji
+## Revision path
 
-Zakup CLC/TS 50701:2023 w dowolnym pozniejszym momencie zamyka ryzyko
-rezydualne nazwane wyzej: rewizja polega na aktualizacji tego rekordu
-z nowa data i nowym `resolved_option`, przeczytaniu punktow wobec
-egzemplarza i podniesieniu pola `verified` w pliku katalogu. Kod potoku sie
-nie zmienia. Rezygnacja z zakupu IEC 62443-3-3 domyka sie tak samo
-w przeciwna strone, ale zostawia wtedy calosc powolan v1 niezweryfikowana
-i README musi to nazwac.
+Buying CLC/TS 50701:2023 at any later point closes the residual risk named
+above: the revision consists of updating this record with a new date and a new
+`resolved_option`, reading the clauses against the copy and raising the
+`verified` field in the catalogue file. The pipeline code does not change.
+Abandoning the purchase of IEC 62443-3-3 closes the same way in the opposite
+direction, but then leaves the whole set of v1 citations unverified, and the
+README has to say so.

@@ -3,99 +3,103 @@ decision_date: 2026-09-04
 resolved_option: clc-ts-50701-2023
 ---
 
-# 0004: Sygnatura i edycja dokumentu kolejowego cytowanego obok IEC 62443-3-3
+# 0004: The designation and edition of the railway document cited alongside IEC 62443-3-3
 
-## Kontekst
+## Context
 
-STD-04 (rejestrze wymagan projektu) stawia dowod wyroznika projektu: dodanie
-drugiej normy do katalogu ma byc dopisaniem pliku danych, bez zmiany ani jednej
-linii kodu. STD-05 dorzuca warunek, ktory czyni to powolanie weryfikowalnym:
-kazde powolanie podaje edycje albo rok normy. Oba wymagania nazywaly ten
-dokument `EN 50701` - tak samo nazywaly go ROADMAP (kryterium 4 fazy 4)
-i PROJECT.
+STD-04 (the project requirements register) sets the proof of the project's
+distinguishing feature: adding a second standard to the catalogue is to be the
+addition of a data file, with no change to a single line of code. STD-05 adds
+the condition that makes such a citation verifiable: every citation states the
+edition or the year of the standard. Both requirements called that document
+`EN 50701` - so did the ROADMAP (criterion 4 of phase 4) and PROJECT.
 
-Ta nazwa byla przyjeta przy tworzeniu wymagan (2026-09-01) i nigdy nie zostala
-sprawdzona wobec zrodla. Wlasne badanie projektu widzialo problem juz wczesniej:
-badaniu projektowym (funkcje) opisuje ten dokument jako "EN 50701 (formally
-CLC/TS 50701, a CENELEC Technical Specification)", a `PITFALLS.md` prowadzi
-osobna pulapke numer 13 o mylnym traktowaniu go jako zastepujacego IEC 62443.
-Warstwa wymagan tej korekty nie przejela, wiec projekt szedl do fazy 4
-z sygnatura, ktorej nie da sie zweryfikowac, bo nie istnieje.
+That name was adopted while writing the requirements (2026-09-01) and was never
+checked against a source. The project's own research saw the problem earlier:
+the design research (features) describes the document as "EN 50701 (formally
+CLC/TS 50701, a CENELEC Technical Specification)", and `PITFALLS.md` keeps a
+separate pitfall number 13 about mistakenly treating it as superseding IEC
+62443. The requirements layer did not absorb that correction, so the project was
+heading into phase 4 with a designation that cannot be verified, because it does
+not exist.
 
-Rejestr ryzyk ROADMAP nazywal to wprost jako pozycje do rozstrzygniecia PRZED
-faza 4, nie w jej trakcie. Powod jest ten sam co przy bramce poufnosci z Fazy 1:
-bledna sygnatura wpisana do katalogu norm rozchodzi sie potem na kazdy
-wygenerowany raport, na nazwe katalogu w drzewie kodu i na kazdy zewnetrzny
-opis projektu, a cofniecie tego jest wielokrotnie drozsze niz ustalenie nazwy
-raz, zanim powstanie pierwszy plik.
+The ROADMAP risk register named this outright as an item to settle BEFORE phase
+4, not during it. The reason is the same as with the Phase 1 confidentiality
+gate: a wrong designation written into the standards catalogue then spreads to
+every generated report, to the directory name in the code tree and to every
+external description of the project, and undoing that is many times more
+expensive than establishing the name once, before the first file exists.
 
-## Rozstrzygniecie
+## Ruling
 
-Wybrana opcja: `CLC/TS 50701:2023`.
+The option chosen: `CLC/TS 50701:2023`.
 
-Ustalenia potwierdzone u zrodla (CEN-CENELEC) i u dwoch niezaleznych
-dystrybutorow norm:
+Findings confirmed at the source (CEN-CENELEC) and with two independent
+standards distributors:
 
-- Normy `EN 50701` nie ma. Dokument jest specyfikacja techniczna CENELEC
-  (Technical Specification), nie norma europejska, i jego wlasna sygnatura to
-  `CLC/TS 50701`. Roznica nie jest kosmetyczna: TS jest dokumentem
-  tymczasowym o slabszym statusie normatywnym niz EN.
-- Edycja druga zostala opublikowana w sierpniu 2023 i zastapila pierwsza
-  z lipca 2021. Powolania podaja rok 2023.
-- Tresc idzie docelowo do przyszlej normy IEC 63452, opracowywanej wspolnie
-  przez CENELEC i IEC. Ta norma jeszcze nie istnieje, wiec nie dotyczy v1.
+- There is no `EN 50701` standard. The document is a CENELEC Technical
+  Specification, not a European Standard, and its own designation is
+  `CLC/TS 50701`. The difference is not cosmetic: a TS is a provisional
+  document with weaker normative status than an EN.
+- The second edition was published in August 2023 and superseded the first from
+  July 2021. Citations state the year 2023.
+- The content is ultimately heading into the future IEC 63452 standard,
+  developed jointly by CENELEC and IEC. That standard does not exist yet, so it
+  does not concern v1.
 
-Odrzucone alternatywy: `EN 50701` bez roku (odrzucona, bo cytuje dokument,
-ktory nie istnieje, i lamie STD-05 przez brak edycji); `CLC/TS 50701` bez roku
-(odrzucona, bo dwie edycje roznia sie trescia, a powolanie bez roku nie da sie
-zweryfikowac wobec egzemplarza - dokladnie ten tryb porazki, ktory STD-05
-mial zamknac); `IEC 63452` (odrzucona, bo dokument nie jest opublikowany).
+The rejected alternatives: `EN 50701` without a year (rejected, because it cites
+a document that does not exist and breaks STD-05 by omitting the edition);
+`CLC/TS 50701` without a year (rejected, because the two editions differ in
+content, and a citation without a year cannot be verified against a copy -
+exactly the failure mode STD-05 was meant to close); `IEC 63452` (rejected,
+because the document is not published).
 
-## Uzasadnienie
+## Justification
 
-To rozstrzygniecie nie jest kwestia gustu redakcyjnego. Odbiorca tego projektu
-to recenzent z sektora kolejowego, a powolanie na nieistniejaca sygnature normy
-w narzedziu, ktorego cala obietnica brzmi "kazdy finding stoi na punkcie normy",
-podwaza obietnice mocniej niz brak drugiej normy w ogole. Podanie statusu TS
-zamiast EN ma tez konsekwencje merytoryczna: TS jest dokumentem stosowanym
-dobrowolnie, wiec raport nie moze go przedstawiac jako podstawy obowiazkowej.
+This ruling is not a matter of editorial taste. The audience for this project is
+a reviewer from the railway sector, and citing a non-existent standard
+designation in a tool whose whole promise is "every finding stands on a standard
+clause" undermines that promise more than the absence of a second standard would.
+Stating the TS status rather than EN also has a substantive consequence: a TS is
+applied voluntarily, so the report must not present it as a mandatory basis.
 
-## Ryzyko rezydualne, nazwane wprost
+## Residual risk, named outright
 
-Ta decyzja rozstrzyga WYLACZNIE sygnature, status i edycje dokumentu.
-NIE rozstrzyga dostepu do jego tresci: numeracja i tresc konkretnych punktow
-pozostaja niezweryfikowane wobec legalnego egzemplarza, bo egzemplarza projekt
-nie ma. To osobne, wciaz otwarte ryzyko fazy 4, prowadzone w rejestrze ryzyk
-ROADMAP jako "Legalny dostep do IEC 62443-3-3 i CLC/TS 50701".
+This decision settles ONLY the designation, status and edition of the document.
+It does NOT settle access to its content: the numbering and text of specific
+clauses remain unverified against a legal copy, because the project does not
+have a copy. That is a separate, still open risk of phase 4, kept in the ROADMAP
+risk register as "Legal access to IEC 62443-3-3 and CLC/TS 50701".
 
-Wprost: sygnatura jest teraz poprawna, a punkty pod nia nie sa jeszcze
-potwierdzone. Znacznik `verified` w katalogu norm istnieje wlasnie po to,
-zeby ta roznica byla widoczna w danych, nie tylko w tym rekordzie.
+Outright: the designation is now correct, and the clauses under it are not yet
+confirmed. The `verified` marker in the standards catalogue exists precisely so
+that this difference is visible in the data, not only in this record.
 
-## Konsekwencje dla uzytkownika
+## Consequences for the user
 
-Kazde powolanie na dokument kolejowy w wygenerowanym raporcie brzmi
-`CLC/TS 50701:2023`. Czytelnik, ktory chce sprawdzic powolanie, ma pelna
-sygnature razem z edycja, wiec kupuje albo otwiera dokladnie ten dokument,
-o ktory chodzi. Katalog norm dostaje osobny katalog danych dla tego dokumentu;
-jego nazwa idzie od sygnatury, nie od nazwy `en50701` proponowanej wczesniej
-w badaniu projektowym (architektura).
+Every citation of the railway document in a generated report reads
+`CLC/TS 50701:2023`. A reader who wants to check the citation has the full
+designation together with the edition, so they buy or open exactly the document
+in question. The standards catalogue gets a separate data directory for that
+document; its name follows the designation, not the `en50701` name proposed
+earlier in the design research (architecture).
 
-## Sposob egzekwowania
+## How it is enforced
 
-Bramka maszynowa dla tego rozstrzygniecia NIE ISTNIEJE w chwili zapisu tego
-rekordu - powstaje razem z planem fazy 4, ktory dowozi STD-04 i STD-05.
-Plan fazy 4 ma dolozyc test czytajacy pole `resolved_option` z frontmatteru
-tego rekordu i sprawdzajacy, ze zadne powolanie w katalogu norm ani w
-wygenerowanym raporcie nie uzywa ciagu `EN 50701`, oraz ze kazde powolanie
-na ten dokument nosi rok edycji. Do momentu, w ktorym ten test istnieje,
-sygnatury pilnuje ten rekord i konwencja, nie maszyna.
+A machine gate for this ruling DOES NOT EXIST at the time this record is
+written - it comes into being with the phase 4 plan, which delivers STD-04 and
+STD-05. The phase 4 plan is to add a test reading the `resolved_option` field
+from the frontmatter of this record and checking that no citation in the
+standards catalogue or in a generated report uses the string `EN 50701`, and
+that every citation of this document carries the edition year. Until that test
+exists, the designation is guarded by this record and by convention, not by a
+machine.
 
-## Droga rewizji
+## Revision path
 
-Publikacja IEC 63452 jest zdarzeniem, ktore wymusza rewizje: powolania
-zaczna wtedy wskazywac norme miedzynarodowa, a `CLC/TS 50701:2023` przejdzie
-w pozycje historyczna. Rewizja polega na aktualizacji tego rekordu z nowa data
-i nowym `resolved_option` oraz na dopisaniu nowego pliku katalogu norm - nie na
-zmianie kodu, dokladnie zgodnie z STD-04. Publikacja trzeciej edycji
-`CLC/TS 50701` domyka sie tak samo.
+The publication of IEC 63452 is the event that forces a revision: citations will
+then point at the international standard, and `CLC/TS 50701:2023` will become a
+historical entry. The revision consists of updating this record with a new date
+and a new `resolved_option` and of adding a new standards catalogue file - not
+of changing code, exactly as STD-04 requires. The publication of a third edition
+of `CLC/TS 50701` closes the same way.

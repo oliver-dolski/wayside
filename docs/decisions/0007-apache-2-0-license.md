@@ -3,100 +3,96 @@ decision_date: 2026-09-09
 resolved_option: apache-2-0
 ---
 
-# 0007: Wybor licencji Apache License 2.0 dla publicznego repozytorium
+# 0007: Choosing the Apache License 2.0 for the public repository
 
-## Kontekst
+## Context
 
-Repozytorium przechodzi ze stanu prywatnego warsztatu w stan gotowy do
-publicznego wystawienia (faza 5, `05-CONTEXT.md` D-02). Bez pliku licencji
-publiczny kod jest formalnie "wszelkie prawa zastrzezone" w calosci - nikt
-poza autorem nie ma prawa go uzyc, kopiowac ani modyfikowac, niezaleznie od
-tego, co mowi dokumentacja.
+The repository is moving from the state of a private workshop to a state ready
+for public exposure (phase 5, `05-CONTEXT.md` D-02). Without a licence file,
+public code is formally "all rights reserved" in its entirety - nobody but the
+author has the right to use, copy or modify it, regardless of what the
+documentation says.
 
-To jest sprzecznosc wewnatrz jednego dokumentu, nie brakujaca zdolnosc.
-Sekcja `## Intended Use` dowieziona przez plan `05-01` tej samej fazy
-opisuje wprost, do czego narzedzie jest przeznaczone (ocena bezpieczenstwa,
-material do raportu dla wlasciciela systemu) i zaprasza czytelnika do
-uzycia go w tym celu. Brak pliku `LICENSE` zaprzeczalby tej sekcji w
-momencie, w ktorym ktokolwiek probowalby skorzystac z zaproszenia.
+This is a contradiction inside a single document, not a missing capability. The
+`## Intended Use` section delivered by plan `05-01` of the same phase describes
+outright what the tool is intended for (security assessment, material for a
+report to the system owner) and invites the reader to use it for that purpose.
+The absence of a `LICENSE` file would contradict that section at the moment
+anyone tried to accept the invitation.
 
-## Rozstrzygniecie
+## Ruling
 
-Wybrana opcja (Oliver, ustalenie fazy 5, D-02): **Apache License,
-wersja 2.0**, z naglowkiem praw autorskich `Copyright 2026 Oliver Dolski`
-w bloku koncowym tekstu.
+The option chosen (Oliver, a phase 5 decision, D-02): **the Apache License,
+version 2.0**, with the copyright header `Copyright 2026 Oliver Dolski` in the
+appendix block of the text.
 
-Odrzucona alternatywa: **MIT** - licencja permisywna bez jawnego udzielenia
-patentowego. Odrzucona, bo milczy dokladnie tam, gdzie odbiorca docelowy
-z `PROJECT.md` (integratorzy automatyki i dostawcy uslug zarzadzanych,
-uzycie komercyjne w sektorze OT/ICS) potrzebuje jawnosci: MIT nie zawiera
-zadnego postanowienia o patentach, wiec ani nie udziela licencji
-patentowej, ani nie chroni odbiorcy przed pozniejszym roszczeniem
-patentowym ze strony wspolautora.
+The rejected alternative: **MIT** - a permissive licence with no explicit patent
+grant. Rejected because it falls silent exactly where the target audience from
+`PROJECT.md` (automation integrators and managed service providers, commercial
+use in the OT/ICS sector) needs explicitness: MIT contains no patent provision
+at all, so it neither grants a patent licence nor protects the recipient against
+a later patent claim from a contributor.
 
-## Uzasadnienie
+## Justification
 
-Apache License 2.0 niesie w punkcie 3 ("Grant of Patent License") jawne,
-nieodwolywalne udzielenie licencji patentowej od kazdego wspolautora
-kazdemu odbiorcy, z klauzula wygasniecia przy zlozeniu pozwu patentowego
-przeciwko Wayside. Odbiorca docelowy tego projektu - integrator wdrazajacy
-narzedzie w srodowisku klienta, dostawca uslugi zarzadzanej budujacy na nim
-oferte komercyjna - ma z tego powodu wieksza pewnosc prawna niz przy MIT,
-gdzie kwestia patentow nie jest poruszona w ogole.
+The Apache License 2.0 carries, in section 3 ("Grant of Patent License"), an
+explicit, irrevocable grant of a patent licence from every contributor to every
+recipient, with a termination clause on filing a patent suit against Wayside. The
+target recipient of this project - an integrator deploying the tool in a
+client's environment, a managed service provider building a commercial offering
+on it - therefore has greater legal certainty than under MIT, where the patent
+question is not addressed at all.
 
-## Ryzyko rezydualne, nazwane wprost
+## Residual risk, named outright
 
-- Udzielenie licencji publicznej jest **jednokierunkowe**: wobec kogokolwiek,
-  kto juz pobral kod pod ta licencja, cofniecie nie dziala. Zmiana licencji
-  w przyszlosci obowiazywalaby wylacznie na przyszlosc, nie retroaktywnie.
-- Apache 2.0 niesie dluzszy tekst (202 linie tekstu kanonicznego) i wiecej
-  formalnych wymogow atrybucji niz MIT - punkt 4 wymaga zachowania
-  wszystkich informacji o prawach autorskich, patentach, znakach
-  towarowych i atrybucji z formy zrodlowej, oraz oznaczenia zmienionych
-  plikow. Odbiorca redystrybuujacy zmodyfikowana wersje musi spelnic te
-  wymogi; MIT wymaga mniej.
-- Wybor tej wlasnie licencji jest decyzja jednorazowa co do tresci: zmiana
-  licencji projektu w przyszlosci (np. na inna licencje permisywna) jest
-  mozliwa wobec nowych wydan, ale nie usuwa praw juz udzielonych do
-  istniejacych kopii kodu.
+- Granting a public licence is **one-way**: against anyone who has already
+  downloaded the code under that licence, revocation does not work. A licence
+  change in the future would apply only going forward, not retroactively.
+- Apache 2.0 carries a longer text (202 lines of canonical text) and more formal
+  attribution requirements than MIT - section 4 requires retaining every notice
+  of copyright, patents, trademarks and attribution from the source form, and
+  marking modified files. A recipient redistributing a modified version has to
+  meet those requirements; MIT asks for less.
+- Choosing this particular licence is a one-off decision as to its content:
+  changing the project's licence in the future (e.g. to another permissive
+  licence) is possible for new releases, but it does not remove the rights
+  already granted over existing copies of the code.
 
-## Konsekwencje dla uzytkownika
+## Consequences for the user
 
-Co wolno: uzycie komercyjne i niekomercyjne, modyfikacja, dystrybucja
-i sublicencjonowanie Wayside oraz utworow pochodnych, bez obowiazku
-udostepnienia zmodyfikowanego kodu zrodlowego (licencja permisywna, nie
-copyleft).
+What is permitted: commercial and non-commercial use, modification, distribution
+and sublicensing of Wayside and of derivative works, with no obligation to
+publish modified source code (a permissive licence, not copyleft).
 
-Czego wymaga atrybucja: kazda dystrybucja (takze zmodyfikowanej wersji)
-musi zachowac tresc pliku `LICENSE`, informacje o prawach autorskich
-i patentach z formy zrodlowej Wayside, oraz jasno oznaczyc pliki zmienione
-wzgledem oryginalu. Szczegoly stoja w punkcie 4 tresci licencji.
+What attribution requires: every distribution (including of a modified version)
+has to retain the content of the `LICENSE` file, the copyright and patent
+notices from the source form of Wayside, and clearly mark files changed against
+the original. The details stand in section 4 of the licence text.
 
-## Sposob egzekwowania
+## How it is enforced
 
-Bramka maszynowa `tests/test_license.py` sprawdza, ze tresc pliku
-`LICENSE` rozni sie od tekstu kanonicznego dokladnie jedna linia (wiersz
-praw autorskich), porownaniem skrotu sha256 po podstawieniu wiersza
-wzorcowego z powrotem, oraz obecnoscia kazdego z dziewieciu numerowanych
-punktow. Naglowek `## Licencja` w `README.md` ma wlasny wpis
-w `compliance/readme-claims.yaml`, wiec bramka `tests/test_readme_claims.py`
-pilnuje, zeby ten naglowek zawsze niosl obietnice pokryta dowodem.
+The `tests/test_license.py` machine gate checks that the content of the
+`LICENSE` file differs from the canonical text by exactly one line (the
+copyright line), by comparing the sha256 digest after substituting the template
+line back, and by the presence of each of the nine numbered sections. The
+`## License` header in `README.md` has its own entry in
+`compliance/readme-claims.yaml`, so the `tests/test_readme_claims.py` gate
+enforces that this header always carries a claim covered by evidence.
 
-Potwierdzenie D-03: nazwa projektu "Wayside" zostaje bez zmiany - przeglad
-przed pierwszym publicznym pushem sie odbyl (rewizja przewidziana
-w `PROJECT.md`), a jego wynik jest negatywny wobec zmiany. `tests/test_license.py`
-sprawdza pole nazwy pakietu i wpis komendy wiersza polecen w
-`pyproject.toml` wobec tego rozstrzygniecia, zeby przyszla cicha zmiana
-nazwy zaczerwienila bramke zamiast przejsc niezauwazona.
+Confirming D-03: the project name "Wayside" stays unchanged - the review before
+the first public push took place (the revision foreseen in `PROJECT.md`), and its
+outcome is negative as to a change. `tests/test_license.py` checks the package
+name field and the command line entry point in `pyproject.toml` against that
+ruling, so that a future silent rename turns the gate red instead of passing
+unnoticed.
 
-## Droga rewizji
+## Revision path
 
-Rozstrzygniecie wymaga ponownego przegladu, gdy zajdzie ktorekolwiek
-z ponizszych: model biznesowy projektu przesunie sie w strone, ktorej
-Apache 2.0 nie obsluguje dobrze (np. potrzeba licencji copyleft, zeby
-wymusic udostepnianie modyfikacji), partner komercyjny zazada innej
-licencji jako warunku wspolpracy, albo pojawi sie roszczenie patentowe
-wymagajace ponownej oceny klauzuli wygasniecia z punktu 3. Rewizja polega
-na wydaniu nowej wersji pod nowa licencja - zmiana obowiazuje **wylacznie
-na przyszlosc**, kopie juz rozpowszechnione pod Apache 2.0 zachowuja to
-udzielenie bezterminowo.
+The ruling requires a fresh review when any of the following occurs: the
+project's business model shifts in a direction Apache 2.0 does not serve well
+(e.g. a need for a copyleft licence to force publication of modifications), a
+commercial partner demands a different licence as a condition of cooperation, or
+a patent claim appears that requires re-evaluating the termination clause of
+section 3. The revision consists of releasing a new version under a new licence
+- the change applies **only going forward**, and copies already distributed
+under Apache 2.0 keep that grant indefinitely.

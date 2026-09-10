@@ -4,46 +4,41 @@ scope: employment-contract-ip-and-non-compete
 reviewed_on: 2026-09-02
 reviewer: Oliver Dolski
 verdict: go
-basis: ["ROADMAP.md, Faza 1, Success Criteria 5 (2026-09-01)", "REQUIREMENTS.md, wpis PUB-01 (2026-09-01)"]
+basis: ["ROADMAP.md, Phase 1, Success Criteria 5 (2026-09-01)", "REQUIREMENTS.md, entry PUB-01 (2026-09-01)"]
 next_review_due:
 ---
 
-Ten rekord zapisuje wniosek z przegladu i jego date, nie analize prawna. Do
-tego pliku nie wpisuje sie zadnego fragmentu tresci umowy o prace, takze
-parafrazy blisko oryginalu, i rekord nie jest porada prawna.
+This record captures the conclusion of a review and its date, not a legal
+analysis. No fragment of the employment contract goes into this file, close
+paraphrase included, and the record is not legal advice.
 
-## Zakres przegladu
+## Scope of the review
 
-Przeglad obejmuje wylacznie dwa rodzaje zapisow we wlasnej umowie o prace
-autora: zapisy o wlasnosci intelektualnej (kto jest wlascicielem kodu
-tworzonego poza godzinami pracy, na wlasnym sprzecie) oraz zapisy
-o dzialalnosci konkurencyjnej (czy publikacja narzedzia z dziedziny
-bezpieczenstwa OT/ICS, w ktorej autor pracuje zawodowo, jest objeta zakazem
-albo wymaga zgody pracodawcy). Przeglad nie obejmuje zadnego innego zapisu
-umowy.
+The review covers only two kinds of provision in the author's own employment
+contract: provisions on intellectual property (who owns code created outside
+working hours, on the author's own equipment) and provisions on competing
+activity (whether publishing a tool in the OT/ICS security field, in which the
+author works professionally, is covered by a prohibition or requires the
+employer's consent). The review covers no other provision of the contract.
 
-## Wniosek
+## Conclusion
 
-Narzedzie nie powstalo w ramach obowiazkow sluzbowych ani na zasobach
-pracodawcy, do repozytorium nie trafiaja zadne informacje pochodzace
-z firmy, a odrebnej umowy o zakazie konkurencji nie podpisywalem, wiec
-nie widze przeszkody dla publikacji.
+The tool was not created as part of job duties or on the employer's resources,
+no information originating from the company reaches the repository, and I have
+signed no separate non-compete agreement, so I see no obstacle to publication.
 
-## Skutki dla projektu
+## Consequences for the project
 
-Skutek kazdej odpowiedzi jest juz opisany w ROADMAP.md, wiec zadna nie
-zatrzymuje projektu jako calosci:
+The consequence of each answer is already described in ROADMAP.md, so none of
+them stops the project as a whole:
 
-- Przy rozstrzygnieciu `go`: faza 5 (publikacja) jest wykonywana, repozytorium
-  moze stac sie publiczne, a material do publikacji moze ruszyc zgodnie
-  z notatkami w STATE.md.
-- Przy rozstrzygnieciu `no-go`: fazy 2, 3 i 4 ida dalej bez zmian jako
-  prywatny warsztat autora, repozytorium zostaje prywatne, a faza 5 jest
-  pominieta.
+- On a `go` ruling: phase 5 (publication) is executed, the repository may become
+  public, and the material for publication may proceed as noted in STATE.md.
+- On a `no-go` ruling: phases 2, 3 and 4 proceed unchanged as the author's
+  private workshop, the repository stays private, and phase 5 is skipped.
 
-## Warunki rewizji
+## Revision conditions
 
-Rozstrzygniecie wymaga ponownego przegladu, gdy zajdzie ktorekolwiek
-z ponizszych: zmiana tresci umowy o prace, zmiana pracodawcy, albo zmiana
-zakresu projektu na tyle istotna, ze poprzedni przeglad przestaje go
-pokrywac.
+The ruling requires a fresh review when any of the following occurs: a change to
+the content of the employment contract, a change of employer, or a change in the
+scope of the project large enough that the previous review no longer covers it.

@@ -1,96 +1,106 @@
-# 0003: Silnik checkow i warstwa Modbus/TCP
+# 0003: The check engine and the Modbus/TCP layer
 
-## Kontekst
+## Context
 
-Trzy rozstrzygniecia Fazy 2, kazde z tego samego powodu: badanie projektowe
-badaniu projektowym (architektura) powstalo przed pierwszym kodem tego projektu i przed
-decyzja `LOCK-01` z Fazy 1 (`docs/decisions/0001-decoding-engine-v1.md`), wiec celowalo
-w zakres szerszy niz zrealizowany v1. To ta sama klasa rozjazdu, co Pitfall 9 z
-`01-RESEARCH.md` (rekomendacja `tshark` w `STACK.md` dla siedmiu protokolow v2+, zanim
-zapadla decyzja o zawezeniu v1 do jednego protokolu przez scapy) - badanie na poziomie
-projektu mierzylo scenariusz szerszy, a kod Fazy 2 rozstrzygnal wezej. Bez zapisu poza
-katalogiem planowania kazda kolejna faza odtwarzalaby te trzy rozstrzygniecia po swojemu.
+Three rulings from Phase 2, each for the same reason: the design research
+(architecture) was written before the first line of code in this project and
+before the `LOCK-01` decision from Phase 1
+(`docs/decisions/0001-decoding-engine-v1.md`), so it aimed at a wider scope than
+the delivered v1. That is the same class of drift as Pitfall 9 from
+`01-RESEARCH.md` (the `tshark` recommendation in `STACK.md` for the seven
+protocols of v2+, before the decision to narrow v1 to a single protocol through
+scapy) - the project-level research measured the wider scenario, and the Phase 2
+code settled it more narrowly. Without a record outside the planning directory
+every further phase would rediscover these three rulings its own way.
 
-## Decyzja
+## Decision
 
-### D-05: renderowanie raportu bez silnika szablonow
+### D-05: report rendering without a template engine
 
-**Kontekst decyzji:** `ARCHITECTURE.md` rekomendowalo Jinja2 juz w pierwszym pionowym
-przekroju (widoczne w tabeli odpowiedzialnosci komponentow i w kolejnosci budowy). Sekcja
-"Context" w `PROJECT.md` stawia prostote nad kompletnoscia, a raport tej fazy ma szesc
-sekcji o ustalonych z gory nazwach - staly szkielet nie potrzebuje silnika szablonow, zeby
-zostac wyrenderowany.
+**Context of the decision:** `ARCHITECTURE.md` recommended Jinja2 as early as
+the first vertical slice (visible in the component responsibility table and in
+the build order). The "Context" section of `PROJECT.md` puts simplicity above
+completeness, and the report of this phase has six sections with names fixed in
+advance - a fixed skeleton does not need a template engine to be rendered.
 
-**Rozstrzygniecie:** `src/wayside/report.py` renderuje markdown zwyklymi funkcjami Pythona
-(sklejanie listy linii), bez zaleznosci od Jinja2 ani zadnego innego silnika szablonow.
-Termin ponownego rozpatrzenia: Faza 4, gdy eksport do PDF bedzie znal liczbe wariantow
-raportu i decyzja bedzie miala material do oceny, ktorego dzis brakuje.
+**Ruling:** `src/wayside/report.py` renders markdown with plain Python functions
+(joining a list of lines), with no dependency on Jinja2 or any other template
+engine. The reconsideration point: Phase 4, when the PDF export will know the
+number of report variants and the decision will have material to judge by that
+it lacks today.
 
-**Bramka maszynowa:** brak wpisu `jinja2` w zaleznosciach `pyproject.toml`, oraz
-`tests/test_report_render.py::test_six_sections_present` (kompletnosc szesciu sekcji bez
-udzialu zadnego silnika szablonow).
+**Machine gate:** no `jinja2` entry in the `pyproject.toml` dependencies, plus
+`tests/test_report_render.py::test_six_sections_present` (completeness of the
+six sections with no template engine involved).
 
-### D-06: checki odnajdywane skanem katalogu w czasie dzialania
+### D-06: checks discovered by a directory scan at runtime
 
-**Kontekst decyzji:** Kryterium rozszerzalnosci tej fazy mowi wprost o nowym checku bez
-zmiany zadnego pliku w katalogu silnika. Entry points z `pyproject.toml` wymagalyby wpisu
-w tym pliku i reinstalacji pakietu przy kazdym nowym checku. Rejestr oparty na dekoratorze
-wymagalby centralnego importu, ktory rosnie z kazdym nowym checkiem - w obu przypadkach
-dodanie checka dotyka pliku POZA jego wlasnym katalogiem.
+**Context of the decision:** The extensibility criterion of this phase speaks
+outright of a new check without changing any file in the engine directory. Entry
+points from `pyproject.toml` would require an entry in that file and a
+reinstall of the package for every new check. A decorator-based registry would
+require a central import that grows with every new check - in both cases adding
+a check touches a file OUTSIDE its own directory.
 
-**Rozstrzygniecie:** `src/wayside/checks/engine.py` odnajduje checki przez skan katalogu
-(`sorted(rglob("*.yaml"))`) i laduje evaluator jako plik siostrzany przez
-`importlib.util.spec_from_file_location`. Ani entry points, ani rejestr dekoratora. Nowy
-check to nowy plik YAML plus nowy plik `.py` w nowym podkatalogu - `engine.py` i
-`pyproject.toml` zostaja nietkniete.
+**Ruling:** `src/wayside/checks/engine.py` discovers checks through a directory
+scan (`sorted(rglob("*.yaml"))`) and loads the evaluator as a sibling file
+through `importlib.util.spec_from_file_location`. Neither entry points nor a
+decorator registry. A new check is a new YAML file plus a new `.py` file in a new
+subdirectory - `engine.py` and `pyproject.toml` stay untouched.
 
-**Bramka maszynowa:** `tests/test_check_engine.py::test_new_check_discovered_without_engine_change`
-- dodaje check w czasie dzialania i porownuje sume sha256 `engine.py` oraz `pyproject.toml`
-przed i po, zamiast zgadywac po samym wyniku dzialania.
+**Machine gate:**
+`tests/test_check_engine.py::test_new_check_discovered_without_engine_change` -
+it adds a check at runtime and compares the sha256 digest of `engine.py` and
+`pyproject.toml` before and after, instead of guessing from the run result
+alone.
 
-### D-07: rozpoznanie protokolu i walidacja naglowka MBAP jako wlasny kod nad klasami PDU z biblioteki
+### D-07: protocol recognition and MBAP header validation as own code over the library's PDU classes
 
-**Kontekst decyzji:** Odczyt zrodla pakietu `scapy.contrib.modbus` potwierdzil, ze pokrycie
-kodow funkcji Modbus Application Protocol jest kompletne - wlasny parser kodow funkcji nie
-jest potrzebny. Ten sam odczyt pokazal dwie luki: biblioteka wiaze Modbusa na sztywno z
-jednym numerem portu przez `bind_layers`, i nie ma zadnej walidacji naglowka MBAP - naglowek
-o niepoprawnym identyfikatorze protokolu przechodzi bez zastrzezen, a puste bajty daja
-fantomowy poprawny pakiet. Kryterium rozpoznania niezaleznego od portu nie da sie spelnic
-przez samo bindowanie warstwy.
+**Context of the decision:** Reading the source of the `scapy.contrib.modbus`
+package confirmed that its coverage of Modbus Application Protocol function
+codes is complete - an own function code parser is not needed. That same reading
+showed two gaps: the library binds Modbus rigidly to a single port number
+through `bind_layers`, and it performs no MBAP header validation at all - a
+header with an invalid protocol identifier passes without objection, and empty
+bytes yield a phantom valid packet. The criterion of port-independent
+recognition cannot be met by layer binding alone.
 
-**Rozstrzygniecie:** `src/wayside/protocols/modbus_tcp.py` rozpoznaje Modbus/TCP po ksztalcie
-naglowka MBAP na dowolnym porcie TCP, nie po numerze portu. Wlasna walidacja MBAP
-(`validate_mbap`) stoi PRZED klasyfikacja funkcjonalna jako brama odrzucajaca ramke
-niepoprawna calkowicie, nie jako ostrzezenie dolaczone do wyniku. Klasyfikacja kodow funkcji
-pozostaje oparta na tabeli z biblioteki - zapasowa droga z mapy wymagan (wlasny parser kodow
-funkcji) nie jest uruchamiana, bo pokrycie biblioteki okazalo sie kompletne.
+**Ruling:** `src/wayside/protocols/modbus_tcp.py` recognises Modbus/TCP by the
+shape of the MBAP header on any TCP port, not by port number. Own MBAP
+validation (`validate_mbap`) stands BEFORE functional classification as a gate
+rejecting an invalid frame entirely, not as a warning attached to the result.
+Function code classification stays based on the library's table - the fallback
+path from the requirements map (an own function code parser) is not taken,
+because the library's coverage turned out to be complete.
 
-**Bramka maszynowa:** fixture na porcie niestandardowym i fixture z uszkodzonym naglowkiem
-MBAP, kazdy z parą testu jednostkowego i testu przez CLI -
+**Machine gate:** a fixture on a non-standard port and a fixture with a damaged
+MBAP header, each with a pair of a unit test and a test through the CLI -
 `tests/test_modbus_tcp.py::test_recognizes_non_standard_port` /
-`::test_recognizes_non_standard_port_end_to_end_via_cli` oraz
+`::test_recognizes_non_standard_port_end_to_end_via_cli` and
 `::test_rejects_malformed_mbap` / `::test_rejects_malformed_mbap_end_to_end_via_cli`.
 
-## Konsekwencje
+## Consequences
 
-Zaden z trzech wyborow nie zamyka drogi rozwoju - kazdy jest zapisany z wlasnym warunkiem
-ponownego rozpatrzenia albo zapasowa droga, ktora zostala swiadomie NIE uruchomiona (D-07).
-Kolejna faza, ktora chcialaby wprowadzic silnik szablonow, rejestr dekoratora czy wlasny
-parser kodow funkcji Modbus, robi to jako swiadoma rewizje tego zapisu, nie jako pierwsze
-rozpoznanie problemu.
+None of the three choices closes a path of development - each is recorded with
+its own reconsideration condition or with a fallback path that was deliberately
+NOT taken (D-07). A later phase wanting to introduce a template engine, a
+decorator registry or an own Modbus function code parser does so as a deliberate
+revision of this record, not as a first encounter with the problem.
 
-## Odwracalnosc
+## Reversibility
 
-D-05 i D-06 sa `two-way`: zmiana implementacji renderowania raportu albo mechanizmu
-odnajdywania checkow nie dotyka schematu `analysis.json` ani kontraktu CLI, wiec koszt
-rewizji jest lokalny do jednego modulu. D-07 jest `one-way` w granicach v1: rezygnacja z
-wlasnej walidacji MBAP na rzecz gologo polegania na bibliotece oznaczalaby powrot dwoch
-zamknietych luk (fantomowy pakiet z pustych bajtow, brak kontroli identyfikatora protokolu),
-ktore ten zapis istnieje po to, zeby zamknac.
+D-05 and D-06 are `two-way`: changing the report rendering implementation or the
+check discovery mechanism touches neither the `analysis.json` schema nor the CLI
+contract, so the cost of revision is local to one module. D-07 is `one-way`
+within the bounds of v1: giving up own MBAP validation in favour of bare
+reliance on the library would mean the return of two closed gaps (a phantom
+packet from empty bytes, no check of the protocol identifier) that this record
+exists to close.
 
-## Droga rewizji
+## Revision path
 
-W badaniu projektowym (architektura) dopisano note przy rekomendacjach drugiego dekodera
-pakietow i silnika szablonow, wskazujaca na ten plik i na
-`docs/decisions/0001-decoding-engine-v1.md` - badanie zostaje nietkniete jako zapis stanu
-wiedzy sprzed kodu, nota jest wskazowka dla przyszlej lektury.
+A note was added to the design research (architecture) next to the
+recommendations of a second packet decoder and a template engine, pointing at
+this file and at `docs/decisions/0001-decoding-engine-v1.md` - the research
+itself stays untouched as a record of the state of knowledge before the code,
+and the note is a pointer for a future reading.

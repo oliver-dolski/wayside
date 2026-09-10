@@ -1,67 +1,76 @@
-# 0001: Silnik dekodowania v1
+# 0001: Decoding engine v1
 
-## Kontekst
+## Context
 
-badaniu projektowym (warstwa technologiczna) (badanie projektowe z 2026-09-01, sekcja "Core Technologies")
-rekomenduje `tshark` (Wireshark CLI, wywoływany jako subprocess) jako główny silnik
-dekodowania dla siedmiu protokołów przemysłowych docelowych dla v2+: Modbus, S7comm, DNP3,
-EtherNet/IP+CIP, PROFINET, OPC UA i IEC 60870-5-104/101. Rekomendacja jest uzasadniona
-w tamtym badaniu wprost: scapy pokrywa natywnie tylko 2 z 7 protokołów, a Wireshark ma
-dissectory dla wszystkich siedmiu.
+The design research (technology layer) (design research from 2026-09-01, the
+"Core Technologies" section) recommends `tshark` (the Wireshark CLI, called as a
+subprocess) as the main decoding engine for the seven industrial protocols
+targeted for v2+: Modbus, S7comm, DNP3, EtherNet/IP+CIP, PROFINET, OPC UA and
+IEC 60870-5-104/101. That recommendation is justified outright in that
+research: scapy covers only 2 of the 7 protocols natively, while Wireshark has
+dissectors for all seven.
 
-Dokumenty nadrzędne i późniejsze w czasie - `ROADMAP.md`, `01-01-SUMMARY.md` i
-`REQUIREMENTS.md` - rozstrzygają węziej: zakres v1 to wyłącznie Modbus/TCP, dekodowany
-przez `scapy` natywnie, bez żadnej zależności od Wiresharka ani tsharka. `FOUND-01` mówi
-to wprost: "Narzędzie uruchamia się na czystym Windows 11 jednym poleceniem, bez
-instalowania Wiresharka ani tsharka".
+The governing and later documents - `ROADMAP.md`, `01-01-SUMMARY.md` and
+`REQUIREMENTS.md` - settle it more narrowly: the scope of v1 is Modbus/TCP
+only, decoded by `scapy` natively, with no dependency on Wireshark or tshark.
+`FOUND-01` says so outright: "The tool runs on a clean Windows 11 with one
+command, without installing Wireshark or tshark".
 
-To jest kolizja między dwoma badaniami projektowymi o różnym zakresie czasowym i
-ambicji, opisana jako Pitfall 9 w `01-RESEARCH.md`: `STACK.md` mierzył scenariusz szerszy
-(siedem protokołów, v2+), zanim zapadła decyzja o zawężeniu v1 do jednego protokołu.
+This is a collision between two pieces of design research with different time
+horizons and ambitions, described as Pitfall 9 in `01-RESEARCH.md`: `STACK.md`
+measured the wider scenario (seven protocols, v2+) before the decision to
+narrow v1 to a single protocol was taken.
 
-## Decyzja
+## Decision
 
-Obowiązuje rozstrzygnięcie węższe. Zewnętrzny dysektor (Wireshark/tshark, oraz `pyshark`
-jako jego opakowanie w PyPI) jest wykluczony z v1 - nie tylko jako zależność wymagana, ale
-też jako zależność opcjonalna. Zależność opcjonalna i tak pojawia się w instrukcji
-instalacji i w dokumentacji, a `FOUND-01` mówi o czystej maszynie: brak dodatkowej
-instalacji sieciowej, nie tylko brak instalacji domyślnej.
+The narrower ruling holds. An external dissector (Wireshark/tshark, and
+`pyshark` as its PyPI wrapper) is excluded from v1 - not only as a required
+dependency but also as an optional one. An optional dependency shows up in the
+installation instructions and in the documentation anyway, and `FOUND-01`
+speaks of a clean machine: no additional networking installation, not merely no
+installation by default.
 
-Ta decyzja jest egzekwowana maszynowo przez `tests/test_no_external_dissector.py`, które
-skanuje `src/`, `scripts/`, `pyproject.toml`, `uv.lock` i `.github/workflows/` pod kątem
-nazw binarek (`tshark`, `wireshark`) oraz nazwy pakietu opakowującego (`pyshark`), oraz
-osobno pilnuje regresji na Assumption A1 (brak importu `scapy.all`, który na Windows
-transitywnie ładuje `scapy.arch.libpcap` i łamie deklarowaną bezzależnościowość).
+This decision is enforced by machine through
+`tests/test_no_external_dissector.py`, which scans `src/`, `scripts/`,
+`pyproject.toml`, `uv.lock` and `.github/workflows/` for binary names
+(`tshark`, `wireshark`) and for the wrapper package name (`pyshark`), and
+separately guards against a regression on Assumption A1 (no import of
+`scapy.all`, which on Windows transitively loads `scapy.arch.libpcap` and
+breaks the declared absence of dependencies).
 
-## Konsekwencje
+## Consequences
 
-Kolejne protokoły przemysłowe w v1 (poza Modbus/TCP) wymagają własnego parsera, napisanego
-ręcznie na podstawie publicznej dokumentacji protokołu, zamiast delegacji do gotowego
-dissectora Wiresharka. `ROADMAP.md` (Faza 2) nazywa to wprost atutem, nie kosztem: ręczne
-parsowanie protokołu pokazuje znajomość protokołu, nie znajomość biblioteki, a to jest
-przewaga, na której ten projekt stoi (patrz `PROJECT.md`, sekcja "Context").
+Further industrial protocols in v1 (beyond Modbus/TCP) require their own
+parser, written by hand from public protocol documentation, rather than
+delegation to a ready Wireshark dissector. `ROADMAP.md` (Phase 2) names that
+outright as an asset, not a cost: parsing a protocol by hand shows knowledge of
+the protocol, not knowledge of a library, and that is the advantage this
+project stands on (see `PROJECT.md`, the "Context" section).
 
-Zakres bramki jest kosztowny do zmiany w drugą stronę: każda kolejna faza rośnie pod nią,
-więc późniejsze rozszerzenie zakresu skanu (na przykład o nowy nośnik zależności, jak plik
-konfiguracyjny narzędzia deweloperskiego) wymaga przejrzenia wszystkiego, co pod nim
-powstało do tego momentu.
+The scope of the gate is expensive to change in the other direction: every
+further phase grows underneath it, so widening the scan later (for example to a
+new dependency carrier, such as the configuration file of a developer tool)
+requires reviewing everything built under it up to that point.
 
-## Odwracalnosc
+## Reversibility
 
-`one-way` w granicach v1. Dopóki v1 trwa, żadna faza nie wprowadza zależności od
-zewnętrznego dekodera pakietów, nawet jako opcjonalnej. Cofnięcie tej decyzji w trakcie v1
-oznaczałoby złamanie `FOUND-01` wprost.
+`one-way` within the bounds of v1. As long as v1 lasts, no phase introduces a
+dependency on an external packet decoder, not even an optional one. Reversing
+this decision during v1 would break `FOUND-01` outright.
 
-## Droga rewizji
+## Revision path
 
-`V2-03` (rejestrze wymagan projektu, sekcja "v2 Requirements") dopuszcza wprost zewnętrzny
-dekoder (tshark) dla kolejnych protokołów przemysłowych (S7comm, DNP3, IEC 60870-5-104) jako
-udokumentowany wymóg wstępny. Rewizja tej decyzji należy do v2 i wymaga zmiany wymagania
-w `REQUIREMENTS.md`, nie samej zmiany kodu - `tests/test_no_external_dissector.py` musi
-zostać świadomie zawężony albo zdjęty razem z tą zmianą wymagania, inaczej bramka i
-wymaganie zaczną sobie przeczyć.
+`V2-03` (the project requirements register, the "v2 Requirements" section)
+explicitly admits an external decoder (tshark) for further industrial protocols
+(S7comm, DNP3, IEC 60870-5-104) as a documented precondition. Revising this
+decision belongs to v2 and requires changing the requirement in
+`REQUIREMENTS.md`, not merely changing the code -
+`tests/test_no_external_dissector.py` has to be deliberately narrowed or
+removed together with that requirement change, otherwise the gate and the
+requirement start contradicting each other.
 
-Przy okazji Fazy 2 warto dopisać notę do badaniu projektowym (warstwa technologiczna), że rekomendacja
-tshark w tamtym badaniu dotyczy zakresu szerszego (siedem protokołów, v2+) niż zrealizowany
-zakres v1 (jeden protokół, Modbus/TCP przez scapy) - żeby przyszła lektura tamtego dokumentu
-nie odczytała rekomendacji jako wciąż aktualnej dla v1.
+While working on Phase 2 it is worth adding a note to the design research
+(technology layer) that the tshark recommendation there covers a wider scope
+(seven protocols, v2+) than the delivered scope of v1 (one protocol, Modbus/TCP
+through scapy) - so that a future reading of that document does not take the
+recommendation as still current for v1.

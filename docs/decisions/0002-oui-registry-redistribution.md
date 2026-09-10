@@ -1,116 +1,115 @@
 ---
 decision_date: 2026-09-04
-resolved_option: commit-pelnej-tabeli
+resolved_option: commit-full-table
 ---
 
-# 0002: Redystrybucja rejestru IEEE OUI w tym repozytorium
+# 0002: Redistribution of the IEEE OUI registry in this repository
 
-## Kontekst
+## Context
 
-ASSET-02 (rejestrze wymagan projektu) wymaga ustalania producenta urzadzenia
-z prefiksu adresu MAC wobec tabeli wyprowadzonej z rejestru IEEE OUI. Ta sama
-sekcja `REQUIREMENTS.md`, w bloku "Out of Scope", odrzuca plik `manuf`
-Wiresharka jako zrodlo tych danych z uzasadnieniem: plik `manuf` jest
-pochodna GPLv2 i zatruwa licencyjnie publiczne repozytorium, podczas gdy
-rejestr IEEE jest w domenie publicznej. Drugie zdanie tego uzasadnienia jest
-ZALOZENIEM PROJEKTU zapisanym przy tworzeniu wymagan (2026-09-01), nie
-faktem zweryfikowanym wobec zrodla prawnego.
+ASSET-02 (the project requirements register) requires establishing a device
+vendor from a MAC address prefix against a table derived from the IEEE OUI
+registry. The same section of `REQUIREMENTS.md`, in its "Out of Scope" block,
+rejects Wireshark's `manuf` file as a source for that data with the
+justification: the `manuf` file is a derivative of GPLv2 and licence-poisons a
+public repository, whereas the IEEE registry is in the public domain. The
+second sentence of that justification is a PROJECT ASSUMPTION recorded while
+writing the requirements (2026-09-01), not a fact verified against a legal
+source.
 
-Badanie fazy (`03-RESEARCH.md`, Pattern 6, Assumption A4, Open Question 2)
-sprawdzilo to zalozenie w tej sesji: strona IEEE Registration Authority
-(`standards.ieee.org/products-programs/regauth/`) nie podaje wprost
-warunkow redystrybucji danych rejestru OUI. Jedyna wzmianka prawna znaleziona
-na tej stronie jest ogolna nota o zastrzezeniu praw autorskich w stopce, bez
-osobnego dokumentu licencji ani warunkow uzycia dla samej listy przydzialow.
-Praktyka calej branzy narzedziowej (Wireshark, nmap, arp-scan,
-`mac-vendor-lookup`) redystrybuuje te sama liste bez osobnej licencji od
-IEEE - to jest silny sygnal branzowy, ale nie jest dowodem prawnym. Badanie
-nie znalazlo tez zadnego precedensu przeciwnego (zadania od IEEE
-o usuniecie takiej redystrybucji), ale brak znalezionego precedensu nie
-jest tym samym co jego brak w rzeczywistosci.
+The phase research (`03-RESEARCH.md`, Pattern 6, Assumption A4, Open Question
+2) checked that assumption in that session: the IEEE Registration Authority
+page (`standards.ieee.org/products-programs/regauth/`) does not state the
+conditions for redistributing OUI registry data. The only legal mention found
+on that page is a general copyright notice in the footer, with no separate
+licence document and no terms of use for the assignment list itself. The
+practice of the entire tooling industry (Wireshark, nmap, arp-scan,
+`mac-vendor-lookup`) redistributes that same list with no separate licence
+from IEEE - that is a strong industry signal, but it is not legal proof. The
+research also found no precedent to the contrary (a demand from IEEE to remove
+such a redistribution), but a precedent not found is not the same as one not
+existing.
 
-Repozytorium ma stac sie publiczne: bramka PUB-01
-(`compliance/pre-publication-review.md`) rozstrzygnela na `go` dnia
-2026-09-02. Commit danych osob trzecich do drzewa, ktore ma trafic do
-publicznego hostingu, jest w praktyce nieodwracalny - usuniecie po fakcie
-wymaga przepisania historii gita i uniewaznienia kazdego istniejacego klona.
-To jest ten sam rodzaj kosztu, dla ktorego bramka poufnosci norm z Fazy 1
-stoi PRZED pierwszym plikiem katalogu norm, a nie po nim - to powod, dla
-ktorego to rozstrzygniecie zaslugiwalo na osobny checkpoint blokujacy czlowieka
-(`03-05-PLAN.md`, Task 3, `gate="blocking-human"`), a nie na cichy wybor
-implementacyjny.
+The repository is to become public: the PUB-01 gate
+(`compliance/pre-publication-review.md`) resolved to `go` on 2026-09-02.
+Committing third-party data into a tree bound for public hosting is in practice
+irreversible - removing it after the fact requires rewriting git history and
+invalidating every existing clone. That is the same class of cost for which the
+Phase 1 standards confidentiality gate stands BEFORE the first standards
+catalogue file rather than after it - which is why this ruling deserved a
+separate blocking human checkpoint (`03-05-PLAN.md`, Task 3,
+`gate="blocking-human"`) rather than a silent implementation choice.
 
-## Rozstrzygniecie
+## Ruling
 
-Wybrana opcja: pelna tabela wyprowadzona z rejestru IEEE OUI, zacommitowana
-do repozytorium pod `src/wayside/assets/oui_table.tsv`.
+The option chosen: the full table derived from the IEEE OUI registry,
+committed to the repository under `src/wayside/assets/oui_table.tsv`.
 
-Odrzucone alternatywy: podzbior rejestru ograniczony do producentow z
-dziedziny sterowania przemyslowego (odrzucony, bo recznie utrzymywana lista
-pomijalaby producenta mozliwego do ustalenia, a inwentarz milczalby o nim
-zamiast nazwac ograniczenie - narzedzie oceny bezpieczenstwa liczy sie
-z kompletnoscia bardziej niz z rozmiarem pliku); zero danych osob trzecich
-w repozytorium, tabela budowana lokalnie przez uzytkownika (odrzucony, bo
-swiezy klon bez dostepu do sieci nie ustala wtedy producenta dla zadnego
-hosta, co lamie obietnice pracy w sieci odcietej z FOUND-01 dokladnie
-w momencie, w ktorym narzedzie ma dzialac samodzielnie).
+The rejected alternatives: a subset of the registry limited to vendors from the
+industrial control domain (rejected, because a hand-maintained list would omit
+a vendor that could have been established, and the inventory would fall silent
+about it instead of naming the limitation - a security assessment tool cares
+about completeness more than about file size); zero third-party data in the
+repository, with the table built locally by the user (rejected, because a fresh
+clone with no network access then establishes the vendor for no host at all,
+which breaks the FOUND-01 promise of working on a disconnected network exactly
+at the moment the tool is meant to work on its own).
 
-## Uzasadnienie
+## Justification
 
-Narzedzie dziala po klonie bez zadnego dodatkowego kroku i bez dostepu do
-sieci - dokladnie tak, jak obiecuje FOUND-01. Pominiecie producenta spoza
-recznie utrzymywanej listy jest gorszym trybem porazki dla narzedzia oceny
-bezpieczenstwa niz kilka megabajtow tekstu w repozytorium: cichy brak
-wpisu wyglada jak "nic tu nie ma", nie jak "wiedziano, ze tego nie da sie
-ustalic". Wybor jest zgodny z rekomendacja badania fazy i z ustalona
-praktyka calej branzy narzedziowej redystrybuujacej te sama liste.
+The tool works after cloning with no additional step and with no network access
+- exactly as FOUND-01 promises. Omitting a vendor outside a hand-maintained
+list is a worse failure mode for a security assessment tool than a few
+megabytes of text in the repository: a silently missing entry looks like
+"there is nothing here", not like "it was known that this could not be
+established". The choice follows the recommendation of the phase research and
+the established practice of the whole tooling industry redistributing that same
+list.
 
-## Ryzyko rezydualne, nazwane wprost
+## Residual risk, named outright
 
-Ta decyzja NIE rozstrzyga statusu prawnego rejestru IEEE OUI - rozstrzyga
-wylacznie to, ze projekt idzie dalej przy zalozeniu praktyki branzowej,
-swiadomie akceptujac nastepujace ryzyko:
+This decision does NOT settle the legal status of the IEEE OUI registry - it
+settles only that the project proceeds on the assumption of industry practice,
+deliberately accepting the following risk:
 
-- Warunki redystrybucji danych rejestru IEEE OUI nie zostaly potwierdzone
-  wobec zadnego zrodla prawnego - ani przez to badanie, ani wczesniej przez
-  `REQUIREMENTS.md`, ktory przyjal "domene publiczna" jako zalozenie w chwili
-  odrzucania pliku `manuf`. Jesli to zalozenie okaze sie bledne, ryzyko
-  dotyczy calej branzy narzedziowej rownolegle, nie tylko tego projektu, ale
-  to NIE jest ekspertyza prawna i nie zastepuje jej.
-- Plik `oui_table.tsv` wazy rzedu kilkudziesieciu tysiecy wierszy i trafia do
-  kazdego klona repozytorium od tego commita w przod.
-- Wycofanie tej decyzji po upublicznieniu repozytorium (PUB-01, `go`,
-  2026-09-02) wymaga przepisania historii gita i uniewaznienia kazdego
-  istniejacego klona - to nie jest zmiana odwracalna zwyklym commitem
-  odwrotnym.
+- The conditions for redistributing IEEE OUI registry data have not been
+  confirmed against any legal source - neither by this research nor earlier by
+  `REQUIREMENTS.md`, which took "public domain" as an assumption at the moment
+  of rejecting the `manuf` file. If that assumption turns out to be wrong, the
+  risk applies to the whole tooling industry in parallel, not to this project
+  alone, but this is NOT legal advice and does not substitute for it.
+- The `oui_table.tsv` file runs to tens of thousands of rows and lands in every
+  clone of the repository from this commit onward.
+- Reversing this decision after the repository is made public (PUB-01, `go`,
+  2026-09-02) requires rewriting git history and invalidating every existing
+  clone - it is not a change reversible with an ordinary revert commit.
 
-## Konsekwencje dla uzytkownika
+## Consequences for the user
 
-Swiezy klon repozytorium ustala producenta dla kazdego hosta o adresie MAC
-uniwersalnie administrowanym, obecnym w rejestrze, bez zadnego dodatkowego
-kroku i bez dostepu do sieci. Fixture'y tego projektu uzywaja adresow MAC
-lokalnie administrowanych (prefiks `02:`, poza zakresem rejestru IEEE
-z definicji), wiec pole producenta pozostaje `not-derivable-passively`
-w kazdym przebiegu na fixture'ach testowych - to jest wynik poprawny, nie
-usterka generatora ani tabeli.
+A fresh clone of the repository establishes the vendor for every host with a
+universally administered MAC address present in the registry, with no
+additional step and with no network access. The fixtures of this project use
+locally administered MAC addresses (the `02:` prefix, outside the IEEE registry
+by definition), so the vendor field stays `not-derivable-passively` in every
+run over the test fixtures - that is a correct result, not a fault of the
+generator or of the table.
 
-## Sposob egzekwowania
+## How it is enforced
 
 `tests/test_oui.py::test_decision_record_resolved_option_matches_tree_state`
-czyta pole `resolved_option` z frontmatteru tego rekordu i sprawdza, ze
-obecnosc `src/wayside/assets/oui_table.tsv` w drzewie sledzonym przez git
-odpowiada temu rozstrzygnieciu - zmiana jednego bez drugiego przerywa
-bramke testowa. Osobno, `tests/test_oui.py` zawiera dwie bramki niezalezne
-od tej decyzji: brak pliku `manuf` Wiresharka w calym drzewie repozytorium
-i brak importu sieciowego w `src/wayside/`.
+reads the `resolved_option` field from the frontmatter of this record and
+checks that the presence of `src/wayside/assets/oui_table.tsv` in the
+git-tracked tree matches that ruling - changing one without the other breaks
+the test gate. Separately, `tests/test_oui.py` carries two gates independent of
+this decision: the absence of Wireshark's `manuf` file anywhere in the
+repository tree, and the absence of a networking import under `src/wayside/`.
 
-## Droga rewizji
+## Revision path
 
-Rewizja tej decyzji w kierunku ostrozniejszym (usuniecie tabeli z
-repozytorium) wymaga aktualizacji tego rekordu z nowa data i nowym
-rozstrzygnieciem w polu `resolved_option`, przepisania historii gita, zeby
-plik faktycznie zniknal z kazdego wczesniejszego commita, oraz komunikatu do
-kazdego, kto juz sklonowal repozytorium. Potwierdzenie statusu prawnego
-rejestru IEEE OUI wobec faktycznego zrodla prawnego (nie samej praktyki
-branzowej) zamknieloby ryzyko rezydualne nazwane wyzej bez koniecznosci
-takiej rewizji.
+Revising this decision in the more cautious direction (removing the table from
+the repository) requires updating this record with a new date and a new ruling
+in the `resolved_option` field, rewriting git history so that the file actually
+disappears from every earlier commit, and a message to everyone who has already
+cloned the repository. Confirming the legal status of the IEEE OUI registry
+against an actual legal source (rather than industry practice alone) would
+close the residual risk named above without any such revision.

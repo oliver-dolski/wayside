@@ -1,106 +1,107 @@
 ---
 decision_date: 2026-09-09
-resolved_option: wyjatek-zawezony-plus-doprecyzowanie-kryterium
+resolved_option: narrowed-exemption-plus-criterion-clarification
 ---
 
-# 0008: Doprecyzowanie kryterium czwartego fazy publikacji i wyjatek dla nazwy wlasnej
+# 0008: Clarifying criterion four of the publication phase and the proper name exemption
 
-## Kontekst
+## Context
 
-Kryterium 4 fazy 5 w brzmieniu pierwotnym zada przegladu calej historii
-repozytorium pod katem adresacji, nazw urzadzen, sygnatur i nazwy wlasnej
-projektu, ktorego repozytorium ten projekt zastapil, "bez trafien". Audyt
-trzech powierzchni calej historii (plan `05-04`, zadanie 1) wykryl, ze jedna
-z czterech klas wzorcow - nazwa wlasna tamtego projektu - wystepuje
-w sledzonym drzewie w piatym miejscu, z powodu, ktorego kryterium
-w pierwotnym brzmieniu nie przewidywalo.
+Criterion 4 of phase 5, in its original wording, demanded a review of the entire
+repository history for addressing, device names, signatures and the proper name
+of the project this repository replaced, "with no hits". The audit of three
+surfaces of the whole history (plan `05-04`, task 1) found that one of the four
+pattern classes - the proper name of that project - appears in the tracked tree
+in five places, for a reason the criterion in its original wording did not
+foresee.
 
-Ustalone fakty, zmierzone w tej sesji, zapisane jako ustalenia, nie jako
-opinie:
+Established facts, measured in that session, recorded as findings rather than as
+opinions:
 
-- Wszystkie piec wystapien w sledzonym drzewie to TRESC SAMEGO ZAKAZU:
-  tekst wymagania PUB-05 (`REQUIREMENTS.md`), wstep i kryterium 4 fazy 5
-  (`ROADMAP.md`), oraz prohibicja przy wymaganiu ASSET-05 w planie fazy 3
-  (`03-02-PLAN.md`).
-- Zadnego kodu, schematu, adresacji ani sygnatury pochodzacej z tamtego
-  projektu w repozytorium nie ma.
-- W komunikatach commitow ta nazwa nie wystepuje ani razu - fakt zmierzony
-  wprost przebiegiem powierzchni drugiej audytu (`git log --all --format=%B`
-  przez cztery reguly ksztaltu warstwy tozsamosciowej), nie zalozony.
+- All five occurrences in the tracked tree are THE TEXT OF THE PROHIBITION
+  ITSELF: the text of requirement PUB-05 (`REQUIREMENTS.md`), the introduction
+  and criterion 4 of phase 5 (`ROADMAP.md`), and the prohibition attached to
+  requirement ASSET-05 in the phase 3 plan (`03-02-PLAN.md`).
+- No code, schema, addressing or signature originating from that project exists
+  in this repository.
+- The name appears in commit messages not once - a fact measured directly by the
+  second surface pass of the audit (`git log --all --format=%B` through the four
+  shape rules of the identity layer), not assumed.
 
-## Rozstrzygniecie
+## Ruling
 
-Nazwa idzie na jawna liste wyjatkow `.confidentiality-allow`, wyjatkiem
-ZAWEZONYM do jednej reguly (`identity-project-name`) i do trzech sciezek
-(katalog artefaktow planowania, sam plik listy wyjatkow, sam plik bramki -
-wpisy dodane w planie `05-03`). Kryterium 4 fazy 5 zostaje doprecyzowane
-fraza o braku trafien POZA jawna lista wyjatkow w `.confidentiality-allow`,
-razem z odeslaniem do tego rekordu.
+The name goes onto the explicit exemption list `.confidentiality-allow`, as an
+exemption NARROWED to one rule (`identity-project-name`) and to three paths (the
+planning artifact directory, the exemption list file itself, and the gate file
+itself - entries added in plan `05-03`). Criterion 4 of phase 5 is clarified
+with a phrase about no hits OUTSIDE the explicit exemption list in
+`.confidentiality-allow`, together with a pointer to this record.
 
-Odrzucona alternatywa: przepisanie historii narzedziem do tego przeznaczonym
-(`git filter-repo`). Taka operacja zmienialaby skrot niemal kazdego commita
-w repozytorium (piec wystapien wsrod dwustu kilkudziesieciu commitow, ale
-przepisanie jednego commita przepisuje skroty wszystkich commitow po nim) -
-przez co pola z powolaniami na commity w kazdym pliku SUMMARY dotychczasowych
-planow i w `STATE.md` przestalyby wskazywac istniejace obiekty, przy zerowej
-wartosci: usuniecie nazwy z tekstu wlasnego zakazu nie usuwa zadnej informacji
-o tamtym projekcie, bo zadnej takiej informacji tam nie ma.
+The rejected alternative: rewriting the history with the tool made for it (`git
+filter-repo`). Such an operation would change the digest of nearly every commit
+in the repository (five occurrences among a couple of hundred commits, but
+rewriting one commit rewrites the digests of every commit after it) - which
+would leave the commit reference fields in every SUMMARY file of the plans so
+far and in `STATE.md` pointing at objects that no longer exist, for zero value:
+removing the name from the text of one's own prohibition removes no information
+about that project, because no such information is there.
 
-## Uzasadnienie
+## Justification
 
-Fakt, ze nazwa wystepuje WYLACZNIE w tresci wlasnego zakazu, jest argumentem
-NA KORZYSC autora, nie przeciw niemu - pokazuje, ze granica miedzy dwoma
-projektami zostala postawiona swiadomie i zapisana w wymaganiach, zanim
-powstala pierwsza linia kodu tego repozytorium. Wyjatek nie ukrywa niczego:
-kazde wystapienie jest publicznie czytelne w tekscie wymagania, kryterium
-i prohibicji, ktore ten sam wyjatek opisuje.
+The fact that the name appears ONLY in the text of one's own prohibition is an
+argument IN THE AUTHOR'S FAVOUR, not against them - it shows that the boundary
+between the two projects was drawn deliberately and written into the
+requirements before the first line of code in this repository existed. The
+exemption hides nothing: every occurrence is publicly readable in the text of
+the requirement, the criterion and the prohibition that the same exemption
+describes.
 
-Zawezenie wyjatku do jednej reguly (nie do calej warstwy tozsamosciowej) jest
-celowe: adres z sieci pracodawcy albo nazwa urzadzenia w ktoryms z trzech
-wyjetych plikow dalej zapala pozostale cztery reguly tej warstwy. Wyjatek
-dotyczy WYLACZNIE nazwy wlasnej, nigdy adresacji ani sygnatur urzadzen.
+Narrowing the exemption to one rule (rather than to the whole identity layer) is
+deliberate: an address from the employer's network or a device name in any of
+the three exempted files still fires the other four rules of that layer. The
+exemption covers ONLY the proper name, never addressing and never device
+signatures.
 
-## Ryzyko rezydualne, nazwane wprost
+## Residual risk, named outright
 
-- Wyjatek jest miejscem, w ktorym bramka SWIADOMIE nie patrzy. Przyszly
-  czytelnik listy wyjatkow, ktory nie przeczyta uzasadnienia nad wpisem,
-  moze odczytac go jako furtke - dlatego wyjatek jest zawezony do jednej
-  reguly i trzech konkretnych sciezek, a nie do calego katalogu planowania
-  ani do calej warstwy, i dlatego uzasadnienie nad wpisem mowi to wprost.
-- Doprecyzowanie kryterium 4 jest zmiana tekstu, na ktory powoluje sie
-  weryfikator fazy - cofniecie tej decyzji wymagaloby ponownego przejscia
-  bramki weryfikacyjnej fazy (ocena odwracalnosci: costly, `05-CONTEXT.md`
-  D-23).
-- Rozstrzygniecie zaklada, ze piec ustalonych wystapien pozostanie
-  jedynymi - kazde NOWE wystapienie tej nazwy poza trzema wyjetymi sciezkami
-  dalej jest naruszeniem bramki biezacej i audytu historii, bez wzgledu na to
-  rozstrzygniecie.
+- An exemption is a place where the gate DELIBERATELY does not look. A future
+  reader of the exemption list who does not read the justification above the
+  entry may take it for a loophole - which is why the exemption is narrowed to
+  one rule and three specific paths rather than to the whole planning directory
+  or the whole layer, and why the justification above the entry says so
+  outright.
+- Clarifying criterion 4 is a change to text the phase verifier relies on -
+  reversing this decision would require passing the phase verification gate
+  again (reversibility assessment: costly, `05-CONTEXT.md` D-23).
+- The ruling assumes the five established occurrences will remain the only ones
+  - every NEW occurrence of that name outside the three exempted paths is still a
+  violation of the current gate and of the history audit, regardless of this
+  ruling.
 
-## Konsekwencje dla uzytkownika
+## Consequences for the user
 
-Czytelnik repozytorium, ktory przeczyta wymaganie PUB-05, kryterium 4 fazy 5
-albo `.confidentiality-allow`, zobaczy nazwe projektu, ktorego to
-repozytorium zastapilo, wylacznie w kontekscie wyjasniajacym, dlaczego
-granica poufnosci miedzy dwoma projektami zostala postawiona. Nic w tym
-repozytorium nie pochodzi z tamtego projektu poza sama jego nazwa uzyta jako
-przyklad granicy.
+A reader of the repository who reads requirement PUB-05, criterion 4 of phase 5
+or `.confidentiality-allow` will see the name of the project this repository
+replaced only in a context explaining why the confidentiality boundary between
+the two projects was drawn. Nothing in this repository comes from that project
+apart from its name itself, used as an example of a boundary.
 
-## Sposob egzekwowania
+## How it is enforced
 
-Trzy mechanizmy maszynowe naraz: zawezony wpis `identity-path:identity-project-name:...`
-w `.confidentiality-allow` (plan `05-03`); skan trzech powierzchni calej
-historii wolajacy te sama regule wyjatkow (plan `05-04`, zadanie 1); oraz
-bramka ksztaltu rekordu audytu (`scripts/check_history_audit_gate.py`),
-ktora wymaga, zeby pole `rules_checked` rekordu wymienialo dokladnie zbior
-regul faktycznie sprawdzonych - rozszerzenie warstwy tozsamosciowej o kolejna
-regule wymaga rozszerzenia tej listy w dwoch miejscach naraz, inaczej rekord
-twierdzi wiecej, niz skan sprawdzil.
+Three machine mechanisms at once: the narrowed
+`identity-path:identity-project-name:...` entry in `.confidentiality-allow`
+(plan `05-03`); the scan of three surfaces of the whole history calling that
+same exemption rule (plan `05-04`, task 1); and the audit record shape gate
+(`scripts/check_history_audit_gate.py`), which requires the record's
+`rules_checked` field to list exactly the set of rules actually checked -
+extending the identity layer with another rule requires extending that list in
+two places at once, otherwise the record claims more than the scan checked.
 
-## Droga rewizji
+## Revision path
 
-Rozstrzygniecie wymaga ponownego przegladu, gdy zajdzie ktorekolwiek
-z ponizszych: audyt trzech powierzchni znajdzie NOWE wystapienie nazwy poza
-trzema wyjetymi sciezkami; ktoras z trzech wyjetych sciezek zacznie niesc
-tresc INNA niz sam tekst zakazu (kod, schemat, adresacje, sygnature); albo
-zapadnie decyzja o przepisaniu historii z innego powodu, co przy okazji
-usuwaloby tez te piec wystapien.
+The ruling requires a fresh review when any of the following occurs: the audit of
+three surfaces finds a NEW occurrence of the name outside the three exempted
+paths; any of the three exempted paths starts carrying content OTHER than the
+text of the prohibition itself (code, a schema, addressing, a signature); or a
+decision to rewrite the history is taken for another reason, which would remove
+those five occurrences along the way.

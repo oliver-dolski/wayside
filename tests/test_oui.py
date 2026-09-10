@@ -468,7 +468,7 @@ def test_committed_oui_table_loads_without_raising_and_is_non_empty():
 
 _RESOLVED_OPTION_RE = re.compile(r"^resolved_option:\s*(\S+)\s*$", re.MULTILINE)
 _KNOWN_OPTIONS = frozenset(
-    {"commit-pelnej-tabeli", "commit-podzbioru-ot", "bez-danych-w-repo"}
+    {"commit-full-table", "commit-ot-subset", "no-data-in-repo"}
 )
 
 
@@ -486,17 +486,17 @@ def test_decision_record_resolved_option_matches_tree_state():
     text = DECISION_RECORD_PATH.read_text(encoding="utf-8")
     match = _RESOLVED_OPTION_RE.search(text)
     assert match is not None, (
-        "Rekord decyzji 0002 nie niesie pola 'resolved_option' w frontmatterze."
+        "Decision record 0002 does not carry a 'resolved_option' field in its frontmatter."
     )
     resolved_option = match.group(1)
     assert resolved_option in _KNOWN_OPTIONS, (
-        f"Pole 'resolved_option' niesie wartosc spoza trzech opcji checkpointu: "
-        f"{resolved_option!r}."
+        f"The 'resolved_option' field carries a value outside the three "
+        f"checkpoint options: {resolved_option!r}."
     )
 
     table_tracked = _is_git_tracked(OUI_TABLE_PATH)
 
-    if resolved_option in {"commit-pelnej-tabeli", "commit-podzbioru-ot"}:
+    if resolved_option in {"commit-full-table", "commit-ot-subset"}:
         assert OUI_TABLE_PATH.exists(), (
             "Rozstrzygniecie zaklada obecnosc tabeli producentow na dysku, "
             "a pliku tam nie ma."

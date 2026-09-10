@@ -1,0 +1,61 @@
+name: Wrong citation
+description: A clause number, designation or edition in the standards catalogue is wrong.
+labels: ["citation"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This is the most valuable kind of issue this project can get, and it
+        comes with one hard rule: **do not paste the text of the standard**.
+        Name the designation and the clause, say what is wrong, and stop
+        there. An issue is a public page, and these documents are paid.
+
+  - type: input
+    id: designation
+    attributes:
+      label: Designation and edition
+      description: For example IEC 62443-3-3:2013 or CLC/TS 50701:2023.
+    validations:
+      required: true
+
+  - type: input
+    id: clause
+    attributes:
+      label: The clause as this repository carries it
+      description: >-
+        The clause identifier as it appears in the standards catalogue or in a
+        report, for example SR 1.2.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong
+      options:
+        - The clause number does not say what this repository claims it says
+        - The clause number does not exist in that edition
+        - The designation or the edition is wrong
+        - The scope description is close enough to the source text to be a problem
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: What it should be
+      description: >-
+        In your own words. If the correct clause is a different number, the
+        number alone is enough; the maintainer collates it against a copy
+        before anything changes.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: no-verbatim
+    attributes:
+      label: Confirmation
+      options:
+        - label: This issue carries no text copied out of the standard.
+          required: true

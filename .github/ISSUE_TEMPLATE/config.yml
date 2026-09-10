@@ -1,0 +1,13 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/oliver-dolski/wayside/security/advisories/new
+    about: >-
+      A vulnerability in this tool goes through private reporting in the
+      Security tab, never through a public issue. SECURITY.md describes both
+      routes and the boundary between them.
+  - name: A finding in someone else's network
+    url: https://github.com/oliver-dolski/wayside/blob/main/SECURITY.md
+    about: >-
+      The author does not mediate reports about other people's installations.
+      SECURITY.md names the three routes that belong to the reporter.

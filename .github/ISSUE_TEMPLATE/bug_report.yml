@@ -1,0 +1,60 @@
+name: Bug report
+description: The tool did something other than what it says it does.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Before you fill this in: a vulnerability does not belong here, it goes
+        through private reporting in the Security tab. And no capture from a
+        network you do not own belongs in an issue, attachment or paste
+        included.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command you ran
+      description: The full command line, including flags and the output directory.
+      render: powershell
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened, and what you expected instead
+      description: >-
+        Paste what the tool printed. If the run produced artifacts, say which
+        of them are wrong and in what way.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `uv run wayside --version`.
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: >-
+        Operating system and shell. The project targets Windows 11 with
+        Windows PowerShell 5.1; anything else is useful to know up front.
+    validations:
+      required: true
+
+  - type: textarea
+    id: capture
+    attributes:
+      label: The capture
+      description: >-
+        A synthetic capture that triggers the problem is the most useful thing
+        you can attach. If you cannot share one, describe the shape of the
+        packets instead: protocol, function codes, how many sessions, how many
+        parties.
+    validations:
+      required: false

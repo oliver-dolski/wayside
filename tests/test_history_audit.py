@@ -1,39 +1,39 @@
-"""Audyt PUB-05: skan TRZECH powierzchni CALEJ historii repozytorium.
+"""Audit PUB-05: a scan of THREE surfaces of the WHOLE repository history.
 
-Dlaczego trzy powierzchnie, nie jedna: nazwa urzadzenia albo adres moze
-siedziec w NAZWIE PLIKU albo w OPISIE COMMITA, czego skan po tresci drzew
-(`git grep`) nigdy nie zobaczy. `tests/test_no_history_leak.py` (obok, bez
-znacznika wolnego, bo jest tani) pokrywa dzis wylacznie sciezke
-`standards/.local` i wylacznie dwie z tych trzech powierzchni. Ten modul
-domyka trzecia (nazwy plikow) i rozciaga wszystkie trzy na CALY zbior
-wzorcow tozsamosciowych warstwy 4 (D-19, D-20).
+Why three surfaces and not one: a device name or an address may sit in a FILE
+NAME or in a COMMIT MESSAGE, which a scan over tree content (`git grep`) never
+sees. `tests/test_no_history_leak.py` (alongside, without the slow marker,
+because it is cheap) covers only the `standards/.local` path today and only
+two of these three surfaces. This module closes the third (file names) and
+stretches all three over the WHOLE set of layer 4 identity patterns (D-19,
+D-20).
 
-Dlaczego kazda powierzchnia jest OSOBNYM skanem z OSOBNYM parsowaniem: trzy
-polecenia gita (`git grep`, `git log --format=%B`, `git ls-tree --name-only`)
-maja trzy rozne ksztalty wyjscia (Pitfall 3 badania fazy 5, potwierdzone
-przebiegiem na tej maszynie, nie zalozone) - naiwne zlaczenie ich w jeden
-ciag do przeszukania regexem miesza kontekst (nazwa pliku z jednego commita
-moglaby "polaczyc sie" wizualnie z trescia innego). Kazda funkcja ponizej
-parsuje WYLACZNIE wyjscie WLASNEGO polecenia.
+Why every surface is a SEPARATE scan with SEPARATE parsing: the three git
+commands (`git grep`, `git log --format=%B`, `git ls-tree --name-only`) have
+three different output shapes (Pitfall 3 of the phase 5 research, confirmed by
+a run on this machine rather than assumed) - naively joining them into one
+string to search with a regex mixes contexts (a file name from one commit
+could "join up" visually with the content of another). Every function below
+parses the output of ITS OWN command ONLY.
 
-Caly modul stoi obok istniejacego testu jednej sciezki
-(`tests/test_no_history_leak.py`), ktory zostaje BEZ znacznika wolnego, bo
-jest tani (dwa proste wywolania gita). Ten modul jest drogi (trzy
-powierzchnie razy caly zbior rewizji, jedno wywolanie gita na rewizje dla
-powierzchni trzeciej - Z-98), wiec nosi znacznik `slow` (D-22): pomijany
-domyslnie lokalnie (filtr w `pyproject.toml`), wlaczany jawnie WYLACZNIE
-w jobie CI `confidentiality-backstop`, ktory ma checkout z pelna historia.
+The whole module stands alongside the existing single-path test
+(`tests/test_no_history_leak.py`), which stays WITHOUT the slow marker because
+it is cheap (two simple git calls). This module is expensive (three surfaces
+times the whole set of revisions, one git call per revision for the third
+surface - Z-98), so it carries the `slow` marker (D-22): skipped by default
+locally (the filter in `pyproject.toml`), enabled explicitly ONLY in the CI
+job `confidentiality-backstop`, which has a checkout with the full history.
 
-Skan jest wylacznie ODCZYTEM: nie tworzy zadnego obiektu gita, nie rusza
-zadnej referencji, nie zmienia drzewa roboczego (patrz
-`test_scan_does_not_change_repository_state` nizej).
+The scan is a READ ONLY: it creates no git object, touches no reference and
+changes nothing in the working tree (see
+`test_scan_does_not_change_repository_state` below).
 
-DYSCYPLINA TRESCI tego modulu (ten sam kontrakt, co `Violation` w
-`confidentiality_guard.py`): zadna funkcja ponizej nie zwraca ani nie
-raportuje dopasowanego fragmentu tresci. Trafienie niesie WYLACZNIE rewizje,
-identyfikator reguly, i adres wlasciwy dla powierzchni (sciezka+linia dla
-tresci drzew, sama rewizja dla komunikatu commita, nazwa pliku dla nazw
-plikow) - nigdy tresc linii ani wartosc dopasowania.
+THE CONTENT DISCIPLINE of this module (the same contract as `Violation` in
+`confidentiality_guard.py`): no function below returns or reports the matched
+fragment of content. A hit carries ONLY the revision, the rule identifier and
+the address proper to the surface (path plus line for tree content, the
+revision alone for a commit message, the file name for file names) - never the
+content of the line nor the value of the match.
 """
 
 from __future__ import annotations
@@ -49,41 +49,42 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-# Powod tego importu (nie kopii wzorcow): D-19 wymaga JEDNEJ listy wzorcow
-# tozsamosciowych dla bramki biezacej i dla audytu przeszlosci. Druga kopia
-# tych samych czterech wzorcow w tym pliku rozjechalaby sie z pierwsza przy
-# pierwszej kolejnej zmianie ktoregos z nich (dokladnie ten blad, ktoremu
-# D-19 ma zapobiegac).
+# The reason for this import (rather than a copy of the patterns): D-19
+# demands ONE list of identity patterns for the gate over the present and for
+# the audit of the past. A second copy of those same four patterns in this file
+# would drift from the first at the next change to any of them (exactly the bug
+# D-19 is meant to prevent).
 import confidentiality_guard as guard  # noqa: E402
 
 pytestmark = [pytest.mark.slow, pytest.mark.integration]
 
-# --- Stale modulu ------------------------------------------------------------
+# --- Module constants -------------------------------------------------------
 
 HISTORY_SURFACES: tuple[str, str, str] = ("tree-content", "commit-message", "file-name")
 
 RECORD_PATH: Path = REPO_ROOT / "compliance" / "history-audit.md"
 
-# Cztery reguly KSZTALTU warstwy tozsamosciowej - te same, ktore README opisuje
-# jako dzialajace "bez zadnego lokalnego materialu, a wiec takze w CI". Piata
-# regula (`identity-local-literal`, `IDENTITY_RULE_IDS[-1]`) dziala WYLACZNIE
-# lokalnie z pliku gitignorowanego (rozstrzygniecie R-2, plan 05-03) i audyt
-# historii - ktory ma dzialac w CI, gdzie ten plik z zalozenia nie istnieje -
-# swiadomie jej nie obejmuje: `scan_text_identity` wolane ponizej NIGDY nie
-# przekazuje `local_literals`, wiec regula piata nie ma z czego dac trafienia.
+# The four SHAPE rules of the identity layer - the same ones the README
+# describes as working "without any local material, and therefore in CI too".
+# The fifth rule (`identity-local-literal`, `IDENTITY_RULE_IDS[-1]`) works ONLY
+# locally from a gitignored file (decision R-2, plan 05-03), and the history
+# audit - which has to run in CI, where that file by design does not exist -
+# deliberately does not cover it: `scan_text_identity` as called below NEVER
+# passes `local_literals`, so the fifth rule has nothing to produce a hit
+# from.
 HISTORY_IDENTITY_RULE_IDS: tuple[str, ...] = guard.IDENTITY_RULE_IDS[:-1]
 
-# Wyrazenie ZGRUBNE (rozszerzone, BEZ spojrzen wstecz - zalozenie Z-97) dla
-# przesiewu przez `git grep --extended-regexp`. Powod przesiewu zgrubnego:
-# precyzyjne wzorce warstwy tozsamosciowej (`PRIVATE_IPV4_PATTERN`) niosa
-# negatywne spojrzenia wstecz, ktore wymagaja od gita silnika wyrazen zgodnego
-# z biblioteka rozszerzona (PCRE) - jego dostepnosc zalezy od tego, jak git
-# zostal zbudowany, i nie jest wlasnoscia, na ktora ta bramka moze liczyc.
-# Przesiew zgrubny (bez spojrzen wstecz, wiec dzialajacy na KAZDYM zbudowanym
-# gicie) plus dopasowanie precyzyjne w Pythonie nad kazda zgrubnie trafiona
-# linia daje ten sam wynik bez tej zaleznosci. Nadmiarowe trafienia zgrubne
-# (np. "ap" wewnatrz innego slowa razem z cyfra) sa oczekiwane i nieszkodliwe -
-# odsiewa je dopiero precyzyjny wzorzec w Pythonie.
+# A COARSE expression (extended, WITHOUT lookbehinds - assumption Z-97) for
+# the sieve run through `git grep --extended-regexp`. The reason for a coarse
+# sieve: the precise patterns of the identity layer (`PRIVATE_IPV4_PATTERN`)
+# carry negative lookbehinds, which demand of git a regex engine compatible
+# with the extended library (PCRE) - its availability depends on how git was
+# built and is not a property this gate can count on. A coarse sieve (without
+# lookbehinds, and therefore working on EVERY build of git) plus precise
+# matching in Python over every coarsely matched line gives the same result
+# without that dependency. Excess coarse hits (say "ap" inside another word
+# next to a digit) are expected and harmless - it is the precise pattern in
+# Python that sifts them out.
 COARSE_SIEVE_PATTERN = (
     r"(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}"
     r"|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}"
@@ -93,38 +94,38 @@ COARSE_SIEVE_PATTERN = (
     r"|railguard)"
 )
 
-# Kontrakt naprawy (D-24), rozciagniety z JEDNEJ sciezki (`standards/.local`,
-# `tests/test_no_history_leak.py::REMEDIATION_MESSAGE`) na WSZYSTKIE wzorce
-# tozsamosciowe: trafienie w historii to zakaz publicznego pushu, a droga
-# naprawy to przepisanie historii, nigdy kolejny commit. Jesli publiczny push
-# juz sie odbyl, przepisanie historii nie cofa faktu, ze tresc mogla zostac
-# zescrapowana albo zmirrorowana. To samo brzmienie stoi w README i (po
-# zadaniu 2) w rekordzie audytu.
+# The remediation contract (D-24), stretched from ONE path
+# (`standards/.local`, `tests/test_no_history_leak.py::REMEDIATION_MESSAGE`) to
+# ALL the identity patterns: a hit in the history is a bar on a public push,
+# and the route to remediation is rewriting the history, never another commit.
+# If a public push has already happened, rewriting the history does not undo
+# the fact that the content may have been scraped or mirrored. The same wording
+# stands in the README and (since task 2) in the audit record.
 REMEDIATION_MESSAGE = (
-    "Trafienie wzorca warstwy tozsamosciowej w historii repozytorium (tresc "
-    "drzewa, komunikat commita albo nazwa pliku). To NIE jest sytuacja do "
-    "naprawienia kolejnym commitem - tresc juz jest w historii. Wymagane "
-    "jest przepisanie historii przez `git filter-repo` PRZED jakimkolwiek "
-    "publicznym pushem. Jesli publiczny push juz sie odbyl, przepisanie "
-    "historii nie cofa faktu, ze tresc mogla zostac zescrapowana albo "
-    "zmirrorowana."
+    "A hit of an identity layer pattern in the repository history (tree "
+    "content, a commit message or a file name). This is NOT a situation to be "
+    "fixed by another commit - the content is already in the history. "
+    "Rewriting the history with `git filter-repo` is required BEFORE any "
+    "public push. If a public push has already happened, rewriting the "
+    "history does not undo the fact that the content may have been scraped "
+    "or mirrored."
 )
 
 _COMMIT_RECORD_SEP = "\x00"
 _COMMIT_FIELD_SEP = "\x1f"
 
 
-# --- Wywolania gita -----------------------------------------------------------
+# --- Git calls --------------------------------------------------------------
 
 
 def _run_git(args: list[str]) -> str:
-    """Wolanie gita z wymogiem ZEROWEGO kodu wyjscia - ten sam idiom
-    podprocesu, co `tests/test_no_history_leak.py::_run_git`, z jednym
-    swiadomym rozszerzeniem: jawne `encoding="utf-8"` (z `errors="replace"`
-    na nieprzewidziany bajt), bo w odroznieniu od tamtego testu (sciezki
-    ASCII) ten modul czyta tresc drzew i komunikaty commitow, ktore niosa
-    polskie znaki diakrytyczne - poleganie na kodowaniu domyslnym danej
-    maszyny psuloby dopasowanie wzorcow na Windows.
+    """A git call requiring a ZERO exit code - the same subprocess idiom as
+    `tests/test_no_history_leak.py::_run_git`, with one deliberate widening: an
+    explicit `encoding="utf-8"` (with `errors="replace"` for an unforeseen
+    byte), because unlike that test (ASCII paths) this module reads tree
+    content and commit messages, which carry characters outside ASCII - relying
+    on the default encoding of a given machine would break pattern matching on
+    Windows.
     """
     result = subprocess.run(
         ["git", *args],
@@ -138,11 +139,10 @@ def _run_git(args: list[str]) -> str:
 
 
 def _run_git_grep(args: list[str]) -> str:
-    """Jak `_run_git`, ale dla `git grep`: kod wyjscia 1 (brak trafien) NIE
-    jest bledem - to jest wynik prawidlowy, oznaczajacy "przesiew zgrubny nie
-    znalazl niczego". Kazdy INNY niezerowy kod (zly argument, uszkodzone
-    drzewo) konczy test porazka niosaca wyjscie bledu, nigdy cichym
-    pominieciem.
+    """Like `_run_git`, but for `git grep`: exit code 1 (no hits) is NOT an
+    error - it is a valid result, meaning "the coarse sieve found nothing".
+    Every OTHER non-zero code (a bad argument, a corrupted tree) ends the test
+    as a failure carrying the error output, never as a silent skip.
     """
     result = subprocess.run(
         ["git", *args],
@@ -153,35 +153,37 @@ def _run_git_grep(args: list[str]) -> str:
     )
     if result.returncode not in (0, 1):
         raise AssertionError(
-            f"git {' '.join(args)} zakonczylo sie kodem {result.returncode}: "
+            f"git {' '.join(args)} exited with code {result.returncode}: "
             f"{result.stderr}"
         )
     return result.stdout
 
 
 def _all_revisions() -> list[str]:
-    """Lista rewizji osiagalnych ze WSZYSTKICH referencji (`git rev-list
-    --all`). Pusta lista jest stanem BLEDU (historia bez ani jednego commita
-    nie ma czego audytowac), nie zielonym przebiegiem - stad `raise`, nie
-    ciche `return []`.
+    """The list of revisions reachable from ALL references (`git rev-list
+    --all`). An empty list is an ERROR state (a history without a single commit
+    has nothing to audit), not a green run - hence the `raise` rather than a
+    silent `return []`.
     """
     output = _run_git(["rev-list", "--all"])
     revisions = [line.strip() for line in output.splitlines() if line.strip()]
     if not revisions:
         raise AssertionError(
-            "git rev-list --all zwrocilo pusta liste rewizji - audyt "
-            "historii nie ma czego skanowac; to jest stan bledu, nie sukces."
+            "git rev-list --all returned an empty list of revisions - the "
+            "history audit has nothing to scan; that is an error state, not a "
+            "success."
         )
     return revisions
 
 
 def _commit_object_exists(sha: str) -> bool:
-    """Sprawdza, czy `sha` wskazuje ISTNIEJACY obiekt commita. Ta sama
-    kontrola, ktora bramka rekordu audytu (zadanie 2, `check_history_audit_gate.py`)
-    stosuje do pola `head_sha` zapisanego rekordu - wydzielona tu jako
-    samodzielna jednostka logiki i testowana ponizej na przykladzie znanym
-    z gory (biezacy HEAD), zanim rekord audytu (ktory ta funkcja ma
-    docelowo weryfikowac) w ogole zacznie istniec (powstaje w zadaniu 2).
+    """Checks whether `sha` points at an EXISTING commit object. The same
+    check the audit record gate (task 2, `check_history_audit_gate.py`) applies
+    to the `head_sha` field of the recorded audit - extracted here as a
+    standalone unit of logic and tested below over an example known in advance
+    (the present HEAD), before the audit record (which this function is meant
+    to verify eventually) even begins to exist (it comes into being in
+    task 2).
     """
     result = subprocess.run(
         ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
@@ -191,26 +193,24 @@ def _commit_object_exists(sha: str) -> bool:
     return result.returncode == 0
 
 
-# --- Powierzchnia pierwsza: tresc drzew ---------------------------------------
+# --- Surface one: tree content ----------------------------------------------
 
 
 def _tree_content_hits() -> list[tuple[str, str, int, str]]:
-    """Powierzchnia pierwsza: tresc drzew wszystkich rewizji.
+    """Surface one: the tree content of every revision.
 
-    Jedno wywolanie `git grep` nad WSZYSTKIMI rewizjami naraz, wyrazeniem
-    ZGRUBNYM (`COARSE_SIEVE_PATTERN`). `-I` wymusza traktowanie plikow
-    binarnych jako binarnych - ich tresc nigdy nie trafia do wyjscia (wiec
-    audyt tresci drzew, tak jak sam skrypt bramki, nie obejmuje plikow
-    binarnych - to jest ta sama, juz znana granica, ktora README nazywa
-    wprost dla bramki biezacej).
+    One `git grep` call over ALL revisions at once, with the COARSE expression
+    (`COARSE_SIEVE_PATTERN`). `-I` forces binary files to be treated as binary -
+    their content never reaches the output (so the tree content audit, like the
+    gate script itself, does not cover binary files - the same already known
+    boundary the README names outright for the gate over the present).
 
-    Kazda zgrubnie trafiona linia idzie POTEM przez precyzyjna warstwe
-    tozsamosciowa (`scan_text_identity`) - przesiew zgrubny wylacznie ZAWEZA
-    liczbe linii do sprawdzenia, nigdy sam w sobie nie jest werdyktem.
-    Zwracana krotka niesie rewizje, sciezke i numer linii Z WYJSCIA GITA
-    (nie z wewnetrznego liczenia `scan_text_identity`, ktore dla
-    pojedynczej linii zawsze zwrocilyby 1) - to jest adres trafienia
-    wlasciwy dla tej powierzchni.
+    Every coarsely matched line then goes through the precise identity layer
+    (`scan_text_identity`) - the coarse sieve only NARROWS the number of lines
+    to check, it is never a verdict in itself. The returned tuple carries the
+    revision, the path and the line number FROM GIT'S OUTPUT (not from the
+    internal counting of `scan_text_identity`, which for a single line would
+    always return 1) - that is the hit address proper to this surface.
     """
     revisions = _all_revisions()
     output = _run_git_grep(
@@ -246,34 +246,36 @@ def _tree_content_hits() -> list[tuple[str, str, int, str]]:
     return hits
 
 
-# --- Powierzchnia druga: komunikaty commitow ----------------------------------
+# --- Surface two: commit messages -------------------------------------------
 
 
 def _commit_message_hits() -> list[tuple[str, str]]:
-    """Powierzchnia druga: komunikaty commitow wszystkich rewizji.
+    """Surface two: the commit messages of every revision.
 
-    Jedno wywolanie `git log --all`, w formacie, w ktorym KAZDY rekord
-    (commit) jest ograniczony bajtem zerowym (`\\x00`), a WEWNATRZ rekordu
-    skrot i tresc komunikatu sa rozdzielone znakiem separatora jednostki
-    (`\\x1f`, ASCII Unit Separator). Ksztalt POTWIERDZONY przebiegiem na tej
-    maszynie (nie zalozony): kazdy rekord poza pierwszym niesie wiodacy znak
-    nowej linii (git dopisuje go po kazdym wpisie formatu), stad
-    `record.lstrip("\\n")` przed rozdzieleniem na skrot i tresc.
+    One `git log --all` call, in a format where EVERY record (commit) is
+    delimited by a zero byte (`\\x00`), and WITHIN a record the hash and the
+    message body are separated by the unit separator character (`\\x1f`, the
+    ASCII Unit Separator). The shape was CONFIRMED by a run on this machine
+    (not assumed): every record but the first carries a leading newline (git
+    appends one after each format entry), hence the `record.lstrip("\\n")`
+    before splitting into the hash and the body.
 
-    Wyjatkow sciezki (`identity-path:...`) NIE stosuje (zalozenie Z-99):
-    komunikat commita nie ma sciezki, wiec nie ma czym do nich pasowac -
-    komunikat commita ma przez to dyscypline SCISLEJSZA niz plik pod
-    katalogiem planowania, i to jest wlasciwe, bo komunikatu nie da sie
-    poprawic bez przepisania historii. Deklaracje wartosci adresowych
-    (`identity-value:...`) stosuje, bo te dotycza WARTOSCI, nie sciezki.
+    It does NOT apply the path exceptions (`identity-path:...`) (assumption
+    Z-99): a commit message has no path, so there is nothing for them to match
+    against - a commit message therefore carries a STRICTER discipline than a
+    file under the planning directory, and that is right, because a message
+    cannot be corrected without rewriting the history. It does apply the
+    address value declarations (`identity-value:...`), because those concern
+    VALUES rather than paths.
     """
-    # UWAGA: `%x1f` i `%x00` ponizej sa DOSLOWNYM tekstem argumentu (dyrektywy
-    # formatu gita each wstawiajace jeden bajt do WYJSCIA) - to NIE to samo,
-    # co wstawienie prawdziwego bajtu zerowego DO SAMEGO ARGUMENTU polecenia
-    # (`_COMMIT_RECORD_SEP` ponizej sluzy do parsowania WYJSCIA, nigdy do
-    # budowy argumentu). Pomylenie tych dwoch konczy sie na Windows bledem
-    # `ValueError: embedded null character` z `_winapi.CreateProcess`, bo
-    # argument z prawdziwym bajtem zerowym nie da sie przekazac jako C-string.
+    # NOTE: `%x1f` and `%x00` below are the LITERAL text of the argument (git
+    # format directives, each inserting one byte into the OUTPUT) - that is NOT
+    # the same as putting a real zero byte INTO THE ARGUMENT ITSELF
+    # (`_COMMIT_RECORD_SEP` below serves to parse the OUTPUT, never to build an
+    # argument). Confusing the two ends on Windows in a
+    # `ValueError: embedded null character` from `_winapi.CreateProcess`,
+    # because an argument carrying a real zero byte cannot be passed as a
+    # C string.
     output = _run_git(["log", "--all", "--format=%H%x1f%B%x00"])
 
     allow_lines = guard._load_allow_patterns(REPO_ROOT / guard.DEFAULT_ALLOW_FILE)
@@ -296,27 +298,25 @@ def _commit_message_hits() -> list[tuple[str, str]]:
     return sorted(hits)
 
 
-# --- Powierzchnia trzecia: nazwy plikow ---------------------------------------
+# --- Surface three: file names ----------------------------------------------
 
 
 def _file_name_hits() -> list[tuple[str, str, str]]:
-    """Powierzchnia trzecia: nazwy plikow z drzewa KAZDEJ rewizji.
+    """Surface three: the file names of the tree of EVERY revision.
 
-    Jedno wywolanie `git ls-tree -r --name-only -z` NA REWIZJE (zalozenie
-    Z-98): historia zmian (`git log --name-only`) domyslnie pomija commity
-    scalajace i wymaga jawnej flagi, zeby ich listy plikow byly widoczne -
-    suma nazw po DRZEWACH jest kompletna niezaleznie od tego. Koszt (okolo
-    dwoch setek wywolan gita) jest akceptowalny WYLACZNIE wewnatrz testu ze
-    znacznikiem wolnym, i to jest dokladnie ten koszt, dla ktorego ten
-    znacznik istnieje.
+    One `git ls-tree -r --name-only -z` call PER REVISION (assumption Z-98):
+    the change history (`git log --name-only`) skips merge commits by default
+    and needs an explicit flag for their file lists to be visible - the union
+    of names over the TREES is complete regardless of that. The cost (some two
+    hundred git calls) is acceptable ONLY inside a test carrying the slow
+    marker, and that is exactly the cost that marker exists for.
 
-    Nazwy sa zbierane do SUMY (unia po wszystkich rewizjach, kazda nazwa
-    raz) PRZED precyzyjnym dopasowaniem - ten sam plik przezywa dziesiatki
-    commitow niezmieniony, wiec sprawdzanie go ponownie przy kazdej rewizji
-    byloby praca zmarnowana. Dla kazdej unikalnej nazwy z trafieniem
-    zapamietywana jest PIERWSZA rewizja, w ktorej ta nazwa wystapila
-    (kolejnosc `_all_revisions()`) - adres trafienia wlasciwy dla tej
-    powierzchni to sama nazwa pliku, nie jej tresc.
+    The names are gathered into a UNION (across all revisions, every name once)
+    BEFORE the precise matching - the same file survives dozens of commits
+    unchanged, so checking it again at every revision would be wasted work. For
+    every unique name with a hit, the FIRST revision that name appeared in is
+    remembered (the order of `_all_revisions()`) - the hit address proper to
+    this surface is the file name itself, not its content.
     """
     revisions = _all_revisions()
 
@@ -345,11 +345,11 @@ def _file_name_hits() -> list[tuple[str, str, str]]:
     return hits
 
 
-# --- Komunikaty porazki: rewizja + adres + regula, NIGDY tresc ---------------
+# --- Failure messages: revision + address + rule, NEVER content ------------
 
 
 def _format_tree_content_message(hits: list[tuple[str, str, int, str]]) -> str:
-    lines = [f"Powierzchnia '{HISTORY_SURFACES[0]}': {len(hits)} trafien poza wyjatkami."]
+    lines = [f"Surface '{HISTORY_SURFACES[0]}': {len(hits)} hits outside the exceptions."]
     for revision, path, line_no, rule_id in hits[:20]:
         lines.append(f"  {revision} {path}:{line_no} [{rule_id}]")
     lines.append(REMEDIATION_MESSAGE)
@@ -357,7 +357,7 @@ def _format_tree_content_message(hits: list[tuple[str, str, int, str]]) -> str:
 
 
 def _format_commit_message_message(hits: list[tuple[str, str]]) -> str:
-    lines = [f"Powierzchnia '{HISTORY_SURFACES[1]}': {len(hits)} trafien poza wyjatkami."]
+    lines = [f"Surface '{HISTORY_SURFACES[1]}': {len(hits)} hits outside the exceptions."]
     for revision, rule_id in hits[:20]:
         lines.append(f"  {revision} [{rule_id}]")
     lines.append(REMEDIATION_MESSAGE)
@@ -365,14 +365,14 @@ def _format_commit_message_message(hits: list[tuple[str, str]]) -> str:
 
 
 def _format_file_name_message(hits: list[tuple[str, str, str]]) -> str:
-    lines = [f"Powierzchnia '{HISTORY_SURFACES[2]}': {len(hits)} trafien poza wyjatkami."]
+    lines = [f"Surface '{HISTORY_SURFACES[2]}': {len(hits)} hits outside the exceptions."]
     for revision, name, rule_id in hits[:20]:
         lines.append(f"  {revision} {name} [{rule_id}]")
     lines.append(REMEDIATION_MESSAGE)
     return "\n".join(lines)
 
 
-# --- Testy: kontrakt modulu ----------------------------------------------------
+# --- Tests: the module contract --------------------------------------------
 
 
 def test_module_defines_three_distinct_surfaces():
@@ -385,21 +385,22 @@ def test_remediation_message_names_filter_repo():
 
 
 def test_history_identity_rules_exclude_the_local_only_fifth_rule():
-    """HISTORY_IDENTITY_RULE_IDS obejmuje wylacznie cztery reguly KSZTALTU -
-    piata (identity-local-literal) dziala WYLACZNIE lokalnie i audyt, ktory
-    ma dzialac w CI, nie ma z czego jej sprawdzic (brak pliku lokalnego)."""
+    """HISTORY_IDENTITY_RULE_IDS covers the four SHAPE rules ONLY - the fifth
+    (identity-local-literal) works ONLY locally, and the audit, which has to
+    run in CI, has nothing to check it against (no local file)."""
     assert guard.RULE_IDENTITY_LOCAL_LITERAL not in HISTORY_IDENTITY_RULE_IDS
     assert len(HISTORY_IDENTITY_RULE_IDS) == 4
 
 
 def test_all_revisions_covers_every_reachable_revision():
-    """Skan ma widziec CALA historie, nie tylko biezaca galaz.
+    """The scan is meant to see the WHOLE history, not only the current branch.
 
-    Porownanie idzie z niezaleznym pomiarem git zamiast ze stalym progiem:
-    prog dopasowany do chwilowej liczby commitow starzeje sie przy kazdym
-    przepisaniu historii i wtedy czerwieni sie test, a nie bramka. Ta asercja
-    lapie to, o co naprawde chodzi - ze `_all_revisions()` nie zwrocilo
-    samego HEAD ani pustej listy.
+    The comparison goes against an independent git measurement rather than
+    against a fixed threshold: a threshold matched to the momentary number of
+    commits ages at every rewrite of the history, and then it is the test that
+    turns red rather than the gate. This assertion catches what actually
+    matters - that `_all_revisions()` returned neither HEAD alone nor an empty
+    list.
     """
     expected = subprocess.run(
         ["git", "rev-list", "--all", "--count"],
@@ -414,9 +415,11 @@ def test_all_revisions_covers_every_reachable_revision():
 
 
 def test_each_surface_is_a_separate_function_with_separate_parsing():
-    """Sprawdzenie PO ZRODLE modulu - wzorce sklejone z dwoch czesci, zeby to
-    sprawdzenie nie zlapalo WLASNEGO zrodla (linii ponizej) jako trzeciego
-    wystapienia, dokladnie jak `test_readme_claims.py::test_module_source_contains_no_file_write_calls`."""
+    """A check OVER THE SOURCE of the module - the patterns are joined from two
+    parts so that this check does not catch its OWN source (the lines below) as
+    a third occurrence, exactly as
+    `test_readme_claims.py::test_module_source_contains_no_file_write_calls`
+    does."""
     import inspect
 
     source = inspect.getsource(sys.modules[__name__])
@@ -426,7 +429,7 @@ def test_each_surface_is_a_separate_function_with_separate_parsing():
     assert source.count(def_kw + "_file_name_hits") == 1
 
 
-# --- Testy: powiazanie sha -> obiekt commita (test powiazania rekordu) -------
+# --- Tests: the sha to commit object binding (the record binding test) -----
 
 
 def test_current_head_is_a_reachable_commit_object():
@@ -438,7 +441,7 @@ def test_zero_sha_is_not_a_reachable_commit_object():
     assert not _commit_object_exists("0" * 40)
 
 
-# --- Testy: trzy powierzchnie, zero trafien poza wyjatkami -------------------
+# --- Tests: three surfaces, zero hits outside the exceptions ---------------
 
 
 def test_tree_content_surface_has_zero_hits_outside_exceptions():
@@ -456,7 +459,7 @@ def test_file_name_surface_has_zero_hits_outside_exceptions():
     assert hits == [], _format_file_name_message(hits)
 
 
-# --- Test: skan nie zmienia stanu repozytorium (skan jest wylacznie odczytem) -
+# --- Test: the scan changes no repository state (the scan is a read only) --
 
 
 def _repo_state() -> tuple[str, str]:
@@ -466,13 +469,13 @@ def _repo_state() -> tuple[str, str]:
 
 
 def test_scan_does_not_change_repository_state():
-    """Skan jest wylacznie odczytem: stan HEAD i drzewa roboczego przed
-    trzema skanami i po nich sa identyczne. Test NIE wymaga, zeby skrot
-    HEAD zapisany w rekordzie audytu (zadanie 2) byl rowny BIEZACEMU HEAD -
-    przerwany przebieg NIE jest przejsciem (werdykt wiaze wylacznie ze
-    skrotem zapisanym w rekordzie), ale rownosc z biezacym HEAD wymaga
-    dopiero bramka przedpublikacyjna z zadania 2 (flaga --require-current,
-    zalozenie Z-100)."""
+    """The scan is a read only: the state of HEAD and of the working tree
+    before the three scans and after them are identical. The test does NOT
+    require the HEAD hash recorded in the audit record (task 2) to equal the
+    PRESENT HEAD - an interrupted run is NOT a pass (the verdict binds only to
+    the hash recorded in the record), while equality with the present HEAD is
+    demanded only by the pre-publication gate of task 2 (the --require-current
+    flag, assumption Z-100)."""
     before = _repo_state()
     _tree_content_hits()
     _commit_message_hits()

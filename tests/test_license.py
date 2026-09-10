@@ -1,40 +1,40 @@
-"""Bramka tresci pliku `LICENSE` (PUB-04, D-02, D-03, zalozenia Z-88, Z-89).
+"""Gate for the content of the `LICENSE` file (PUB-04, D-02, D-03,
+assumptions Z-88, Z-89).
 
-Ta bramka sprawdza TRESC pliku licencji, nie jej skutek prawny. Ocena skutku
-prawnego wybranej licencji nie jest zagrozeniem technicznym i nie jest
-przedmiotem zadnego testu w tym module - rekord decyzji
-`docs/decisions/0007-apache-2-0-license.md` nazywa ryzyko rezydualne wprost,
-a porady prawnej nie udziela ani ten plik, ani ten rekord.
+This gate checks the CONTENT of the licence file, not its legal effect.
+Judging the legal effect of the chosen licence is not a technical threat and
+is the subject of no test in this module - the decision record
+`docs/decisions/0007-apache-2-0-license.md` names the residual risk outright,
+and neither that file nor that record gives legal advice.
 
-**Porownanie idzie po normalizacji koncow linii do pojedynczego znaku
-(zalozenie Z-89), nie bajt w bajt.** Powod jest zmierzony przy planowaniu:
-`.gitattributes` niesie `* text=auto`, a lokalna konfiguracja gita ma
-wlaczona konwersje przy checkoucie, wiec plik tekstowy w drzewie roboczym na
-tej maszynie ma konce linii dwuznakowe. Porownanie bajtowe dawaloby wynik
-zalezny od platformy i od lokalnej konfiguracji gita - bramke, ktora
-czerwieni sie u kogos innego bez zadnej zmiany w tresci.
+**The comparison happens after normalizing line endings to a single character
+(assumption Z-89), not byte for byte.** The reason was measured at planning
+time: `.gitattributes` carries `* text=auto` and the local git configuration
+has checkout conversion enabled, so a text file in the working tree on this
+machine carries two-character line endings. A byte comparison would give a
+result dependent on the platform and on the local git configuration - a gate
+that turns red for somebody else without any change to the content.
 
-**Roznica wobec tekstu kanonicznego jest DOKLADNIE jedna linia (zalozenie
-Z-88):** wiersz praw autorskich w bloku koncowym, z zastapionymi obiema
-wartosciami w nawiasach kwadratowych. Test skrotu buduje tresc z podstawionym
-z powrotem wierszem wzorcowym i porownuje skrot sha256 z wartoscia zmierzona
-przy planowaniu (pobranie 2026-09-09 z
-`https://www.apache.org/licenses/LICENSE-2.0.txt`, konce linii jako
-pojedynczy znak nowej linii). Test markerow strukturalnych sprawdza obecnosc
-kazdego z dziewieciu numerowanych punktow i linii konca warunkow OSOBNO, zeby
-komunikat porazki wskazywal brakujacy punkt po nazwie, nigdy fragmentem
-tresci licencji.
+**The difference from the canonical text is EXACTLY one line (assumption
+Z-88):** the copyright line in the closing block, with both bracketed values
+substituted. The digest test builds the content with the template line put
+back and compares the sha256 digest against the value measured at planning
+time (downloaded 2026-09-09 from
+`https://www.apache.org/licenses/LICENSE-2.0.txt`, line endings as a single
+newline character). The structural marker test checks the presence of each of
+the nine numbered sections and of the end-of-terms line SEPARATELY, so that
+the failure message names the missing section rather than quoting a fragment
+of the licence text.
 
-Test niezmienionej nazwy projektu (D-03) sprawdza pole nazwy pakietu i wpis
-komendy wiersza polecen w `pyproject.toml` wobec stalych `PACKAGE_NAME`
-i `CLI_ENTRY_POINT` - rozstrzygniecie o nazwie zostalo potwierdzone, a nie
-pominiete, wiec zostawia slad maszynowy, ktory zaczerwieni sie przy cichej
-zmianie.
+The unchanged-project-name test (D-03) checks the package name field and the
+command line entry point in `pyproject.toml` against the `PACKAGE_NAME` and
+`CLI_ENTRY_POINT` constants - the decision about the name was confirmed rather
+than skipped, so it leaves a machine trace that turns red on a silent change.
 
-Modul nie zapisuje i nie zmienia zadnego pliku w drzewie repozytorium -
-przypadki negatywne budowane sa na tekscie w pamieci, nigdy przez zapis do
-`LICENSE` (patrz `test_module_source_contains_no_file_write_calls` na koncu
-pliku, wzorzec `tests/test_readme_claims.py`).
+The module writes and changes no file in the repository tree - the negative
+cases are built over text in memory, never by writing to `LICENSE` (see
+`test_module_source_contains_no_file_write_calls` at the end of the file, the
+`tests/test_readme_claims.py` pattern).
 """
 
 from __future__ import annotations
@@ -49,25 +49,25 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 LICENSE_PATH = REPO_ROOT / "LICENSE"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 
-# Skrot sha256 tekstu kanonicznego (pobranie 2026-09-09, konce linii jako
-# pojedynczy znak nowej linii) - zmierzony przy planowaniu, zapisany w
-# 05-02-PLAN.md, tabela "Fakty zmierzone przy planowaniu".
+# The sha256 digest of the canonical text (downloaded 2026-09-09, line
+# endings as a single newline character) - measured at planning time, recorded
+# in 05-02-PLAN.md, the table of facts measured at planning time.
 CANONICAL_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 
-# Liczba linii tekstu kanonicznego po normalizacji koncow linii - zmierzona
-# przy planowaniu tym samym pobraniem co skrot powyzej.
+# The number of lines of the canonical text after line ending normalization -
+# measured at planning time from the same download as the digest above.
 CANONICAL_LINE_COUNT = 202
 
-# Wiersz wzorcowy z bloku koncowego tekstu kanonicznego, dokladnie taki, jaki
-# wystepuje w pobranym tekscie - jedyna linia, ktora ten plik podmienia.
+# The template line from the closing block of the canonical text, exactly as
+# it appears in the downloaded text - the only line this file substitutes.
 CANONICAL_PLACEHOLDER_LINE = "Copyright [yyyy] [name of copyright owner]"
 
-# Wiersz po podstawieniu, D-02: rok 2026 i imie oraz nazwisko autora.
+# The line after substitution, D-02: the year 2026 and the author's name.
 COPYRIGHT_LINE = "Copyright 2026 Oliver Dolski"
 
-# Dziewiec numerowanych punktow tekstu kanonicznego plus linia konca
-# warunkow - sprawdzane OSOBNO, zeby komunikat porazki wskazywal brakujacy
-# punkt po nazwie, nigdy fragmentem tresci licencji skopiowanym do komunikatu.
+# The nine numbered sections of the canonical text plus the end-of-terms
+# line - checked SEPARATELY, so that the failure message names the missing
+# section rather than copying a fragment of the licence text into the message.
 REQUIRED_SECTION_MARKERS: tuple[str, ...] = (
     "1. Definitions.",
     "2. Grant of Copyright License.",
@@ -81,43 +81,45 @@ REQUIRED_SECTION_MARKERS: tuple[str, ...] = (
     "END OF TERMS AND CONDITIONS",
 )
 
-# D-03: nazwa pakietu i wpis komendy wiersza polecen, potwierdzone bez zmiany.
+# D-03: the package name and the command line entry point, confirmed unchanged.
 PACKAGE_NAME = 'name = "wayside"'
 CLI_ENTRY_POINT = 'wayside = "wayside.cli:app"'
 
 
 def _license_text_lf() -> str:
-    """Tresc `LICENSE` po normalizacji koncow linii do pojedynczego znaku
-    (zalozenie Z-89) - wejscie kazdego testu tego modulu ponizej."""
+    """The content of `LICENSE` after normalizing line endings to a single
+    character (assumption Z-89) - the input of every test in this module
+    below."""
     raw = LICENSE_PATH.read_text(encoding="utf-8")
     return raw.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _license_with_placeholder_restored() -> str:
-    """Tresc `LICENSE` (znormalizowana) z wierszem `COPYRIGHT_LINE`
-    zastapionym z powrotem wierszem wzorcowym `CANONICAL_PLACEHOLDER_LINE` -
-    wejscie testu skrotu sha256 wobec tekstu kanonicznego."""
+    """The (normalized) content of `LICENSE` with the `COPYRIGHT_LINE` put
+    back as the `CANONICAL_PLACEHOLDER_LINE` template line - the input of the
+    sha256 digest test against the canonical text."""
     return _license_text_lf().replace(COPYRIGHT_LINE, CANONICAL_PLACEHOLDER_LINE)
 
 
-# --- Plik istnieje i ma tyle linii, ile tekst kanoniczny -------------------
+# --- The file exists and has as many lines as the canonical text ----------
 
 
 def test_license_file_exists():
-    assert LICENSE_PATH.is_file(), f"{LICENSE_PATH} nie istnieje."
+    assert LICENSE_PATH.is_file(), f"{LICENSE_PATH} does not exist."
 
 
 def test_license_line_count_matches_canonical():
     actual_count = len(_license_text_lf().splitlines())
     matches = actual_count == CANONICAL_LINE_COUNT
     assert matches, (
-        f"LICENSE niesie {actual_count} linii po normalizacji koncow linii, "
-        f"oczekiwano {CANONICAL_LINE_COUNT} (tyle, ile tekst kanoniczny). "
-        "Komunikat niesie wylacznie liczby linii, nigdy tresc."
+        f"LICENSE carries {actual_count} lines after line ending "
+        f"normalization, expected {CANONICAL_LINE_COUNT} (as many as the "
+        "canonical text). This message carries line counts only, never "
+        "content."
     )
 
 
-# --- Markery strukturalne: dziewiec numerowanych punktow plus END ----------
+# --- Structural markers: nine numbered sections plus END ------------------
 
 
 def test_required_section_markers_constant_has_at_least_ten_entries():
@@ -127,19 +129,19 @@ def test_required_section_markers_constant_has_at_least_ten_entries():
 def test_license_carries_every_required_section_marker():
     text = _license_text_lf()
     missing = [marker for marker in REQUIRED_SECTION_MARKERS if marker not in text]
-    assert missing == [], f"LICENSE nie niesie markerow: {missing}"
+    assert missing == [], f"LICENSE does not carry the markers: {missing}"
 
 
 def test_missing_single_marker_in_sample_text_is_detected_by_name():
-    """Test przeciwny: bramka wskazuje BRAKUJACY marker po nazwie, nie tylko
-    stwierdza porazke - komunikat testu wyzej musi dac sie odroznic po tym,
-    ktory marker znikl."""
+    """The opposite test: the gate names the MISSING marker rather than merely
+    reporting a failure - the message of the test above has to be
+    distinguishable by which marker vanished."""
     sample = _license_text_lf().replace("6. Trademarks.", "6. Something Else.")
     missing = [marker for marker in REQUIRED_SECTION_MARKERS if marker not in sample]
     assert missing == ["6. Trademarks."]
 
 
-# --- Wiersz praw autorskich: obecny podstawiony, nieobecny wzorcowy --------
+# --- The copyright line: the substituted one present, the template absent -
 
 
 def test_license_carries_substituted_copyright_line():
@@ -150,16 +152,17 @@ def test_license_does_not_carry_canonical_placeholder_line():
     assert CANONICAL_PLACEHOLDER_LINE not in _license_text_lf()
 
 
-# --- Skrot sha256 po podstawieniu wiersza wzorcowego z powrotem ------------
+# --- The sha256 digest after putting the template line back ---------------
 
 
 def test_license_with_placeholder_restored_matches_canonical_sha256():
     restored = _license_with_placeholder_restored()
     digest = hashlib.sha256(restored.encode("utf-8")).hexdigest()
     assert digest == CANONICAL_SHA256, (
-        f"Skrot tresci LICENSE z podstawionym wierszem wzorcowym to {digest}, "
-        f"oczekiwano {CANONICAL_SHA256} (skrot tekstu kanonicznego). Komunikat "
-        "niesie wylacznie skroty i liczbe linii, nigdy fragment tresci."
+        f"The digest of the LICENSE content with the template line put back is "
+        f"{digest}, expected {CANONICAL_SHA256} (the digest of the canonical "
+        "text). This message carries digests and line counts only, never a "
+        "fragment of the content."
     )
 
 
@@ -167,45 +170,45 @@ def test_restoring_placeholder_does_not_change_line_count():
     restored_count = len(_license_with_placeholder_restored().splitlines())
     matches = restored_count == CANONICAL_LINE_COUNT
     assert matches, (
-        f"LICENSE z podstawionym wierszem wzorcowym ma {restored_count} linii, "
-        f"oczekiwano {CANONICAL_LINE_COUNT}. Komunikat niesie wylacznie liczby linii."
+        f"LICENSE with the template line put back has {restored_count} lines, "
+        f"expected {CANONICAL_LINE_COUNT}. This message carries line counts only."
     )
 
 
-# --- D-03: nazwa pakietu, komenda CLI i katalog zrodel niezmienione --------
+# --- D-03: package name, CLI command and source directory unchanged -------
 
 
 def test_package_name_unchanged():
     text = PYPROJECT_PATH.read_text(encoding="utf-8")
     assert PACKAGE_NAME in text, (
-        f"{PYPROJECT_PATH} nie niesie {PACKAGE_NAME!r} - D-03 wymaga nazwy "
-        "pakietu niezmienionej przez ten plan."
+        f"{PYPROJECT_PATH} does not carry {PACKAGE_NAME!r} - D-03 requires the "
+        "package name to stay unchanged by this plan."
     )
 
 
 def test_cli_entry_point_unchanged():
     text = PYPROJECT_PATH.read_text(encoding="utf-8")
     assert CLI_ENTRY_POINT in text, (
-        f"{PYPROJECT_PATH} nie niesie {CLI_ENTRY_POINT!r} - D-03 wymaga wpisu "
-        "komendy wiersza polecen niezmienionego przez ten plan."
+        f"{PYPROJECT_PATH} does not carry {CLI_ENTRY_POINT!r} - D-03 requires "
+        "the command line entry point to stay unchanged by this plan."
     )
 
 
 def test_source_directory_unchanged():
     assert (REPO_ROOT / "src" / "wayside").is_dir(), (
-        "Katalog zrodel src/wayside nie istnieje - D-03 wymaga niezmienionej "
-        "nazwy katalogu zrodel."
+        "The source directory src/wayside does not exist - D-03 requires the "
+        "name of the source directory to stay unchanged."
     )
 
 
-# --- Test: bramka nie zapisuje niczego w drzewie ---------------------------
+# --- Test: the gate writes nothing into the tree --------------------------
 
 
 def test_module_source_contains_no_file_write_calls():
-    """Sprawdzenie PO ZRODLE modulu, ten sam wzorzec co
+    """A check OVER THE SOURCE of the module, the same pattern as
     `tests/test_readme_claims.py::test_module_source_contains_no_file_write_calls`
-    - alternatywa (porownanie stanu drzewa przed i po) zapala sie takze na
-    pracy rownoleglej sesji w tym samym drzewie."""
+    - the alternative (comparing the state of the tree before and after) also
+    fires on the work of a parallel session in the same tree."""
     source = inspect.getsource(sys.modules[__name__])
     forbidden = (
         "open" + "(",
@@ -214,4 +217,4 @@ def test_module_source_contains_no_file_write_calls():
         "." + "write(",
     )
     hits = [pat for pat in forbidden if pat in source]
-    assert hits == [], f"Modul niesie wzorzec zapisu do pliku: {hits}"
+    assert hits == [], f"The module carries a file write pattern: {hits}"

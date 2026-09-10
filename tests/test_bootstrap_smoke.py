@@ -1,10 +1,10 @@
-"""Test dymny FOUND-01: CLI uruchamia sie i czyta fixture, kod wyjscia 0.
+"""Smoke test FOUND-01: the CLI starts and reads a fixture, exit code 0.
 
-CLI jest wolane jako podproces przez `python -m wayside.cli`, nie przez import
-w procesie testowym - to odtwarza faktyczna sciezke uzytkownika (`uv run wayside
-...`) i dziala bez recznej aktywacji venva w powloce, bo `sys.executable` pod
-`uv run pytest` wskazuje juz na interpreter srodowiska projektu, w ktorym
-`wayside` jest zainstalowane.
+The CLI is called as a subprocess through `python -m wayside.cli` rather than
+imported into the test process - that reproduces the actual user path
+(`uv run wayside ...`) and works without activating the venv by hand in a
+shell, because under `uv run pytest` `sys.executable` already points at the
+interpreter of the project environment, where `wayside` is installed.
 """
 
 from __future__ import annotations
@@ -41,16 +41,16 @@ def test_inspect_fixture_exits_zero_and_prints_packet_count():
 
 
 def test_inspect_missing_file_exits_two_without_traceback():
-    result = _run_cli("inspect", "nie-istnieje.pcap")
+    result = _run_cli("inspect", "does-not-exist.pcap")
     assert result.returncode == 2
     assert "Traceback" not in result.stderr
 
 
-# WR-01 z `01-REVIEW.md`. `read_capture` opiera sie na `Path.exists()`, ktore
-# jest prawdziwe takze dla katalogu, a istniejacy plik moze byc uszkodzonym
-# albo plikiem nieczytelnym jako pcap. Oba podnosza z `rdpcap` wyjatek spoza
-# `FileNotFoundError`, wiec przed poprawka konczyly sie surowym tracebackiem
-# zamiast komunikatu i kodu 2. Test na brakujacym pliku wyzej ich nie lapal.
+# WR-01 of `01-REVIEW.md`. `read_capture` rests on `Path.exists()`, which is
+# true for a directory as well, and an existing file may be damaged or
+# unreadable as a pcap. Both raise an exception out of `rdpcap` other than
+# `FileNotFoundError`, so before the fix they ended in a raw traceback instead
+# of a message and exit code 2. The missing-file test above did not catch them.
 def test_inspect_directory_exits_two_without_traceback(tmp_path):
     result = _run_cli("inspect", str(tmp_path))
     assert result.returncode == 2
@@ -58,33 +58,32 @@ def test_inspect_directory_exits_two_without_traceback(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("nazwa", "zawartosc"),
+    ("name", "content"),
     [
-        ("smieci.pcap", b"to nie jest pcap w ogole, zupelnie losowe bajty"),
-        ("pusty.pcap", b""),
+        ("garbage.pcap", b"this is not a pcap at all, just random bytes"),
+        ("empty.pcap", b""),
     ],
 )
-def test_inspect_unreadable_pcap_exits_two_without_traceback(
-    tmp_path, nazwa, zawartosc
-):
-    uszkodzony = tmp_path / nazwa
-    uszkodzony.write_bytes(zawartosc)
-    result = _run_cli("inspect", str(uszkodzony))
+def test_inspect_unreadable_pcap_exits_two_without_traceback(tmp_path, name, content):
+    damaged = tmp_path / name
+    damaged.write_bytes(content)
+    result = _run_cli("inspect", str(damaged))
     assert result.returncode == 2
     assert "Traceback" not in result.stderr
 
 
-# Kontrakt ksztaltu `scripts/bootstrap.ps1`, nie test dymny CLI. Powod osobny
-# i konkretny: UAT fazy 1, test 2, na czystym Windows 11 pokazal, ze bootstrap
-# instaluje `uv` przez winget POPRAWNIE, a potem sam go nie widzi, bo PATH
-# procesu pozostaje kopia sprzed instalacji. Skrypt konczyl sie wtedy kodem 1
-# i kazal otworzyc nowa powloke - czyli obietnica FOUND-01 "jedno polecenie po
-# klonie" wymagala dwoch uruchomien.
+# A contract for the shape of `scripts/bootstrap.ps1`, not a CLI smoke test.
+# The reason is separate and concrete: the phase 1 UAT, test 2, on a clean
+# Windows 11 showed that the bootstrap installs `uv` through winget CORRECTLY
+# and then cannot see it, because the process PATH stays a copy of the one from
+# before the installation. The script then exited with code 1 and told the user
+# to open a new shell - that is, the FOUND-01 promise of "one command after the
+# clone" needed two runs.
 #
-# Tego nie da sie sprawdzic z maszyny, ktora ma juz `uv` na PATH: warunek
-# w ogole nie zachodzi. Ten test pilnuje wiec kolejnosci krokow w skrypcie,
-# tak jak `test_ci_workflow_contract.py` pilnuje ksztaltu workflow. Dowodzi
-# ksztaltu, nie zachowania, i tak ma byc czytany.
+# This cannot be checked from a machine that already has `uv` on PATH: the
+# condition never arises. This test therefore guards the order of the steps in
+# the script, the way `test_ci_workflow_contract.py` guards the shape of the
+# workflow. It proves shape, not behaviour, and is meant to be read that way.
 BOOTSTRAP = REPO_ROOT / "scripts" / "bootstrap.ps1"
 
 
@@ -93,83 +92,83 @@ def _bootstrap_text() -> str:
 
 
 def test_bootstrap_defines_path_refresh_helper():
-    tekst = _bootstrap_text()
-    assert "function Update-PathFromRegistry" in tekst
-    assert "GetEnvironmentVariable('Path', 'Machine')" in tekst
-    assert "GetEnvironmentVariable('Path', 'User')" in tekst
+    text = _bootstrap_text()
+    assert "function Update-PathFromRegistry" in text
+    assert "GetEnvironmentVariable('Path', 'Machine')" in text
+    assert "GetEnvironmentVariable('Path', 'User')" in text
 
 
 def test_bootstrap_refreshes_path_between_winget_install_and_recheck():
-    tekst = _bootstrap_text()
+    text = _bootstrap_text()
 
-    instalacja = tekst.index("winget install --id astral-sh.uv")
-    odswiezenie = tekst.index("Update-PathFromRegistry", instalacja)
-    ponowne_sprawdzenie = tekst.index("uv is still unavailable on PATH", odswiezenie)
+    install = text.index("winget install --id astral-sh.uv")
+    refresh = text.index("Update-PathFromRegistry", install)
+    recheck = text.index("uv is still unavailable on PATH", refresh)
 
-    assert instalacja < odswiezenie < ponowne_sprawdzenie, (
-        "Odswiezenie PATH musi stac MIEDZY instalacja przez winget a ponownym "
-        "sprawdzeniem obecnosci uv. Poza ta kolejnoscia nie naprawia niczego."
+    assert install < refresh < recheck, (
+        "The PATH refresh has to stand BETWEEN the winget installation and the "
+        "recheck for the presence of uv. In any other order it fixes nothing."
     )
 
 
 def test_bootstrap_does_not_tell_user_to_reopen_shell_as_normal_path():
-    """Komunikat o nowej powloce ma zostac wylacznie jako ostatnia deska ratunku.
+    """The message about a new shell is meant to stay a last resort only.
 
-    Gdyby wrocil jako zwykla sciezka - czyli gdyby zniknelo odswiezenie PATH -
-    poprzedni test i tak by padl. Ten pilnuje czegos innego: ze tresc komunikatu
-    nadal mowi o odswiezeniu, wiec kto go zobaczy, wie, ze proste obejscie
-    zostalo juz sprobowane i nie pomoglo.
+    Were it to come back as the ordinary path - that is, were the PATH refresh
+    to disappear - the previous test would fail anyway. This one guards
+    something else: that the wording of the message still speaks of the
+    refresh, so whoever sees it knows the simple workaround has already been
+    tried and did not help.
     """
-    tekst = _bootstrap_text()
-    assert "the PATH refresh from the registry" in tekst
+    text = _bootstrap_text()
+    assert "the PATH refresh from the registry" in text
 
 
-# Idempotencja bootstrapu. Wykryte 2026-09-03 przy zmianie nazwy katalogu
-# projektu, ktora wymusila drugi przebieg skryptu: odbil sie o `Cowardly
-# refusing to install hooks with core.hooksPath set`.
+# Idempotence of the bootstrap. Discovered 2026-09-03 while renaming the
+# project directory, which forced a second run of the script: it bounced off
+# `Cowardly refusing to install hooks with core.hooksPath set`.
 #
-# Przyczyna nie miala nic wspolnego ze zmiana nazwy. `core.hooksPath` moze
-# siedziec w dwoch zakresach naraz, a skrypt sam przypina `.git/hooks`
-# LOKALNIE na koncu swojego pierwszego przebiegu. Obejscie przez
-# `GIT_CONFIG_GLOBAL` zdejmuje wylacznie zakres globalny, wiec przy drugim
-# przebiegu skrypt widzial wlasne przypiecie i stosowal do niego obejscie
-# przeznaczone dla czegos innego. Wywrocilby sie KAZDY drugi przebieg,
-# z dowolnego powodu - nie tylko po zmianie nazwy katalogu.
+# The cause had nothing to do with the rename. `core.hooksPath` can sit in two
+# scopes at once, and the script pins `.git/hooks` LOCALLY itself at the end of
+# its first run. The `GIT_CONFIG_GLOBAL` workaround lifts the global scope
+# only, so on the second run the script saw its own pin and applied to it a
+# workaround meant for something else. EVERY second run would have fallen over,
+# for any reason - not only after a directory rename.
 
 
 def test_bootstrap_reads_hooks_path_in_both_scopes():
-    tekst = _bootstrap_text()
-    assert "git config --get core.hooksPath" in tekst, "brak odczytu zakresu efektywnego"
-    assert "git config --local --get core.hooksPath" in tekst, "brak odczytu zakresu lokalnego"
+    text = _bootstrap_text()
+    assert "git config --get core.hooksPath" in text, "no read of the effective scope"
+    assert "git config --local --get core.hooksPath" in text, "no read of the local scope"
 
 
 def test_bootstrap_unsets_local_hooks_path_before_install():
-    tekst = _bootstrap_text()
+    text = _bootstrap_text()
 
-    zdjecie = tekst.index("git config --local --unset-all core.hooksPath")
-    instalacja = tekst.index("uv run pre-commit install", zdjecie)
+    unset = text.index("git config --local --unset-all core.hooksPath")
+    install = text.index("uv run pre-commit install", unset)
 
-    assert zdjecie < instalacja, (
-        "Lokalne core.hooksPath musi byc zdjete PRZED `pre-commit install`. "
-        "Obejscie przez GIT_CONFIG_GLOBAL nie dotyka .git/config, wiec samo "
-        "nie wystarcza."
+    assert unset < install, (
+        "The local core.hooksPath has to be lifted BEFORE `pre-commit install`. "
+        "The GIT_CONFIG_GLOBAL workaround does not touch .git/config, so on its "
+        "own it is not enough."
     )
 
 
 def test_bootstrap_restores_local_hooks_path_even_when_install_failed():
-    """Przywrocenie musi stac PRZED rzuceniem wyjatku o kodzie instalacji.
+    """The restore has to stand BEFORE the throw about the install exit code.
 
-    Inaczej nieudana instalacja zostawia repozytorium bez lokalnego przypiecia,
-    czyli git wraca do globalnej sciezki hakow dewelopera, a hak poufnosci nie
-    wywola sie przy nastepnym commicie. To gorszy stan niz sama porazka
-    instalacji, bo wyglada niewinnie.
+    Otherwise a failed installation leaves the repository without its local
+    pin, that is git falls back to the developer's global hook path and the
+    confidentiality hook does not fire at the next commit. That is a worse
+    state than the installation failure itself, because it looks innocent.
     """
-    tekst = _bootstrap_text()
+    text = _bootstrap_text()
 
-    przywrocenie = tekst.index("git config --local core.hooksPath $localHooksPath")
-    rzut = tekst.index("uv run pre-commit install exited with code", przywrocenie)
+    restore = text.index("git config --local core.hooksPath $localHooksPath")
+    throw = text.index("uv run pre-commit install exited with code", restore)
 
-    assert przywrocenie < rzut, (
-        "Przywrocenie lokalnego core.hooksPath musi poprzedzac sprawdzenie "
-        "kodu wyjscia instalacji."
+    assert restore < throw, (
+        "The restore of the local core.hooksPath has to precede the check of "
+        "the installation exit code."
     )

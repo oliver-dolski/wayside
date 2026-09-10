@@ -1,20 +1,22 @@
-"""Bramka rozszerzalnosci silnika checkow i kontraktu schematu (CHECK-01, CHECK-02).
+"""Gate for the extensibility of the check engine and for the schema contract
+(CHECK-01, CHECK-02).
 
-`test_new_check_discovered_without_engine_change` tymczasowo dodaje check
-probny do PRAWDZIWEGO katalogu `src/wayside/checks/` (nie do katalogu
-tymczasowego), bo dokladnie to bada kryterium 4 fazy: nowy check w czasie
-dzialania, bez zmiany zadnego pliku silnika. To sprzezenie jest nazwane
-wprost: ten test tymczasowo zmienia zawartosc katalogu checkow calego
-pakietu, wiec `tests/test_analyze_pipeline.py`, ktore liczy findingi,
-zalezy od poprawnego uprzatniecia po tym tescie. Pytest uruchamia testy
-w tym pliku szeregowo, wiec sprzezenie jest bezpieczne, ale nie jest
-niewidzialne - fixture `probe_check_dir` sprzata w bloku `finally`, a
-autouse fixture modulu sprzata takze wtedy, gdy `probe_check_dir` sam nie
-zdazyl (np. blad w setupie przed `yield`).
+`test_new_check_discovered_without_engine_change` temporarily adds a probe
+check to the REAL `src/wayside/checks/` directory (not to a temporary one),
+because that is exactly what criterion 4 of the phase examines: a new check at
+run time, without a change to any engine file. That coupling is named
+outright: this test temporarily changes the contents of the check directory of
+the whole package, so `tests/test_analyze_pipeline.py`, which counts findings,
+depends on a correct cleanup after this test. Pytest runs the tests of this
+file serially, so the coupling is safe, but it is not invisible - the
+`probe_check_dir` fixture cleans up in a `finally` block, and the module
+autouse fixture cleans up even when `probe_check_dir` did not get to (say an
+error in the setup before its `yield`).
 
-Pozostale testy schematu i kolejnosci wolaja `discover_checks` na katalogu
-TYMCZASOWYM (`tmp_path`) - loader oparty o `spec_from_file_location` dziala
-na dowolnej sciezce, wiec te testy nigdy nie dotykaja prawdziwego pakietu.
+The remaining schema and ordering tests call `discover_checks` over a
+TEMPORARY directory (`tmp_path`) - the loader built on
+`spec_from_file_location` works over any path, so those tests never touch the
+real package.
 """
 
 from __future__ import annotations
@@ -39,8 +41,8 @@ PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 CHECKS_ROOT = REPO_ROOT / "src" / "wayside" / "checks"
 FIXTURE_RELATIVE = "tests/fixtures/pcap/modbus_write_single_register.pcap"
 
-# Nazwa stala, nie losowa - inaczej nieudany wczesniejszy przebieg zostawilby
-# slad, ktory zmienia wynik innych testow (patrz docstring modulu).
+# A constant name, not a random one - otherwise a failed earlier run would
+# leave a trace changing the result of other tests (see the module docstring).
 PROBE_CHECK_DIR_NAME = "probe_extensibility_check"
 PROBE_CHECK_DIR = CHECKS_ROOT / PROBE_CHECK_DIR_NAME
 
@@ -72,10 +74,10 @@ EVALUATOR_EMPTY_SOURCE = textwrap.dedent(
     """
 ).lstrip()
 
-# Evaluator zwracajacy dokladnie jeden finding, z dowodem wziętym z
-# pierwszego zdarzenia protokolu - uzywany przez testy dedupikacji/kolejnosci
-# powolan `standards`, ktorym nie zalezy na logice checka, tylko na tym, ze
-# finding w ogole powstal.
+# An evaluator returning exactly one finding, with its evidence taken from
+# the first protocol event - used by the deduplication and ordering tests of
+# the `standards` citations, which do not care about the logic of a check, only
+# that a finding came into being at all.
 EVALUATOR_ONE_FINDING_SOURCE = textwrap.dedent(
     """
     from __future__ import annotations
@@ -107,11 +109,12 @@ def _write_check(
     evaluator_source: str = EVALUATOR_EMPTY_SOURCE,
     write_evaluator: bool = True,
 ) -> Path:
-    """Zapisuje jeden check (YAML plus siostrzany `.py`) pod
-    `checks_dir/subdir`. Wydzielona wspolna logika budowy checka, zeby
-    przypadek negatywny (pole brakujace, puste, duplikat, nazwa modulu
-    niedozwolona) wolal ta sama funkcje pomocnicza, a nie ja dublowal -
-    wzorzec `tests/test_fixture_manifest.py`. Zwraca sciezke do YAML."""
+    """Writes one check (the YAML plus its sibling `.py`) under
+    `checks_dir/subdir`. The shared check-building logic is extracted so that
+    the negative cases (a missing field, an empty one, a duplicate, a
+    disallowed module name) call the same helper instead of duplicating it -
+    the `tests/test_fixture_manifest.py` pattern. Returns the path of the
+    YAML."""
     target_dir = checks_dir / subdir
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -140,9 +143,9 @@ def _write_check(
 
 @pytest.fixture(autouse=True, scope="module")
 def _cleanup_probe_check_dir_after_module():
-    """Sprzata katalog checka probnego takze wtedy, gdy test padnie w
-    polowie i wlasny `finally` fixture `probe_check_dir` nie zdazy
-    zadzialac (np. blad przed jego wlasnym `yield`)."""
+    """Cleans up the probe check directory even when a test fails halfway and
+    the `finally` block of the `probe_check_dir` fixture does not get to run
+    (say an error before its own `yield`)."""
     yield
     if PROBE_CHECK_DIR.exists():
         shutil.rmtree(PROBE_CHECK_DIR)
@@ -151,8 +154,8 @@ def _cleanup_probe_check_dir_after_module():
 @pytest.fixture
 def probe_check_dir():
     assert not PROBE_CHECK_DIR.exists(), (
-        f"{PROBE_CHECK_DIR} juz istnieje - poprzedni przebieg testu nie "
-        "posprzatal po sobie."
+        f"{PROBE_CHECK_DIR} already exists - an earlier test run did not "
+        "clean up after itself."
     )
     _write_check(
         CHECKS_ROOT,
@@ -195,21 +198,21 @@ def test_new_check_discovered_without_engine_change(probe_check_dir, tmp_path):
 
     engine_after = _sha256(ENGINE_PATH)
     pyproject_after = _sha256(PYPROJECT_PATH)
-    assert engine_after == engine_before, "silnik checkow zostal zmieniony przez dodanie checka"
-    assert pyproject_after == pyproject_before, "pyproject.toml zostal zmieniony przez dodanie checka"
+    assert engine_after == engine_before, "the check engine was changed by adding a check"
+    assert pyproject_after == pyproject_before, "pyproject.toml was changed by adding a check"
 
     analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
     probe_findings = [f for f in analysis["findings"] if f["check_id"] == "probe-extensibility-check"]
-    assert probe_findings, "finding checka probnego nie pojawil sie w analysis.json"
+    assert probe_findings, "no probe check finding appeared in analysis.json"
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "probe-extensibility-check" in report_text
 
 
 def test_probe_check_directory_removed_and_original_finding_count_restored(probe_check_dir, tmp_path):
-    """Po usunieciu checka probnego (fixture teardown zadziala po tym
-    tescie) `wayside analyze` na fixture z zapisem znow daje dokladnie
-    jeden finding - dowod, ze test nie zostawia trwalego sladu."""
+    """Once the probe check is removed (the fixture teardown runs after this
+    test), `wayside analyze` over the write fixture again yields exactly one
+    finding - proof that the test leaves no lasting trace."""
     result = subprocess.run(
         [
             sys.executable,
@@ -232,13 +235,13 @@ def test_probe_check_directory_removed_and_original_finding_count_restored(probe
     assert "probe-extensibility-check" in check_ids
 
 
-# --- Kontrakt schematu: pole wymagane brakujace lub puste --------------------
+# --- Schema contract: a required field missing or empty --------------------
 
 
 def test_check_schema_required_fields(tmp_path):
-    """Brak dowolnego pola z `REQUIRED_CHECK_FIELDS`, i to samo pole
-    obecne ale puste, konczy sie `CheckSchemaError` - obie galezie wolaja
-    te sama funkcje pomocnicza `_write_check`, zamiast dublowac logike."""
+    """The absence of any field of `REQUIRED_CHECK_FIELDS`, and the same field
+    present but empty, ends in a `CheckSchemaError` - both branches call the
+    same `_write_check` helper instead of duplicating the logic."""
     for field in engine.REQUIRED_CHECK_FIELDS:
         missing_subdir = f"missing_{field}"
         _write_check(tmp_path, subdir=missing_subdir, remove_fields=[field])
@@ -275,12 +278,12 @@ def test_discover_checks_on_empty_directory_returns_empty_list(tmp_path):
     assert engine.discover_checks(checks_root=tmp_path) == []
 
 
-# --- Kolejnosc posortowanych sciezek, niezalezna od kolejnosci tworzenia ----
+# --- Sorted path order, independent of creation order ----------------------
 
 
 def test_discover_checks_orders_by_sorted_path(tmp_path):
-    # Tworzone celowo w kolejnosci odwrotnej wobec alfabetu, zeby dowiesc,
-    # ze wynik nie jest kolejnoscia tworzenia.
+    # Created deliberately in reverse alphabetical order, to prove the result
+    # is not the creation order.
     _write_check(tmp_path, subdir="charlie", spec_overrides={"id": "check-charlie"})
     _write_check(tmp_path, subdir="alfa", spec_overrides={"id": "check-alfa"})
     _write_check(tmp_path, subdir="bravo", spec_overrides={"id": "check-bravo"})
@@ -292,7 +295,7 @@ def test_discover_checks_orders_by_sorted_path(tmp_path):
     assert [c.path for c in checks] == sorted(c.path for c in checks)
 
 
-# --- Nazwa modulu evaluatora z separatorem sciezki albo dwiema kropkami -----
+# --- An evaluator module name with a path separator or two dots ------------
 
 
 def test_load_evaluator_rejects_path_separator_and_double_dot(tmp_path):
@@ -307,12 +310,12 @@ def test_load_evaluator_rejects_path_separator_and_double_dot(tmp_path):
         )
         with pytest.raises(engine.CheckSchemaError):
             engine.discover_checks(checks_root=tmp_path / subdir)
-        # Nic nie zostalo zaimportowane - modul probny pod ta nazwa nigdy
-        # nie istnieje w sys.modules (zagrozenie T-2-04).
+        # Nothing was imported - a probe module under that name never exists
+        # in sys.modules (threat T-2-04).
         assert f"wayside._checks.{bad_module_name}" not in sys.modules
 
 
-# --- Deduplikacja i kolejnosc powtorzonych wpisow `standards` ---------------
+# --- Deduplication and order of repeated `standards` entries ---------------
 
 
 def test_run_checks_deduplicates_repeated_standard_reference(tmp_path):
@@ -422,8 +425,9 @@ def test_run_checks_finding_uses_placeholder_for_session_absent_from_matrix(tmp_
         evaluator_source=EVALUATOR_ONE_FINDING_SOURCE,
     )
     checks = engine.discover_checks(checks_root=tmp_path / "without_matrix_row")
-    # Analiza bez klucza `comm_matrix` w ogole - zalozenie Z-92: model probny
-    # tego modulu nie ma macierzy, a odwzorowanie ma byc na to tolerancyjne.
+    # An analysis without a `comm_matrix` key at all - assumption Z-92: the
+    # probe model of this module has no matrix, and the mapping is meant to
+    # tolerate that.
     analysis = {"protocol_events": [{"packet_number": 1, "session_id": 0}]}
 
     findings = engine.run_checks(analysis, checks)
@@ -433,10 +437,11 @@ def test_run_checks_finding_uses_placeholder_for_session_absent_from_matrix(tmp_
 
 
 def test_run_checks_does_not_mutate_evidence_dict_returned_by_evaluator():
-    """Zalozenie Z-91: silnik sklada NOWY slownik dowodu zamiast mutowac ten
-    zwrocony przez evaluator. Test buduje `CheckSpec` wprost, z evaluatorem
-    zwracajacym WSPOLDZIELONY slownik dowodu, zeby mutacja w miejscu byla
-    wykrywalna bez posredniego odczytu z dysku."""
+    """Assumption Z-91: the engine assembles a NEW evidence dictionary instead
+    of mutating the one returned by the evaluator. The test builds a
+    `CheckSpec` directly, with an evaluator returning a SHARED evidence
+    dictionary, so that an in-place mutation is detectable without an
+    intervening read from disk."""
     shared_evidence = {"packet_number": 1, "session_id": 0}
     shared_result = {"evidence": shared_evidence}
 

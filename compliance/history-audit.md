@@ -2,7 +2,7 @@
 requirement: PUB-05
 scope: repository-history-identity-patterns
 audited_on: 2026-09-10
-head_sha: 0917f22e589454c8a53170052fabcc24a40d3674
+head_sha: cf5a32461423f7a916e13af01f34680e8e46f6e6
 surfaces: tree-content, commit-message, file-name
 rules_checked: identity-private-ipv4, identity-mac-address, identity-device-name, identity-project-name
 exceptions_file: .confidentiality-allow

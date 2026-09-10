@@ -109,8 +109,8 @@ Sans): in the text layer of the PDF every character outside ASCII - vendor
 names from the IEEE registry are the routine case - appears as a single,
 composed code point, regardless of the fonts installed on the system. The
 boundary of that claim: how the document looks in a specific PDF reader has not
-been confirmed visually on multiple machines (the author's private uncertainty
-register, entries 12 and 13). The flag is off by default: the tool's default
+been confirmed visually on multiple machines (a check kept open in a register
+outside this repository). The flag is off by default: the tool's default
 path does not gain a new runtime dependency because of it.
 
 ```powershell

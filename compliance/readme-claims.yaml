@@ -31,10 +31,14 @@ entries:
     evidence: manual
     reason: >-
       A claim about the user's runtime environment (the absence of a
-      dependency on third-party tools), not about the code - the only honest
-      verification is a run on a clean machine without
-      Npcap/Wireshark/tshark, open in the author's private uncertainty
-      register under entries 1 and 2.
+      dependency on third-party tools), not about the code, so no test in
+      this repository can carry it. The read path is nonetheless covered by
+      a real run rather than by an assertion: the full suite passes on the
+      windows-latest CI runner, a machine where scapy reports no libpcap
+      provider (run 34468269392), which is what the absence of a capture
+      driver looks like from inside the process. What stays unproven is the
+      bootstrap script itself, because CI builds the environment with
+      uv sync --locked instead of running it.
     status: active
 
   - id: bootstrap-path-refresh

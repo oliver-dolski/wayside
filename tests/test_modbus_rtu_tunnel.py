@@ -1,17 +1,17 @@
-"""Bramka maszynowa PROTO-03: suma kontrolna, granice zakresu adresu, przypadek
-negatywny na fixture'ach Modbus/TCP (plan 03-04, Task 1).
+"""Machine gate PROTO-03: the checksum, the address range boundaries, the
+negative case over the Modbus/TCP fixtures (plan 03-04, Task 1).
 
-Wzorzec identyczny jak w `tests/test_modbus_tcp.py`: budowa surowych bajtow w
-tescie przez `struct.pack`, funkcja pomocnicza sklejajaca cialo ramki z suma
-kontrolna, zeby przypadek pozytywny i negatywny roznily sie jedna wartoscia,
-nie calym literalem.
+The pattern is identical to `tests/test_modbus_tcp.py`: raw bytes built in the
+test by `struct.pack`, a helper joining the frame body with its checksum, so
+that the positive and the negative case differ by one value rather than by a
+whole literal.
 
-Test wektora testowego (`test_modbus_crc16_matches_specification_worked_example`)
-uzywa wartosci wprost z "MODBUS over Serial Line Specification and
-Implementation Guide V1.02" (Modbus.org, Dec 20, 2006), rozdzial 6.2.2
-"Example of CRC calculation (frame 02 07)" (str. 41) razem z Figure 30
-(str. 39) - zrodlo zapisane takze w docstringu
-`wayside.protocols.modbus_rtu_tunnel`.
+The test vector test (`test_modbus_crc16_matches_specification_worked_example`)
+uses values taken straight from "MODBUS over Serial Line Specification and
+Implementation Guide V1.02" (Modbus.org, Dec 20, 2006), section 6.2.2
+"Example of CRC calculation (frame 02 07)" (p. 41) together with Figure 30
+(p. 39) - the source is recorded in the docstring of
+`wayside.protocols.modbus_rtu_tunnel` as well.
 """
 
 from __future__ import annotations
@@ -40,17 +40,18 @@ FIXTURE_MALFORMED_MBAP = "tests/fixtures/pcap/modbus_malformed_mbap.pcap"
 
 
 def _rtu_frame(body: bytes) -> bytes:
-    """Skleja cialo ramki z suma kontrolna w porzadku bajtu mlodszego jako
-    pierwszego - przypadek pozytywny i negatywny w tym pliku roznia sie
-    wylacznie wartoscia przekazana do `body` albo pojedynczym bajtem
-    dopisanym po tej funkcji, nigdy calym literalem ramki."""
+    """Joins the frame body with its checksum in least significant byte first
+    order - the positive and the negative case in this file differ only in the
+    value passed to `body`, or in a single byte appended after this function,
+    never in a whole frame literal."""
     return body + struct.pack("<H", modbus_crc16(body))
 
 
 def _write_single_register_body(*, address: int = 1) -> bytes:
-    """Cialo szesciobajtowe: adres, kod funkcji 0x06 (Write Single Register),
-    adres rejestru 0x0001, wartosc 0x002A - dokladnie ta sama tresc funkcjonalna
-    co fixture'y Modbus/TCP z Fazy 2, tylko bez naglowka MBAP."""
+    """A six-byte body: the address, function code 0x06 (Write Single
+    Register), register address 0x0001, value 0x002A - exactly the same
+    functional content as the Phase 2 Modbus/TCP fixtures, only without the
+    MBAP header."""
     return struct.pack(">BBHH", address, 0x06, 0x0001, 0x002A)
 
 
@@ -77,20 +78,21 @@ def test_modbus_crc16_of_empty_bytes_is_untouched_initial_register():
 
 
 def test_modbus_crc16_matches_specification_worked_example():
-    """Wektor testowy z "MODBUS over Serial Line Specification and
-    Implementation Guide V1.02", rozdzial 6.2.2, "Example of CRC calculation
-    (frame 02 07)" (str. 41): dla ramki dwubajtowej `02 07` rejestr CRC
-    koncowy wynosi `0x1241` (Figure 30, str. 39, ten sam dokument, ta sama
-    wartosc przykladowa zapisana jako "1241 hex")."""
+    """The test vector from "MODBUS over Serial Line Specification and
+    Implementation Guide V1.02", section 6.2.2, "Example of CRC calculation
+    (frame 02 07)" (p. 41): for the two-byte frame `02 07` the final CRC
+    register is `0x1241` (Figure 30, p. 39, the same document, the same worked
+    value written there as "1241 hex")."""
     assert modbus_crc16(bytes([0x02, 0x07])) == 0x1241
 
 
 def test_modbus_crc16_remainder_property_holds_on_several_byte_strings():
-    """Suma policzona nad dowolnym ciagiem `d` z dolaczonymi dwoma bajtami
-    wlasnej sumy (bajt mlodszy pierwszy) wynosi zero - wlasnosc trzyma sie
-    niezaleznie od dlugosci `d`, w tym dla ciagu pustego i jednobajtowego,
-    wiec jest bramka na kazda zamiane wielomianu albo kolejnosci bajtow,
-    ktora jeden literalny wektor testowy przepuscilby przypadkiem."""
+    """The checksum computed over any string `d` with the two bytes of its own
+    checksum appended (least significant byte first) is zero - the property
+    holds regardless of the length of `d`, including the empty and the
+    one-byte string, so it is a gate against every swap of the polynomial or
+    of the byte order that a single literal test vector could let through by
+    accident."""
     for body in (b"", b"\x01", b"\x01\x06\x00\x01\x00\x2a", bytes([0x02, 0x07])):
         crc = modbus_crc16(body)
         appended = body + struct.pack("<H", crc)
@@ -167,10 +169,10 @@ def test_detect_all_on_empty_segment_list_returns_empty_list():
 
 
 def test_detect_all_skips_segment_that_passes_mbap_validation():
-    # Naglowek MBAP poprawny (transId=1, protoId=0, length=2, unitId=1) plus
-    # kod funkcji - ten segment przechodzi validate_mbap, wiec detect_all
-    # NIGDY nie sprawdza go suma kontrolna, niezaleznie od tego, co jest w
-    # ciele za naglowkiem.
+    # A valid MBAP header (transId=1, protoId=0, length=2, unitId=1) plus a
+    # function code - this segment passes validate_mbap, so detect_all NEVER
+    # checks it by checksum, regardless of what stands in the body after the
+    # header.
     mbap_payload = struct.pack(">HHH", 1, 0, 2) + bytes([1, 0x06])
     segment = _make_segment(mbap_payload)
     assert detect_all([segment]) == []
@@ -204,9 +206,9 @@ def test_detect_all_preserves_file_order_across_two_matching_segments():
     assert [event.packet_number for event in events] == [1, 2]
 
 
-# --- detect_all: przypadek negatywny na trzech fixture'ach Modbus/TCP ------
-# (dwa dowodza pierwszenstwa bramy MBAP, trzeci dowodzi, ze ladunek oblewajacy
-# walidacje MBAP nie dopasowuje sie do sumy kontrolnej przypadkiem)
+# --- detect_all: the negative case over three Modbus/TCP fixtures ----------
+# (two prove the precedence of the MBAP gate, the third proves that a payload
+# failing MBAP validation does not match the checksum by accident)
 
 
 def test_detect_all_returns_empty_list_on_three_existing_modbus_tcp_fixtures():
@@ -220,17 +222,17 @@ def test_detect_all_returns_empty_list_on_three_existing_modbus_tcp_fixtures():
         assert detect_all(segments) == [], fixture
 
 
-# --- Task 2: generator fixture'a - dwie implementacje niezalezne sumy ------
-# kontrolnej zgadzaja sie na kazdym wektorze testowym uzytym w Task 1
+# --- Task 2: the fixture generator - two independent implementations of ----
+# the checksum agree on every test vector used in Task 1
 # --------------------------------------------------------------------------
 
 
 def _load_gen_fixtures_module():
-    """Laduje `scripts/gen_fixtures.py` jako modul przez
-    `importlib.util.spec_from_file_location` - tak samo jak silnik checkow
-    (`wayside.checks.engine._load_evaluator`) laduje evaluator siostrzany
-    wobec YAML, zeby import po sciezce byl spojny z jedynym innym miejscem
-    projektu, ktore go potrzebuje."""
+    """Loads `scripts/gen_fixtures.py` as a module through
+    `importlib.util.spec_from_file_location` - the same way the check engine
+    (`wayside.checks.engine._load_evaluator`) loads the evaluator sitting next
+    to its YAML, so that importing by path stays consistent with the only
+    other place in the project that needs it."""
     import importlib.util
 
     module_path = REPO_ROOT / "scripts" / "gen_fixtures.py"

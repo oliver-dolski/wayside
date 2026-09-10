@@ -1,16 +1,17 @@
-"""Bramki maszynowe PROTO-01, PROTO-02 i PROTO-04 (plan 02-04).
+"""Machine gates PROTO-01, PROTO-02 and PROTO-04 (plan 02-04).
 
-`test_recognizes_non_standard_port` i `test_rejects_malformed_mbap` dowodza
-rozpoznania po ksztalcie naglowka MBAP, nie po numerze portu (02-RESEARCH.md,
-Pitfall 2): kazdy z nich ma pare test jednostkowy na `dissect_all` plus test
-przez podproces CLI, zeby dowod szedl przez caly potok, nie tylko przez
-warstwe protokolu w izolacji (kryterium 3 fazy). `test_function_code_classification`
-dowodzi rozdzielenia kodow funkcji na czytajace i zapisujace wobec pelnej
-tabeli wpisanej w tym pliku niezaleznie od `FUNCTION_CODE_KIND` - test
-porownujacy slownik z samym soba nie dowodzilby niczego.
+`test_recognizes_non_standard_port` and `test_rejects_malformed_mbap` prove
+recognition by the shape of the MBAP header rather than by the port number
+(02-RESEARCH.md, Pitfall 2): each of them comes as a pair, a unit test over
+`dissect_all` plus a test through a CLI subprocess, so that the proof runs
+through the whole pipeline and not only through the protocol layer in
+isolation (criterion 3 of the phase). `test_function_code_classification`
+proves the split of function codes into reading and writing ones against the
+full table typed into this file independently of `FUNCTION_CODE_KIND` - a test
+comparing a dictionary with itself would prove nothing.
 
-Sciezki fixture sa wzgledne wobec `REPO_ROOT` w wywolaniach CLI, tak samo
-jak w `tests/test_cli_output_snapshot.py` i `tests/test_analyze_pipeline.py`.
+The fixture paths are relative to `REPO_ROOT` in the CLI calls, exactly as in
+`tests/test_cli_output_snapshot.py` and `tests/test_analyze_pipeline.py`.
 """
 
 from __future__ import annotations
@@ -35,9 +36,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_NON_STANDARD_PORT = "tests/fixtures/pcap/modbus_write_non_standard_port.pcap"
 FIXTURE_MALFORMED_MBAP = "tests/fixtures/pcap/modbus_malformed_mbap.pcap"
 
-# Pelna oczekiwana tabela kodow funkcji, wpisana tu NIEZALEZNIE od
-# `FUNCTION_CODE_KIND` - zrodlem jest 02-RESEARCH.md Pattern 3, nie kod
-# produkcyjny. Dokladnie 19 wpisow.
+# The full expected table of function codes, typed here INDEPENDENTLY of
+# `FUNCTION_CODE_KIND` - the source is 02-RESEARCH.md Pattern 3, not the
+# production code. Exactly 19 entries.
 EXPECTED_FUNCTION_CODE_KIND: dict[int, str] = {
     0x01: "read",
     0x02: "read",
@@ -69,10 +70,11 @@ def _build_raw_adu(
     pdu: bytes = b"\x06",
     length_override: int | None = None,
 ) -> bytes:
-    """Sklada surowe bajty ladunku TCP (naglowek MBAP + PDU) przez
-    `struct.pack`, z mozliwoscia nadpisania pola dlugosci niezaleznie od
-    faktycznej dlugosci `pdu` - bez tego nie da sie zbudowac przypadku
-    niespojnej dlugosci, jednego z trzech warunkow walidacji."""
+    """Assembles the raw bytes of a TCP payload (the MBAP header + the PDU)
+    through `struct.pack`, with the option of overriding the length field
+    independently of the actual length of `pdu` - without that there is no way
+    to build the inconsistent length case, one of the three validation
+    conditions."""
     body = bytes([unit_id]) + pdu
     length = length_override if length_override is not None else len(body)
     return struct.pack(">HHH", transaction_id, protocol_id, length) + body
@@ -95,7 +97,7 @@ def _run_analyze(fixture_relative: str, out_dir: Path) -> subprocess.CompletedPr
     )
 
 
-# --- validate_mbap: prog dlugosci po obu stronach MIN_ADU_LEN ---------------
+# --- validate_mbap: the length threshold on both sides of MIN_ADU_LEN ------
 
 
 def test_validate_mbap_accepts_payload_at_minimum_length():
@@ -114,34 +116,33 @@ def test_validate_mbap_rejects_payload_one_byte_below_minimum():
     assert validate_mbap(raw) is None
 
 
-# --- validate_mbap: precyzja pola dlugosci (T-2-01) -------------------------
+# --- validate_mbap: precision of the length field (T-2-01) -----------------
 
 
 def test_validate_mbap_rejects_length_field_max_value_on_short_payload():
-    """Pole dlugosci ustawione na wartosc maksymalna dwubajtowa przy krotkim
-    ladunku musi zostac odrzucone, nie przyciete do dlugosci faktycznej -
-    dowod, ze wartosc z pliku niezaufanego nie jest uzywana jako indeks bez
-    kontroli zakresu."""
+    """A length field set to the maximum two-byte value with a short payload
+    has to be rejected, not clamped to the actual length - proof that a value
+    from an untrusted file is never used as an index without a range check."""
     raw = _build_raw_adu(pdu=b"\x06", length_override=0xFFFF)
     assert len(raw) == MIN_ADU_LEN
 
     assert validate_mbap(raw) is None
 
 
-# --- validate_mbap: pusty ciag bajtow (PROTO-02, edge: empty) ---------------
+# --- validate_mbap: an empty byte string (PROTO-02, edge: empty) -----------
 
 
 def test_validate_mbap_rejects_empty_bytes():
     assert validate_mbap(b"") is None
 
 
-# --- validate_mbap: dlugosc liczona w bajtach, nie w znakach ----------------
+# --- validate_mbap: the length counted in bytes, not in characters ---------
 
 
 def test_validate_mbap_accepts_payload_with_utf8_looking_bytes_and_counts_length_in_bytes():
-    """Bajty danych wygladajace na wielobajtowy znak UTF-8 (znak Euro,
-    trzy bajty) przechodza walidacje, a dlugosc jest policzona w bajtach -
-    dowod, ze nigdzie na tej sciezce nie ma dekodowania bajtow do tekstu."""
+    """Data bytes that look like a multi-byte UTF-8 character (the Euro sign,
+    three bytes) pass validation, and the length is counted in bytes - proof
+    that nowhere on this path are bytes decoded into text."""
     pdu = b"\x06\xe2\x82\xac"
     raw = _build_raw_adu(pdu=pdu)
 
@@ -151,7 +152,7 @@ def test_validate_mbap_accepts_payload_with_utf8_looking_bytes_and_counts_length
     assert header.length == len(raw) - 6
 
 
-# --- validate_mbap: identyfikator protokolu niezerowy -----------------------
+# --- validate_mbap: a non-zero protocol identifier -------------------------
 
 
 def test_validate_mbap_rejects_nonzero_protocol_id():
@@ -160,7 +161,7 @@ def test_validate_mbap_rejects_nonzero_protocol_id():
     assert validate_mbap(raw) is None
 
 
-# --- classify_function_code: tabela niezalezna od FUNCTION_CODE_KIND -------
+# --- classify_function_code: a table independent of FUNCTION_CODE_KIND -----
 
 
 def test_function_code_classification():
@@ -172,17 +173,18 @@ def test_function_code_classification():
 
 
 def test_function_code_0x17_is_write_because_pdu_carries_a_write():
-    """Kod 0x17 (Read/Write Multiple Registers) niesie zapis i odczyt w
-    jednym PDU - dla potrzeb findingu za zapis liczy sie jako `write`, nigdy
-    jako `read` i nigdy jako kategoria mieszana. Ta linia tabeli jest jedyna,
-    ktora da sie pomylic w dobrej wierze."""
+    """Code 0x17 (Read/Write Multiple Registers) carries a write and a read in
+    one PDU - for the purposes of the write finding it counts as `write`,
+    never as `read` and never as a mixed category. This row of the table is
+    the only one that can be got wrong in good faith."""
     assert classify_function_code(0x17) == "write"
 
 
 def test_classify_function_code_is_order_independent():
-    """Sto wywolan w losowej kolejnosci daje wyniki identyczne z wynikami
-    wywolan w kolejnosci rosnacej - dowod, ze `FUNCTION_CODE_KIND` jest
-    stalym slownikiem literalnym, nie czyms zaleznym od kolejnosci iteracji."""
+    """A hundred calls in random order yield results identical to the results
+    of calls in ascending order - proof that `FUNCTION_CODE_KIND` is a
+    constant literal dictionary, not something dependent on iteration
+    order."""
     codes = list(range(0, 100))
     ascending_results = [classify_function_code(code) for code in codes]
 
@@ -196,7 +198,7 @@ def test_classify_function_code_is_order_independent():
     )
 
 
-# --- PROTO-01: rozpoznanie na porcie niestandardowym ------------------------
+# --- PROTO-01: recognition on a non-standard port --------------------------
 
 
 def test_recognizes_non_standard_port():
@@ -218,13 +220,14 @@ def test_recognizes_non_standard_port_end_to_end_via_cli(tmp_path):
     assert result.returncode == 0, result.stderr
 
     analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
-    # Od planu 04-04: zapis do sterownika daje finding za zapis oraz finding
-    # za uzycie protokolu bez uwierzytelnienia, wiec dwa findingi, nie jeden.
+    # Since plan 04-04: a write to a controller yields the write finding plus
+    # the finding for using a protocol without authentication, so two findings
+    # rather than one.
     assert len(analysis["findings"]) == 2
     assert len(analysis["protocol_events"]) == 2
 
 
-# --- PROTO-02: odrzucenie ramki z niepoprawnym naglowkiem MBAP --------------
+# --- PROTO-02: rejection of a frame with an invalid MBAP header ------------
 
 
 def test_rejects_malformed_mbap():

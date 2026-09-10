@@ -1,1 +1,1 @@
-"""Checki bezpieczenstwa dla ruchu protokolow jawnotekstowych."""
+"""Security checks for traffic of cleartext protocols."""

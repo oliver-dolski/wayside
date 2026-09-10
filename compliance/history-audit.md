@@ -2,13 +2,13 @@
 requirement: PUB-05
 scope: repository-history-identity-patterns
 audited_on: 2026-09-09
-head_sha: a02ea1caf6ba570ad495b072be6b9213bb7822ce
+head_sha: 0cb6292e77385aaa805aa07919fc3b3d8c944852
 surfaces: tree-content, commit-message, file-name
 rules_checked: identity-private-ipv4, identity-mac-address, identity-device-name, identity-project-name
 exceptions_file: .confidentiality-allow
 result: clean
-author:
-confirmed_on:
+author: Oliver Dolski
+confirmed_on: 2026-09-09
 ---
 
 Ten rekord zapisuje WYNIK PRZEBIEGU skanu trzech powierzchni calej historii
@@ -49,7 +49,7 @@ testow zielonych).
 
 Plik wyjatkow: `.confidentiality-allow`. Ten sam plik, co bramka biezaca -
 D-19 wymaga JEDNEJ listy wyjatkow, nie drugiej obok. Na dzien tego audytu
-plik niesie: trzy wyjatki sciezki dla reguly nazwy wlasnej
+plik niesie: dwa wyjatki sciezki dla reguly nazwy wlasnej
 (`identity-path:identity-project-name:...`), oraz 32 deklaracje wartosci
 adresowych (`identity-value:...`) pogrupowane po pochodzeniu, z komentarzem
 nazywajacym zrodlo nad kazda grupa. Pelna tresc kazdego wpisu stoi w tamtym

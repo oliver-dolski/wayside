@@ -1,45 +1,45 @@
-"""Bramka tresci i ksztaltu `SECURITY.md` (PUB-02, D-04 do D-09).
+"""Gate for the content and shape of `SECURITY.md` (PUB-02, D-04 through D-09).
 
-Ktore rozstrzygniecie realizuje kazda grupa asercji:
+Which decision each group of assertions carries out:
 
-- D-04: dwa naglowki drugiego poziomu w kolejnosci - podatnosc w narzedziu,
-  potem podatnosc w cudzej sieci. `REQUIRED_SECTION_HEADERS`.
-- D-05: kanalem sekcji pierwszej jest prywatne zglaszanie podatnosci
-  w zakladce bezpieczenstwa repozytorium, nigdy adres poczty elektronicznej.
+- D-04: two second-level headers in order - a vulnerability in the tool, then
+  a vulnerability in someone else's network. `REQUIRED_SECTION_HEADERS`.
+- D-05: the channel of the first section is private vulnerability reporting in
+  the security tab of the repository, never an email address.
   `CHANNEL_MARKERS`, `_EMAIL_SHAPE_RE`.
-- D-06: dwa terminy sekcji pierwszej (potwierdzenie przyjecia, wstepna
-  ocena), zaden termin poprawki, zaden program nagrod.
+- D-06: the two windows of the first section (acknowledgement of receipt,
+  initial assessment), no fix window, no reward programme.
   `ACKNOWLEDGEMENT_WINDOW`, `ASSESSMENT_WINDOW`, `FORBIDDEN_REMEDIATION_PROMISES`.
-- D-07: brak posrednictwa w cudzych sieciach, trzy wlasne drogi czytelnika.
-  `COORDINATION_ROUTES`.
-- D-08: plik `security.txt` wedlug RFC 9116 nie powstaje.
+- D-07: no mediation in someone else's networks, three routes of the reader's
+  own. `COORDINATION_ROUTES`.
+- D-08: no `security.txt` file per RFC 9116 comes into being.
   `RFC9116_FORBIDDEN_PATHS`.
-- D-09: jedno waskie zdanie safe harbor, ograniczone do zakresu sekcji
-  pierwszej. `SAFE_HARBOR_MARKERS`.
+- D-09: one narrow safe harbour sentence, bounded to the scope of the first
+  section. `SAFE_HARBOR_MARKERS`.
 
-**Ta bramka sprawdza OBECNOSC fraz i KSZTALT dokumentu, nie to, czy zdanie
-mowi dokladnie to, co rozstrzygniecie nazywa.** Czy tresc czyta sie uczciwie
-(np. czy zdanie o braku posrednictwa jest dostatecznie wprost) ocenia
-czlowiek - kontrola reczna zapisana w `05-VALIDATION.md` pod
-`## Manual-Only Verifications`, nie ten plik.
+**This gate checks the PRESENCE of phrases and the SHAPE of the document, not
+whether a sentence says exactly what the decision names.** Whether the content
+reads honestly (say whether the sentence about the absence of mediation is
+direct enough) is judged by a human - a manual check recorded in
+`05-VALIDATION.md` under `## Manual-Only Verifications`, not by this file.
 
-**Zamkniety zbior obietnic zakazanych (`FORBIDDEN_REMEDIATION_PROMISES`)
-zyje WYLACZNIE w tym module jako jedyne zrodlo prawdy** - `SECURITY.md`
-sam go nie powtarza (bramka skanuje `SECURITY.md`, nie ten modul), a gdyby
-powtorzyl, bylby to duplikat, ktory rozjezdza sie po pierwszej poprawce
-w jednym z dwoch miejsc. SUMMARY tego planu cytuje pelna zawartosc zbioru
-razem z uzasadnieniem kazdej pozycji (wymog `<output>` planu 05-02) - to
-jest bezpieczne, bo bramka skanuje wylacznie `SECURITY.md`, nie
-`.planning/`.
+**The closed set of forbidden promises (`FORBIDDEN_REMEDIATION_PROMISES`)
+lives ONLY in this module as its single source of truth** - `SECURITY.md`
+does not repeat it (the gate scans `SECURITY.md`, not this module), and were
+it to repeat it, that would be a duplicate drifting apart at the first fix in
+one of the two places. The SUMMARY of this plan quotes the full contents of
+the set together with the justification of every entry (the `<output>`
+requirement of plan 05-02) - which is safe, because the gate scans
+`SECURITY.md` only, not `.planning/`.
 
-Kazdy wzorzec ponizej jest zawezony wobec konkretnego zdania negujacego,
-ktore SECURITY.md musi umiec wypowiedziec bez zapalania wlasnej bramki -
-ten sam problem, ktory faza 3 zaplacila raz w
-`tests/test_report_forbidden_phrases.py` (patrz docstring tamtego modulu).
+Every pattern below is narrowed against the particular negating sentence
+`SECURITY.md` has to be able to say without firing its own gate - the same
+problem phase 3 paid for once in
+`tests/test_report_forbidden_phrases.py` (see the docstring of that module).
 
-Modul nie zapisuje i nie zmienia zadnego pliku w drzewie repozytorium -
-przypadki negatywne budowane sa na tekscie w pamieci, nigdy przez zapis do
-`SECURITY.md` (patrz `test_module_source_contains_no_file_write_calls`).
+The module writes and changes no file in the repository tree - the negative
+cases are built over text in memory, never by writing to `SECURITY.md` (see
+`test_module_source_contains_no_file_write_calls`).
 """
 
 from __future__ import annotations
@@ -61,8 +61,8 @@ from test_report_orthography import non_ascii_chars  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SECURITY_PATH = REPO_ROOT / "SECURITY.md"
 
-# Skopiowane doslownie z tests/test_readme_claims.py i
-# tests/test_standard_designation_gate.py - jeden zapis tej reguly.
+# Copied verbatim from tests/test_readme_claims.py and
+# tests/test_standard_designation_gate.py - one statement of that rule.
 _HEADER_LINE_RE = re.compile(r"^## .+$", re.MULTILINE)
 
 # D-04: two second-level headers, in their order of appearance in the file.
@@ -100,36 +100,36 @@ FORBIDDEN_REMEDIATION_PROMISES: tuple[str, ...] = (
     "bug bounty",
 )
 
-# D-05: fragmenty nazywajace kanal platformy jako jedyny kanal sekcji 1.
-# Porownanie w testach idzie po normalizacji bialych znakow (_normalize_ws),
-# wiec zawijanie linii markdown nie gubi dopasowania.
+# D-05: the fragments naming the platform channel as the only channel of
+# section 1. The comparison in the tests happens after whitespace
+# normalization, so markdown line wrapping does not lose the match.
 CHANNEL_MARKERS: tuple[str, ...] = (
     "private vulnerability reporting in the security tab of this repository",
 )
 
-# D-09: fragment waskiego zdania safe harbor.
+# D-09: a fragment of the narrow safe harbour sentence.
 SAFE_HARBOR_MARKERS: tuple[str, ...] = (
     "faces no claims from the author on that account",
 )
 
-# D-07: trzy nazwy publicznych punktow koordynacji, zapisane doslownie.
+# D-07: the three names of public coordination points, written verbatim.
 COORDINATION_ROUTES: tuple[str, ...] = (
     "CISA ICS-CERT",
     "CSIRT NASK",
     "CSIRT GOV",
 )
 
-# D-08: sciezki, ktorych ten plan swiadomie NIE tworzy. Absolutne, zeby
-# dzialaly niezaleznie od katalogu roboczego, z ktorego wolany jest test.
+# D-08: the paths this plan deliberately does NOT create. Absolute, so that
+# they work regardless of the working directory the test is called from.
 RFC9116_FORBIDDEN_PATHS: tuple[str, ...] = (
     str(REPO_ROOT / "security.txt"),
     str(REPO_ROOT / ".well-known" / "security.txt"),
 )
 
-# Ksztalt adresu poczty elektronicznej: czesc lokalna, znak malpy, domena
-# z kropka. Waskie CELOWO - slowa "adres poczty elektronicznej" w prozie
-# NIE zapalaja tego wzorca, bo dokument ma prawo tlumaczyc, dlaczego adresu
-# nie ma.
+# The shape of an email address: a local part, an at sign, a domain with a
+# dot. Narrow ON PURPOSE - the words "email address" in prose do NOT fire this
+# pattern, because the document is entitled to explain why there is no
+# address.
 _EMAIL_SHAPE_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
@@ -138,13 +138,13 @@ def _security_text() -> str:
 
 
 def _section_body(text_or_header, header: str | None = None) -> str:
-    """Tresc sekcji `header` od konca linii naglowka do poczatku nastepnego
-    naglowka drugiego poziomu (albo konca tekstu).
+    """The body of the `header` section, from the end of the header line to the
+    start of the next second-level header (or the end of the text).
 
-    Wywolywalna na dwa sposoby, zeby przypadki negatywne mogly dzialac na
-    dowolnym tekscie w pamieci (wzorzec `tests/test_readme_claims.py::_section_body`):
-    `_section_body(header)` operuje na `_security_text()`, a
-    `_section_body(text, header)` na podanym tekscie.
+    Callable in two ways, so that the negative cases can work over any text in
+    memory (the `tests/test_readme_claims.py::_section_body` pattern):
+    `_section_body(header)` operates over `_security_text()`, while
+    `_section_body(text, header)` operates over the text given.
     """
     if header is None:
         text, header = _security_text(), text_or_header
@@ -157,14 +157,14 @@ def _section_body(text_or_header, header: str | None = None) -> str:
         start = match.end()
         end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
         return text[start:end]
-    raise AssertionError(f"Tekst nie ma sekcji {header!r}.")
+    raise AssertionError(f"The text has no {header!r} section.")
 
 
-# --- Plik istnieje, ma dokladnie dwa naglowki, w kolejnosci ----------------
+# --- The file exists and has exactly two headers, in order ----------------
 
 
 def test_security_file_exists():
-    assert SECURITY_PATH.is_file(), f"{SECURITY_PATH} nie istnieje."
+    assert SECURITY_PATH.is_file(), f"{SECURITY_PATH} does not exist."
 
 
 def test_security_has_exactly_two_second_level_headers_in_order():
@@ -196,30 +196,30 @@ def pytest_raises_assertion():
     return pytest.raises(AssertionError)
 
 
-# --- D-06: dwa terminy sekcji pierwszej -------------------------------------
+# --- D-06: the two windows of the first section ----------------------------
 
 
 def test_section_one_body_carries_acknowledgement_window():
     body = _section_body(REQUIRED_SECTION_HEADERS[0])
     found = ACKNOWLEDGEMENT_WINDOW in body
-    assert found, "Sekcja 1 nie niesie fragmentu ACKNOWLEDGEMENT_WINDOW."
+    assert found, "Section 1 does not carry the ACKNOWLEDGEMENT_WINDOW fragment."
 
 
 def test_section_one_body_carries_assessment_window():
     body = _section_body(REQUIRED_SECTION_HEADERS[0])
     found = ASSESSMENT_WINDOW in body
-    assert found, "Sekcja 1 nie niesie fragmentu ASSESSMENT_WINDOW."
+    assert found, "Section 1 does not carry the ASSESSMENT_WINDOW fragment."
 
 
 def test_assessment_and_acknowledgement_windows_do_not_leak_into_section_two():
     body = _section_body(REQUIRED_SECTION_HEADERS[1])
     acknowledgement_leaked = ACKNOWLEDGEMENT_WINDOW in body
     assessment_leaked = ASSESSMENT_WINDOW in body
-    assert not acknowledgement_leaked, "ACKNOWLEDGEMENT_WINDOW przecieka do sekcji 2."
-    assert not assessment_leaked, "ASSESSMENT_WINDOW przecieka do sekcji 2."
+    assert not acknowledgement_leaked, "ACKNOWLEDGEMENT_WINDOW leaks into section 2."
+    assert not assessment_leaked, "ASSESSMENT_WINDOW leaks into section 2."
 
 
-# --- D-06: zamkniety zbior obietnic zakazanych ------------------------------
+# --- D-06: the closed set of forbidden promises ----------------------------
 
 
 def test_forbidden_remediation_promises_constant_has_at_least_four_entries():
@@ -229,16 +229,17 @@ def test_forbidden_remediation_promises_constant_has_at_least_four_entries():
 def test_security_text_carries_no_forbidden_remediation_promise():
     text = _security_text().lower()
     hits = [p for p in FORBIDDEN_REMEDIATION_PROMISES if p.lower() in text]
-    assert hits == [], f"SECURITY.md niesie obietnice zakazane: {hits}"
+    assert hits == [], f"SECURITY.md carries forbidden promises: {hits}"
 
 
 def test_forbidden_promise_pattern_does_not_catch_the_own_boundary_sentences():
-    """Test przeciwny: zbior obietnic zakazanych nie moze zapalac sie na
-    wlasnych zdaniach granicy tego samego dokumentu, ktore uzywaja tych
-    samych rdzeni slow w formie negacji."""
+    """The opposite test: the set of forbidden promises must not fire on the
+    boundary sentences of that same document, which use the same word stems in
+    a negated form. The probes below are the sentences SECURITY.md actually
+    carries."""
     boundary_text = (
-        "tu nie stoi zaden termin wydania poprawki. "
-        "tu nie stoi zaden program wynagrodzen za zgloszenie."
+        "No fix release window stands here. "
+        "No reward programme for reports stands here, for the same reason."
     ).lower()
     hits = [p for p in FORBIDDEN_REMEDIATION_PROMISES if p.lower() in boundary_text]
     assert hits == [], hits
@@ -252,7 +253,7 @@ def test_a_genuine_promise_sentence_is_caught_by_the_set():
     assert hits
 
 
-# --- D-05: kanal platformy, brak adresu poczty elektronicznej --------------
+# --- D-05: the platform channel, no email address -------------------------
 
 
 def test_channel_markers_constant_is_nonempty():
@@ -269,23 +270,23 @@ def test_section_one_body_names_platform_channel():
 
 def test_security_text_carries_no_email_shaped_string():
     has_email_shape = _EMAIL_SHAPE_RE.search(_security_text()) is not None
-    assert not has_email_shape, "SECURITY.md niesie lancuch o ksztalcie adresu poczty."
+    assert not has_email_shape, "SECURITY.md carries a string shaped like an email address."
 
 
 def test_email_shape_pattern_does_not_fire_on_prose_about_email_addresses():
-    """Test przeciwny: samo slowo 'adres poczty elektronicznej' w prozie nie
-    ma zapalac wzorca ksztaltu adresu."""
-    prose = "Dlaczego nie ma tu adresu poczty elektronicznej: kanal platformy..."
+    """The opposite test: the words 'email address' alone in prose are not
+    meant to fire the address shape pattern."""
+    prose = "Why there is no email address here: the platform channel..."
     has_email_shape = _EMAIL_SHAPE_RE.search(prose) is not None
     assert not has_email_shape
 
 
 def test_email_shape_pattern_catches_a_real_looking_address():
-    matched = _EMAIL_SHAPE_RE.search("kontakt: przyklad.autor@przyklad-domena.example") is not None
+    matched = _EMAIL_SHAPE_RE.search("contact: example.author@example-domain.example") is not None
     assert matched
 
 
-# --- D-09: zdanie safe harbor, waskie i ograniczone do sekcji 1 ------------
+# --- D-09: the safe harbour sentence, narrow and bounded to section 1 -----
 
 
 def test_safe_harbor_markers_constant_is_nonempty():
@@ -297,10 +298,10 @@ def test_section_one_body_carries_safe_harbor_sentence():
     normalized = re.sub(r"\s+", " ", body)
     for marker in SAFE_HARBOR_MARKERS:
         found = re.sub(r"\s+", " ", marker) in normalized
-        assert found, "Sekcja 1 nie niesie jednego z SAFE_HARBOR_MARKERS."
+        assert found, "Section 1 does not carry one of SAFE_HARBOR_MARKERS."
 
 
-# --- D-07: brak posrednictwa, trzy drogi czytelnika -------------------------
+# --- D-07: no mediation, three routes for the reader -----------------------
 
 
 def test_coordination_routes_constant_has_at_least_three_entries():
@@ -310,7 +311,7 @@ def test_coordination_routes_constant_has_at_least_three_entries():
 def test_section_two_body_carries_every_coordination_route():
     body = _section_body(REQUIRED_SECTION_HEADERS[1])
     missing = [route for route in COORDINATION_ROUTES if route not in body]
-    assert missing == [], f"Sekcja 2 nie niesie drog koordynacji: {missing}"
+    assert missing == [], f"Section 2 does not carry the coordination routes: {missing}"
 
 
 def test_section_two_body_states_no_mediation():
@@ -361,11 +362,11 @@ def test_security_md_is_ascii():
     )
 
 
-# --- Test: bramka nie zapisuje niczego w drzewie ----------------------------
+# --- Test: the gate writes nothing into the tree ---------------------------
 
 
 def test_module_source_contains_no_file_write_calls():
-    """Sprawdzenie PO ZRODLE modulu, ten sam wzorzec co
+    """A check OVER THE SOURCE of the module, the same pattern as
     `tests/test_readme_claims.py::test_module_source_contains_no_file_write_calls`."""
     source = inspect.getsource(sys.modules[__name__])
     forbidden = (
@@ -375,4 +376,4 @@ def test_module_source_contains_no_file_write_calls():
         "." + "write(",
     )
     hits = [pat for pat in forbidden if pat in source]
-    assert hits == [], f"Modul niesie wzorzec zapisu do pliku: {hits}"
+    assert hits == [], f"The module carries a file write pattern: {hits}"

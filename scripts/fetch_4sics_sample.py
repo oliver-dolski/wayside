@@ -1,34 +1,34 @@
-"""Pobranie podzbioru publicznego zbioru 4SICS (REPORT-05, rekord decyzji `0005`).
+"""Download of a slice of the public 4SICS capture set (REPORT-05, decision record `0005`).
 
-Uzycie:
+Usage:
     uv run python scripts/fetch_4sics_sample.py
-        Pobiera `DATASET_FILE_URL` przez siec, weryfikuje jego sume sha256
-        wobec `DATASET_SHA256` PRZED jakimkolwiek dalszym uzyciem pliku,
-        buduje deterministyczny podzbior `SLICE_FILENAME` i weryfikuje jego
-        sume wobec `SLICE_SHA256`. Oba pliki laduja w `DATASET_DIR`,
-        katalogu ignorowanym przez gita.
+        Downloads `DATASET_FILE_URL` over the network, verifies its sha256
+        sum against `DATASET_SHA256` BEFORE any further use of the file,
+        builds the deterministic slice `SLICE_FILENAME` and verifies its sum
+        against `SLICE_SHA256`. Both files land in `DATASET_DIR`, a directory
+        ignored by git.
 
-    uv run python scripts/fetch_4sics_sample.py --source sciezka/do/pliku.pcap
-        Buduje podzbior z pliku juz lezacego na dysku - zero polaczen
-        sieciowych. Droga zapasowa dla maszyny odcietej od sieci
-        (`04-RESEARCH.md`, sekcja "Environment Availability").
+    uv run python scripts/fetch_4sics_sample.py --source path/to/file.pcap
+        Builds the slice from a file already sitting on disk - zero network
+        connections. The fallback route for a machine cut off from the
+        network (`04-RESEARCH.md`, section "Environment Availability").
 
     uv run python scripts/fetch_4sics_sample.py --skip-download
-        Pomija pobranie i uzywa pliku zrodlowego juz lezacego w
-        `DATASET_DIR` (z poprzedniego uruchomienia tego skryptu).
+        Skips the download and uses the source file already sitting in
+        `DATASET_DIR` (from a previous run of this script).
 
-    uv run python scripts/fetch_4sics_sample.py --output-dir sciezka/wyjsciowa
-        Nadpisuje katalog wyjsciowy - uzyteczne przy budowie podzbioru do
-        katalogu tymczasowego na potrzeby testu.
+    uv run python scripts/fetch_4sics_sample.py --output-dir output/path
+        Overrides the output directory - useful when building the slice into
+        a temporary directory for a test.
 
-Ten skrypt jest operacja DEWELOPERSKA, uruchamiana recznie. `wayside analyze`
-nigdy go nie wola i nigdy nie siega do sieci - pobrany plik zrodlowy i plik
-podzbioru NIE wchodza do repozytorium (rekord decyzji `0005`): oba laduja
-w `DATASET_DIR`, wpisanym do `.gitignore` z podanym powodem. Suma kontrolna
-pobranego pliku jest sprawdzana PRZED jego uzyciem do budowy podzbioru -
-cicha podmiana zbioru u zrodla jest nazwanym ryzykiem rezydualnym rekordu
-decyzji `0005` (zagrozenie T-4-28), wiec ten skrypt nigdy nie uzywa pliku,
-ktorego suma nie zgadza sie ze stala.
+This script is a DEVELOPER operation, run by hand. `wayside analyze` never
+calls it and never reaches for the network - the downloaded source file and
+the slice file do NOT enter the repository (decision record `0005`): both
+land in `DATASET_DIR`, listed in `.gitignore` with the reason given. The
+checksum of the downloaded file is verified BEFORE it is used to build the
+slice - a silent substitution of the capture set at the source is a named
+residual risk of decision record `0005` (threat T-4-28), so this script never
+uses a file whose sum does not match the constant.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-import wayside.pcap  # noqa: F401 - izolacja cache scapy PRZED importem warstw
+import wayside.pcap  # noqa: F401 - scapy cache isolation BEFORE importing the layers
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
@@ -65,92 +65,96 @@ __all__ = [
     "main",
 ]
 
-# Nazwa zbioru razem z instytucja, ktorej nalezy sie atrybucja (rekord decyzji
-# `0005`) - ruch pochodzi z laboratorium konferencji przemyslowej 4SICS,
-# udostepniony publicznie przez Netresec za zgoda CS3Sthlm (nastepcy 4SICS).
-DATASET_NAME = "4SICS 2015 Geek Lounge (CS3Sthlm, udostepnione przez Netresec)"
+# The name of the capture set together with the institution the attribution
+# is owed to (decision record `0005`) - the traffic comes from the lab of the
+# 4SICS industrial conference, published by Netresec with the consent of
+# CS3Sthlm (the successor of 4SICS).
+DATASET_NAME = "4SICS 2015 Geek Lounge (CS3Sthlm, published by Netresec)"
 
-# Adres strony zbioru, do ktorej odsyla atrybucja [CITED: WebFetch 2026-09-05].
+# Address of the capture set page the attribution points at [CITED: WebFetch 2026-09-05].
 DATASET_PAGE_URL = "https://www.netresec.com/?page=PCAP4SICS"
 
-# Adres pobrania jednego pliku zrzutu - trzeci z trzech plikow wymienionych
-# na stronie zbioru (200 MB). Adres jest tokenem podpisanym u zrodla
-# (`share.netresec.com`), wiec badanie fazy nadaje mu waznosc siedmiu dni -
-# jesli przestanie dzialac, nowy adres trzeba odczytac ze strony
-# `DATASET_PAGE_URL` (zalozenie Z-75).
+# Download address of one capture file - the third of the three files listed
+# on the capture set page (200 MB). The address is a token signed at the
+# source (`share.netresec.com`), so the phase research gives it a validity of
+# seven days - if it stops working, the new address has to be read off the
+# `DATASET_PAGE_URL` page (assumption Z-75).
 DATASET_FILE_URL = (
     "https://share.netresec.com/s/gw6Y2QzJHqDD5pr/download/"
     "4SICS-GeekLounge-151022.pcap"
 )
 
-# Nazwa pliku u zrodla - potwierdzona pobraniem, nie zgadywana.
+# The file name at the source - confirmed by downloading it, not guessed.
 DATASET_FILENAME = "4SICS-GeekLounge-151022.pcap"
 
-# Suma kontrolna pliku zrodlowego, ustalona przy pierwszym pobraniu
-# (2026-09-05, 209 236 002 bajty). Cicha podmiana pliku u zrodla jest
-# ryzykiem rezydualnym nazwanym wprost w rekordzie decyzji `0005` -
-# ta stala jest jedyna obrona przed nim (zagrozenie T-4-28).
+# Checksum of the source file, established at the first download
+# (2026-09-05, 209,236,002 bytes). A silent substitution of the file at the
+# source is a residual risk named outright in decision record `0005` - this
+# constant is the only defence against it (threat T-4-28).
 DATASET_SHA256 = "82529c23906416dc73d7f1926a0d38b82527f1f2a7ff8c6f755ce3208feb9643"
 
 SLICE_FILENAME = "4sics-slice.pcap"
 
-# Liczba pakietow pliku zrodlowego pomijanych PRZED wycieciem podzbioru.
-# Pierwotny zamysl (zalozenie Z-69) liczyl podzbior od pakietu pierwszego z
-# `SLICE_PACKET_COUNT = 2000` - Task 2 tego planu zmierzyl, ze pierwsze 2000
-# pakietow tego pliku zrodlowego daje ZERO findingow: pierwszy pakiet z
-# ruchem rozpoznawalnym przez dissectory tego repozytorium (Modbus/TCP) pada
-# na pozycji 292179 (1-bazowo), bo zbior jest ruchem z sieci konferencji
-# przemyslowej, gdzie wiekszosc wczesniejszego ruchu to S7comm (port 102) i
-# ogolny ruch internetowy uczestnikow. Podzbior liczony od pakietu
-# pierwszego musialby wiec objac ponad 290 000 pakietow, a odczyt tylu
-# pakietow przez warstwe dekodowania tego projektu (scapy) kosztuje rzedu
-# 30-50 sekund - samo to przekracza budzet czasu bramki z Task 3
-# (kryterium akceptacji "uv run pytest -q ponizej 120 sekund"; zmierzone
-# empirycznie 2026-09-05, udokumentowane w 04-06-SUMMARY.md jako deviation
-# od zalozenia Z-69). `SLICE_SKIP_PACKETS` przesuwa POCZATEK wyciecia na
-# pierwszy pakiet niosacy ruch rozpoznawalny (29 pakietow przed pierwszym
-# zdarzeniem Modbus/TCP, zeby podzbior objal takze poprzedzajace uzgodnienie
-# TCP) - podzbior pozostaje w pelni deterministyczny (ten sam plik zrodlowy
-# zawsze daje ta sama pozycje pominiecia), zmienia sie wylacznie to, ze
-# poczatek wyciecia nie jest pakietem numer jeden.
+# The number of packets of the source file skipped BEFORE the slice is cut.
+# The original intent (assumption Z-69) counted the slice from the first
+# packet with `SLICE_PACKET_COUNT = 2000` - Task 2 of this plan measured that
+# the first 2000 packets of this source file yield ZERO findings: the first
+# packet carrying traffic recognizable by the dissectors of this repository
+# (Modbus/TCP) falls at position 292179 (1-based), because the capture is
+# traffic from the network of an industrial conference, where most of the
+# earlier traffic is S7comm (port 102) and general internet traffic of the
+# attendees. A slice counted from the first packet would therefore have to
+# span more than 290,000 packets, and reading that many packets through this
+# project's decoding layer (scapy) costs on the order of 30-50 seconds -
+# that alone exceeds the time budget of the gate from Task 3 (acceptance
+# criterion "uv run pytest -q under 120 seconds"; measured empirically
+# 2026-09-05, documented in 04-06-SUMMARY.md as a deviation from assumption
+# Z-69). `SLICE_SKIP_PACKETS` moves the START of the cut to the first packet
+# carrying recognizable traffic (29 packets before the first Modbus/TCP
+# event, so that the slice covers the preceding TCP handshake as well) - the
+# slice stays fully deterministic (the same source file always yields the
+# same skip position), the only thing that changes is that the start of the
+# cut is not packet number one.
 SLICE_SKIP_PACKETS = 292150
 
-# Liczba pakietow podzbioru, liczona od `SLICE_SKIP_PACKETS`. Czterdziesci
-# pakietow obejmuje piec niezaleznych sesji Modbus/TCP (jeden host
-# odpytujacy piec roznych serwerow) - material czytelny w przykladowym
-# raporcie, nie zalewajacy go setkami niemal identycznych wpisow (ten sam
-# zrzut, wieksze `SLICE_PACKET_COUNT`, dawal kilkaset findingow tego samego
-# checka - zmierzone 2026-09-05).
+# The number of packets in the slice, counted from `SLICE_SKIP_PACKETS`.
+# Forty packets cover five independent Modbus/TCP sessions (one host polling
+# five different servers) - material that reads well in the example report
+# rather than flooding it with hundreds of nearly identical entries (the same
+# capture with a larger `SLICE_PACKET_COUNT` produced several hundred
+# findings of the same check - measured 2026-09-05).
 SLICE_PACKET_COUNT = 40
 
-# Suma kontrolna pliku podzbioru, zbudowanego z `DATASET_FILENAME` przy
-# `SLICE_SKIP_PACKETS`/`SLICE_PACKET_COUNT` powyzej (2026-09-05).
+# Checksum of the slice file, built from `DATASET_FILENAME` with the
+# `SLICE_SKIP_PACKETS`/`SLICE_PACKET_COUNT` above (2026-09-05).
 SLICE_SHA256 = "7e2f9bbbb38a2d8a5344370781a6c706ae0abac95af13659575814a34a1fbf97"
 
-# Katalog pobrania, wyprowadzony z polozenia skryptu - nie z katalogu
-# uruchomienia procesu. Ignorowany przez gita (`.gitignore`, rekord decyzji
-# `0005`): zbior zewnetrzny wazacy rzad setek megabajtow nie wchodzi do
-# repozytorium.
+# The download directory, derived from the location of the script - not from
+# the directory the process was started in. Ignored by git (`.gitignore`,
+# decision record `0005`): an external capture set weighing hundreds of
+# megabytes does not enter the repository.
 DATASET_DIR = Path(__file__).resolve().parent.parent / "datasets" / "4sics"
 
 _CHUNK_SIZE = 1024 * 1024
 
 
 class DatasetIntegrityError(Exception):
-    """Podnoszony w trzech przypadkach: stala sumy kontrolnej jest pusta
-    (bootstrap - pierwsze pobranie, zanim ktokolwiek wpisal wartosc do tego
-    modulu), suma pliku zrodlowego nie zgadza sie ze stala, albo suma pliku
-    podzbioru nie zgadza sie ze stala. Zaden z tych przypadkow nie konczy
-    sie cichym uzyciem pliku - to jest cala racja bytu tej klasy."""
+    """Raised in three cases: the checksum constant is empty (bootstrap - the
+    first download, before anybody typed the value into this module), the sum
+    of the source file does not match the constant, or the sum of the slice
+    file does not match the constant. None of these cases ends in a silent use
+    of the file - that is the entire reason this class exists."""
 
 
 def _verify_checksum(path: Path, expected: str, *, what: str, constant_name: str) -> None:
-    """Liczy sume sha256 `path` strumieniowo i porownuje ja z `expected`.
+    """Computes the sha256 sum of `path` in a stream and compares it with
+    `expected`.
 
-    `expected` puste: sciezka bootstrapu (zalozenie Z-75) - konczy sie
-    `DatasetIntegrityError` niosacym policzona sume, zeby dala sie wpisac
-    jako wartosc stalej `constant_name`. `expected` niezgodne z policzona
-    suma: `DatasetIntegrityError` niosacy oba skroty (zagrozenie T-4-28)."""
+    `expected` empty: the bootstrap path (assumption Z-75) - it ends in a
+    `DatasetIntegrityError` carrying the computed sum, so that it can be typed
+    in as the value of the constant `constant_name`. `expected` different from
+    the computed sum: a `DatasetIntegrityError` carrying both hashes (threat
+    T-4-28)."""
     digest = hashlib.sha256()
     with Path(path).open("rb") as handle:
         while True:
@@ -162,17 +166,17 @@ def _verify_checksum(path: Path, expected: str, *, what: str, constant_name: str
 
     if not expected:
         raise DatasetIntegrityError(
-            f"Stala {constant_name} jest pusta - to jest pierwsze uzycie tego "
-            f"pliku. Suma sha256 {what} ({path}): {actual}. Wpisz ta wartosc "
-            f"jako {constant_name} w tym module, zeby kazde kolejne uruchomienie "
-            "sprawdzalo ja normalnie."
+            f"The constant {constant_name} is empty - this is the first use of "
+            f"this file. The sha256 sum of the {what} ({path}): {actual}. Type "
+            f"that value in as {constant_name} in this module, so that every "
+            "further run checks it normally."
         )
     if actual != expected:
         raise DatasetIntegrityError(
-            f"Suma kontrolna {what} niezgodna: oczekiwano {expected}, otrzymano "
-            f"{actual}. Plik ({path}) mogl zostac cicho podmieniony u zrodla - "
-            "to jest dokladnie ryzyko rezydualne nazwane w rekordzie decyzji "
-            "`0005`."
+            f"Checksum of the {what} does not match: expected {expected}, got "
+            f"{actual}. The file ({path}) may have been silently substituted at "
+            "the source - that is exactly the residual risk named in decision "
+            "record `0005`."
         )
 
 
@@ -182,18 +186,17 @@ def fetch_dataset(
     source_path: Path | None = None,
     output_dir: Path = DATASET_DIR,
 ) -> Path:
-    """Zwraca sciezke pliku zrodlowego zbioru pod `output_dir`.
+    """Returns the path of the capture set source file under `output_dir`.
 
-    `source_path` podany: kopiuje plik z dysku strumieniowo, nie dotyka
-    sieci - droga zapasowa dla maszyny odcietej, ten sam wzorzec, ktory
-    `scripts/gen_oui_db.py` niesie dla rejestru producentow. `source_path`
-    pominiety: pobiera `url` strumieniowo przez biblioteke standardowa,
-    wylacznie po protokole szyfrowanym, bez przekierowania na protokol
-    nieszyfrowany. W obu przypadkach: zapis do pliku tymczasowego w
-    `output_dir` i podmiana atomowa (`os.replace`) po zakonczeniu - pobranie
-    przerwane w polowie nie zostawia pliku wygladajacego na kompletny. Suma
-    sha256 jest sprawdzona PRZED zwroceniem sciezki wywolujacemu (zagrozenie
-    T-4-28).
+    `source_path` given: copies the file from disk in a stream, does not touch
+    the network - the fallback route for a disconnected machine, the same
+    pattern `scripts/gen_oui_db.py` carries for the vendor registry.
+    `source_path` omitted: downloads `url` in a stream through the standard
+    library, over the encrypted protocol only, with no redirect onto an
+    unencrypted one. In both cases: a write to a temporary file inside
+    `output_dir` and an atomic swap (`os.replace`) once finished - a download
+    interrupted halfway leaves no file that looks complete. The sha256 sum is
+    verified BEFORE the path is returned to the caller (threat T-4-28).
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -214,8 +217,8 @@ def fetch_dataset(
             else:
                 if not url.startswith("https://"):
                     raise ValueError(
-                        f"Adres pobrania {url!r} nie uzywa protokolu "
-                        "szyfrowanego (https)."
+                        f"The download address {url!r} does not use the "
+                        "encrypted protocol (https)."
                     )
                 request = urllib.request.Request(
                     url, headers={"User-Agent": "wayside-fetch-4sics-sample/1.0"}
@@ -235,24 +238,24 @@ def fetch_dataset(
         raise
 
     _verify_checksum(
-        target_path, DATASET_SHA256, what="pliku zrodlowego", constant_name="DATASET_SHA256"
+        target_path, DATASET_SHA256, what="source file", constant_name="DATASET_SHA256"
     )
     return target_path
 
 
 def build_slice(source: Path, output_dir: Path = DATASET_DIR) -> Path:
-    """Buduje plik podzbioru pod `output_dir` z pakietow `source`.
+    """Builds the slice file under `output_dir` out of the packets of `source`.
 
-    Czyta `source` STRUMIENIOWO (`RawPcapReader`, bez dekodowania warstw) -
-    odczyt calego pliku o rozmiarze rzedu setek megabajtow przez warstwe
-    odczytu tego projektu (`wayside.pcap`/scapy) zajalby minuty i gigabajty
-    pamieci (zalozenie Z-69). Pomija pierwsze `SLICE_SKIP_PACKETS` pakietow
-    (patrz komentarz przy tej stalej), potem zapisuje kolejne
-    `SLICE_PACKET_COUNT` pakietow do pliku podzbioru, zachowujac oryginalne
-    znaczniki czasu i oryginalny typ warstwy drugiej (`reader.linktype`) -
-    podzbior ma niesc prawdziwy ruch z prawdziwymi znacznikami, bo to jest
-    cala jego wartosc. Suma sha256 pliku podzbioru jest sprawdzona PRZED
-    zwroceniem sciezki wywolujacemu.
+    Reads `source` AS A STREAM (`RawPcapReader`, without decoding the layers) -
+    reading a whole file on the order of hundreds of megabytes through this
+    project's reading layer (`wayside.pcap`/scapy) would take minutes and
+    gigabytes of memory (assumption Z-69). It skips the first
+    `SLICE_SKIP_PACKETS` packets (see the comment next to that constant), then
+    writes the following `SLICE_PACKET_COUNT` packets into the slice file,
+    preserving the original timestamps and the original layer two type
+    (`reader.linktype`) - the slice is meant to carry real traffic with real
+    timestamps, because that is its entire value. The sha256 sum of the slice
+    file is verified BEFORE the path is returned to the caller.
     """
     source = Path(source)
     output_dir = Path(output_dir)
@@ -293,7 +296,7 @@ def build_slice(source: Path, output_dir: Path = DATASET_DIR) -> Path:
         raise
 
     _verify_checksum(
-        target_path, SLICE_SHA256, what="pliku podzbioru", constant_name="SLICE_SHA256"
+        target_path, SLICE_SHA256, what="slice file", constant_name="SLICE_SHA256"
     )
     return target_path
 
@@ -305,8 +308,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help=(
-            "Sciezka do pliku zrodlowego juz lezacego na dysku. Podana: "
-            "zero polaczen sieciowych. Pominieta: pobranie przez "
+            "Path to a source file already sitting on disk. Given: zero "
+            "network connections. Omitted: a download from "
             f"{DATASET_FILE_URL}."
         ),
     )
@@ -314,14 +317,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         default=DATASET_DIR,
-        help=f"Katalog wyjsciowy (domyslnie {DATASET_DIR}).",
+        help=f"Output directory (default {DATASET_DIR}).",
     )
     parser.add_argument(
         "--skip-download",
         action="store_true",
         help=(
-            "Pomija pobranie i uzywa pliku zrodlowego juz lezacego w "
-            "katalogu wyjsciowym z poprzedniego uruchomienia."
+            "Skips the download and uses the source file already sitting in "
+            "the output directory from a previous run."
         ),
     )
     return parser
@@ -337,29 +340,29 @@ def main(argv: list[str] | None = None) -> int:
             source_path = output_dir / DATASET_FILENAME
             if not source_path.is_file():
                 print(
-                    f"--skip-download podany, ale {source_path} nie istnieje - "
-                    "uruchom najpierw bez tej flagi.",
+                    f"--skip-download was given, but {source_path} does not exist - "
+                    "run without that flag first.",
                     file=sys.stderr,
                 )
                 return 1
             _verify_checksum(
                 source_path,
                 DATASET_SHA256,
-                what="pliku zrodlowego",
+                what="source file",
                 constant_name="DATASET_SHA256",
             )
         else:
             source_path = fetch_dataset(source_path=args.source, output_dir=output_dir)
         slice_path = build_slice(source_path, output_dir=output_dir)
     except DatasetIntegrityError as exc:
-        print(f"Blad integralnosci zbioru: {exc}", file=sys.stderr)
+        print(f"Capture set integrity error: {exc}", file=sys.stderr)
         return 1
     except (OSError, ValueError) as exc:
-        print(f"Nie udalo sie pobrac albo przetworzyc zbioru: {exc}", file=sys.stderr)
+        print(f"Could not download or process the capture set: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Zapisano plik zrodlowy: {source_path}")
-    print(f"Zapisano podzbior: {slice_path}")
+    print(f"Written source file: {source_path}")
+    print(f"Written slice: {slice_path}")
     return 0
 
 

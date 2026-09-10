@@ -1,21 +1,22 @@
-"""Bramka maszynowa ASSET-02: lookup producenta z prefiksu adresu MAC,
-brak pliku `manuf` Wiresharka w drzewie repozytorium, brak importu sieciowego
-w warstwie uruchomieniowej (plan 03-05, Task 1).
+"""Machine gate ASSET-02: the vendor lookup from a MAC address prefix, the
+absence of a Wireshark `manuf` file in the repository tree, the absence of a
+network import in the runtime layer (plan 03-05, Task 1).
 
-Grupa pierwsza (jednostkowa) NIE odwoluje sie do `oui.OUI_TABLE_PATH` i
-przechodzi niezaleznie od tego, czy `src/wayside/assets/oui_table.tsv` lezy
-w drzewie - to jest zalozenie Z-20 z planu: lookup jest wstrzykiwany jako
-argument, kod i jego testy sa wiec calkowicie niezalezne od rozstrzygniecia
-checkpointu redystrybucji danych (Task 3 tego planu).
+The first group (unit tests) does NOT reference `oui.OUI_TABLE_PATH` and
+passes regardless of whether `src/wayside/assets/oui_table.tsv` sits in the
+tree - that is assumption Z-20 of the plan: the lookup is injected as an
+argument, so the code and its tests are entirely independent of the outcome of
+the data redistribution checkpoint (Task 3 of that plan).
 
-Grupa druga kopiuje wzorzec `scan_tree` z `tests/test_no_external_dissector.py`.
-Grupa trzecia skanuje drzewo skladni (AST), nie dopasowanie tekstowe - to samo
-uzasadnienie, ktore `tests/test_no_external_dissector.py` niesie dla
-`find_scapy_all_imports`: naiwny skan tekstowy zlapalby prozaiczna wzmianke
-w docstringu tego wlasnie modulu jako falszywy alarm.
+The second group copies the `scan_tree` pattern of
+`tests/test_no_external_dissector.py`. The third group scans the syntax tree
+(AST) rather than matching text - the same justification
+`tests/test_no_external_dissector.py` carries for `find_scapy_all_imports`: a
+naive text scan would catch the prose mention in the docstring of this very
+module as a false alarm.
 
-Nazwa tego pliku jest czescia kontraktu wymaganie-na-test z `03-VALIDATION.md`
-i nie ulega zmianie.
+The name of this file is part of the requirement-to-test contract of
+`03-VALIDATION.md` and does not change.
 """
 
 from __future__ import annotations
@@ -40,9 +41,10 @@ from wayside.assets.oui import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Grupa 4 importuje `scripts/gen_oui_db.py` jak `tests/test_standards_catalog.py`
-# importuje `scripts/confidentiality_guard.py` - przez wstawienie katalogu
-# `scripts/` do `sys.path`, bo `scripts/` nie jest pakietem instalowanym.
+# Group 4 imports `scripts/gen_oui_db.py` the way
+# `tests/test_standards_catalog.py` imports
+# `scripts/confidentiality_guard.py` - by inserting the `scripts/` directory
+# into `sys.path`, because `scripts/` is not an installed package.
 _SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
@@ -52,7 +54,7 @@ import gen_oui_db  # noqa: E402
 DECISION_RECORD_PATH = REPO_ROOT / "docs" / "decisions" / "0002-oui-registry-redistribution.md"
 
 
-# --- Stale modulu: ksztalt kontraktu z bloku <interfaces> planu ------------
+# --- Module constants: the contract shape from the plan's <interfaces> -----
 
 
 def test_module_constants_have_expected_shape():
@@ -61,7 +63,7 @@ def test_module_constants_have_expected_shape():
     assert OUI_TABLE_PATH.name == "oui_table.tsv"
 
 
-# --- Grupa 1: normalize_mac_prefix, niezalezna od pliku danych -------------
+# --- Group 1: normalize_mac_prefix, independent of the data file -----------
 
 
 def test_normalize_mac_prefix_colon_separated():
@@ -92,47 +94,47 @@ def test_normalize_mac_prefix_non_hex_gives_none():
     assert normalize_mac_prefix("zz:zz:zz:zz:zz:zz") is None
 
 
-# --- Grupa 1: load_oui_table, tabela zapisana w tmp_path --------------------
+# --- Group 1: load_oui_table, a table written into tmp_path ----------------
 
 
 def test_load_oui_table_two_data_rows_and_one_comment_row(tmp_path):
     table_path = tmp_path / "oui_table.tsv"
     table_path.write_text(
-        "# zrodlo: testowe, data pobrania: 2026-01-01, wpisow: 2\n"
-        "020000\tOrganizacja Testowa Jeden\n"
-        "AABBCC\tOrganizacja Testowa Dwa\n",
+        "# source: test, generated on: 2026-01-01, entries: 2\n"
+        "020000\tTest Organisation One\n"
+        "AABBCC\tTest Organisation Two\n",
         encoding="utf-8",
     )
 
     table = load_oui_table(table_path)
 
     assert table == {
-        "020000": "Organizacja Testowa Jeden",
-        "AABBCC": "Organizacja Testowa Dwa",
+        "020000": "Test Organisation One",
+        "AABBCC": "Test Organisation Two",
     }
 
 
 def test_load_oui_table_skips_blank_and_comment_lines_without_raising(tmp_path):
     table_path = tmp_path / "oui_table.tsv"
     table_path.write_text(
-        "# naglowek\n"
+        "# header\n"
         "\n"
-        "020000\tOrganizacja Testowa\n"
+        "020000\tTest Organisation\n"
         "\n"
-        "# kolejny komentarz\n",
+        "# another comment\n",
         encoding="utf-8",
     )
 
     table = load_oui_table(table_path)
 
-    assert table == {"020000": "Organizacja Testowa"}
+    assert table == {"020000": "Test Organisation"}
 
 
 def test_load_oui_table_one_column_row_raises_with_line_number(tmp_path):
     table_path = tmp_path / "oui_table.tsv"
     table_path.write_text(
-        "# naglowek\n"
-        "020000-bez-tabulatora\n",
+        "# header\n"
+        "020000-without-a-tab\n",
         encoding="utf-8",
     )
 
@@ -145,7 +147,7 @@ def test_load_oui_table_one_column_row_raises_with_line_number(tmp_path):
 def test_load_oui_table_three_column_row_raises(tmp_path):
     table_path = tmp_path / "oui_table.tsv"
     table_path.write_text(
-        "020000\tOrganizacja\tKolumna Nadmiarowa\n",
+        "020000\tOrganisation\tExtra Column\n",
         encoding="utf-8",
     )
 
@@ -155,49 +157,48 @@ def test_load_oui_table_three_column_row_raises(tmp_path):
 
 def test_load_oui_table_nonexistent_path_raises():
     with pytest.raises(OuiTableError):
-        load_oui_table(Path("nieistniejaca-sciezka-oui-table.tsv"))
+        load_oui_table(Path("nonexistent-oui-table.tsv"))
 
 
-# --- Grupa 1: lookup_vendor --------------------------------------------------
+# --- Group 1: lookup_vendor ------------------------------------------------
 
 
 def test_lookup_vendor_matching_prefix_returns_organization_name():
-    table = {"020000": "Organizacja Testowa"}
-    assert lookup_vendor("02:00:00:00:00:01", table) == "Organizacja Testowa"
+    table = {"020000": "Test Organisation"}
+    assert lookup_vendor("02:00:00:00:00:01", table) == "Test Organisation"
 
 
 def test_lookup_vendor_no_match_returns_none():
-    table = {"020000": "Organizacja Testowa"}
+    table = {"020000": "Test Organisation"}
     assert lookup_vendor("aa:bb:cc:dd:ee:ff", table) is None
 
 
 def test_lookup_vendor_invalid_mac_returns_none_without_raising():
-    table = {"020000": "Organizacja Testowa"}
-    assert lookup_vendor("nie-jest-adresem-mac", table) is None
+    table = {"020000": "Test Organisation"}
+    assert lookup_vendor("not-a-mac-address", table) is None
 
 
 def test_lookup_vendor_empty_table_returns_none():
     assert lookup_vendor("02:00:00:00:00:01", {}) is None
 
 
-# --- Grupa 2: brak pliku manuf w calym drzewie repozytorium (poza .git) ----
+# --- Group 2: no manuf file anywhere in the repository tree (outside .git) -
 #
-# "Drzewo repozytorium" jest tu scisle rozumiane jako drzewo SLEDZONE przez
-# git (`git ls-files`), nie surowy system plikow pod korzeniem projektu.
-# Powod: `.venv/Lib/site-packages/scapy/libs/manuf.py` jest WLASNYM,
-# wewnetrznym modulem scapy implementujacym lookup OUI - zupelnie innym
-# plikiem niz baza danych `manuf` Wiresharka, ktory przypadkiem dzieli
-# nazwe. `.venv/` jest gitignorowany (`.gitignore`), wiec ten plik nigdy nie
-# trafia do publikowanego repozytorium - dokladnie to jest przedmiotem
-# tej bramki (ryzyko redystrybucji, nie obecnosc dowolnego pliku o tej
-# nazwie na dysku dewelopera). Ten sam powod, dla ktorego
-# tests/test_no_external_dissector.py skanuje SCAN_SCOPE, a nie caly system
-# plikow.
+# "The repository tree" is understood strictly here as the tree TRACKED by
+# git (`git ls-files`), not the raw file system under the project root. The
+# reason: `.venv/Lib/site-packages/scapy/libs/manuf.py` is scapy's OWN
+# internal module implementing an OUI lookup - an entirely different file from
+# the Wireshark `manuf` database, which happens to share the name. `.venv/` is
+# gitignored (`.gitignore`), so that file never reaches the published
+# repository - and that is exactly what this gate is about (the redistribution
+# risk, not the presence of any file with that name on a developer's disk).
+# The same reason tests/test_no_external_dissector.py scans SCAN_SCOPE rather
+# than the whole file system.
 
-# Sklejony w czasie dzialania z osobnych literalow - patrz docstring
-# tests/test_standards_catalog.py: zaden POJEDYNCZY fragment zrodla tego
-# pliku nie moze niesc calego naglowka doslownie, inaczej ten wlasny plik
-# testowy stalby sie wlasnym falszywym alarmem tej bramki.
+# Assembled at run time from separate literals - see the docstring of
+# tests/test_standards_catalog.py: no SINGLE fragment of this file's source may
+# carry the whole header verbatim, otherwise this test file would become this
+# gate's own false alarm.
 _MANUF_HEADER_MARKER = " ".join(("Wireshark", "Ethernet", "OUI"))
 
 
@@ -227,14 +228,14 @@ def test_no_manuf_named_file_anywhere_in_repository_tree():
         for path in _iter_files(tracked, exclude_dir_names=())
         if path.name.lower() == "manuf" or path.name.lower().startswith("manuf.")
     ]
-    assert hits == [], f"Plik o nazwie manuf znaleziony w drzewie repozytorium: {hits}"
+    assert hits == [], f"A file named manuf found in the repository tree: {hits}"
 
 
 def test_no_wireshark_manuf_format_header_outside_planning():
-    # .planning jest poza zakresem z tego samego powodu, dla ktorego
-    # tests/test_no_external_dissector.py wyklucza docs/ i .planning/: tam
-    # stoja dokumenty, ktore musza wolno nazwac po imieniu plik, ktorego
-    # kod projektu nie uzywa (03-RESEARCH.md, Pattern 6).
+    # .planning is out of scope for the same reason
+    # tests/test_no_external_dissector.py excludes docs/ and .planning/: that is
+    # where the documents live which have to be free to name the file the
+    # project's code does not use (03-RESEARCH.md, Pattern 6).
     tracked = _git_tracked_files(REPO_ROOT)
     hits: list[Path] = []
     for path in _iter_files(tracked, exclude_dir_names=(".planning",)):
@@ -245,12 +246,12 @@ def test_no_wireshark_manuf_format_header_outside_planning():
         if _MANUF_HEADER_MARKER in text:
             hits.append(path)
     assert hits == [], (
-        f"Naglowek formatu pliku manuf Wiresharka znaleziony poza "
+        f"The header of the Wireshark manuf file format found outside "
         f".planning/: {hits}"
     )
 
 
-# --- Grupa 3: brak importu sieciowego w src/wayside/, przez AST -----------
+# --- Group 3: no network import under src/wayside/, through the AST -------
 
 NETWORK_MODULE_PREFIXES: tuple[str, ...] = ("urllib", "http", "requests", "socket", "ssl")
 
@@ -287,12 +288,12 @@ def _find_network_imports(root: Path) -> list[tuple[Path, int]]:
 
 
 def test_no_network_module_imports_under_src_wayside():
-    # Naiwny skan tekstowy zlapalby wlasny docstring tego modulu (patrz
-    # naglowek pliku) jako falszywy alarm - stad AST, nie dopasowanie
-    # podciagu, wzorem find_scapy_all_imports w test_no_external_dissector.py.
+    # A naive text scan would catch this module's own docstring (see the file
+    # header) as a false alarm - hence the AST rather than substring matching,
+    # following find_scapy_all_imports in test_no_external_dissector.py.
     hits = _find_network_imports(REPO_ROOT / "src" / "wayside")
     assert hits == [], (
-        f"Import sieciowy znaleziony w warstwie uruchomieniowej: {hits}"
+        f"A network import found in the runtime layer: {hits}"
     )
 
 
@@ -308,8 +309,8 @@ def test_find_network_imports_detects_injected_urllib_import(tmp_path):
 def test_find_network_imports_ignores_docstring_mention(tmp_path):
     clean = tmp_path / "clean.py"
     clean.write_text(
-        '"""Ten modul nigdy nie importuje urllib, http, requests, socket '
-        'ani ssl."""\n'
+        '"""This module never imports urllib, http, requests, socket '
+        'or ssl."""\n'
         "from pathlib import Path\n",
         encoding="utf-8",
     )
@@ -317,20 +318,20 @@ def test_find_network_imports_ignores_docstring_mention(tmp_path):
     assert _find_network_imports(tmp_path) == []
 
 
-# --- Grupa 4: scripts/gen_oui_db.py, generator tabeli producentow (Task 4) --
+# --- Group 4: scripts/gen_oui_db.py, the vendor table generator (Task 4) ---
 #
-# CSV minimalny w ksztalcie rejestru IEEE OUI: naglowek z nazwami kolumn
-# odczytywanymi przez `csv.DictReader` (nie zakladanymi z pamieci), jeden
-# wiersz z prefiksem niepoprawnym, jeden wiersz z nazwa pusta po oczyszczeniu
-# bialych znakow i dwa wiersze o TYM SAMYM prefiksie - dowod na regule
-# "ostatni wpis wygrywa", zgodna z porzadkiem pierwszenstwa `load_oui_table`.
+# A minimal CSV in the shape of the IEEE OUI registry: a header with the
+# column names read by `csv.DictReader` (not assumed from memory), one row with
+# an invalid prefix, one row whose name is empty after whitespace cleaning, and
+# two rows carrying THE SAME prefix - proof of the "last entry wins" rule,
+# consistent with the order of precedence of `load_oui_table`.
 _SAMPLE_OUI_CSV = (
     "Registry,Assignment,Organization Name,Organization Address\n"
-    "MA-L,AABBCC,Organizacja Testowa Jeden,Adres jeden\n"
-    "MA-L,001122,Organizacja Testowa Dwa,Adres dwa\n"
-    "MA-L,zzzzzz,Organizacja Prefiks Niepoprawny,Adres trzy\n"
-    "MA-L,334455,   ,Adres cztery\n"
-    "MA-L,001122,Organizacja Testowa Dwa Zaktualizowana,Adres piec\n"
+    "MA-L,AABBCC,Test Organisation One,Address one\n"
+    "MA-L,001122,Test Organisation Two,Address two\n"
+    "MA-L,zzzzzz,Organisation With An Invalid Prefix,Address three\n"
+    "MA-L,334455,   ,Address four\n"
+    "MA-L,001122,Test Organisation Two Updated,Address five\n"
 )
 
 
@@ -338,14 +339,14 @@ def test_build_table_parses_sorts_and_keeps_last_occurrence_on_duplicate_prefix(
     rows = gen_oui_db.build_table(_SAMPLE_OUI_CSV)
 
     assert rows == [
-        ("001122", "Organizacja Testowa Dwa Zaktualizowana"),
-        ("AABBCC", "Organizacja Testowa Jeden"),
+        ("001122", "Test Organisation Two Updated"),
+        ("AABBCC", "Test Organisation One"),
     ]
 
 
 def test_build_table_rejects_source_missing_expected_columns():
     with pytest.raises(ValueError):
-        gen_oui_db.build_table("KolumnaA,KolumnaB\n1,2\n")
+        gen_oui_db.build_table("ColumnA,ColumnB\n1,2\n")
 
 
 def test_fetch_oui_csv_reads_local_source_without_touching_network(tmp_path):
@@ -404,7 +405,7 @@ def test_gen_oui_db_main_with_source_never_calls_urlopen(tmp_path, monkeypatch):
 
     def _fail_urlopen(*_args, **_kwargs):
         raise AssertionError(
-            "urllib.request.urlopen nie powinien byc wolany, gdy podano --source."
+            "urllib.request.urlopen must not be called when --source was given."
         )
 
     monkeypatch.setattr(gen_oui_db.urllib.request, "urlopen", _fail_urlopen)
@@ -453,18 +454,19 @@ def test_gen_oui_db_main_without_source_uses_network_fetch(tmp_path, monkeypatch
 
 
 def test_committed_oui_table_loads_without_raising_and_is_non_empty():
-    # Nie porownuje sumy kontrolnej pliku: `* text=auto` w `.gitattributes`
-    # normalizuje koniec linii przy pobraniu, wiec taka asercja bylaby
-    # testem konfiguracji gita, nie testem danych (plan, Task 4).
+    # It does not compare the file checksum: `* text=auto` in `.gitattributes`
+    # normalizes line endings at checkout, so such an assertion would be a test
+    # of the git configuration rather than a test of the data (plan, Task 4).
     table = load_oui_table(OUI_TABLE_PATH)
     assert len(table) > 0
 
 
-# --- Grupa 5: rekord decyzji 0002 spojny ze stanem drzewa (Task 4) ---------
+# --- Group 5: decision record 0002 consistent with the tree state (Task 4) -
 #
-# Bez tego testu rekord decyzji jest notatka, a nie bramka: pierwsza cicha
-# zmiana stanu drzewa (usuniecie albo dodanie oui_table.tsv bez rewizji
-# rekordu) rozjezdzalaby sie z nim bez sladu.
+# Without this test the decision record is a note rather than a gate: the
+# first silent change to the state of the tree (removing or adding
+# oui_table.tsv without revising the record) would drift from it without a
+# trace.
 
 _RESOLVED_OPTION_RE = re.compile(r"^resolved_option:\s*(\S+)\s*$", re.MULTILINE)
 _KNOWN_OPTIONS = frozenset(
@@ -498,38 +500,38 @@ def test_decision_record_resolved_option_matches_tree_state():
 
     if resolved_option in {"commit-full-table", "commit-ot-subset"}:
         assert OUI_TABLE_PATH.exists(), (
-            "Rozstrzygniecie zaklada obecnosc tabeli producentow na dysku, "
-            "a pliku tam nie ma."
+            "The decision assumes the vendor table is present on disk, and the "
+            "file is not there."
         )
         assert table_tracked, (
-            "Rozstrzygniecie zaklada commit tabeli producentow, a plik nie "
-            "jest sledzony przez git."
+            "The decision assumes the vendor table is committed, and the file "
+            "is not tracked by git."
         )
     else:
         assert not table_tracked, (
-            "Rozstrzygniecie 'bez-danych-w-repo' zaklada brak tabeli "
-            "producentow w repozytorium, a plik jest sledzony przez git."
+            "The 'no-data-in-repo' decision assumes the vendor table is absent "
+            "from the repository, and the file is tracked by git."
         )
 
 
-# --- ASSET-02: POZYTYWNA sciezka lookupu przez caly potok --------------------
+# --- ASSET-02: the POSITIVE lookup path through the whole pipeline ---------
 #
-# Luka zamknieta po weryfikacji fazy 3 (03-VERIFICATION.md, W-1). Wszystkie
-# fixture'y w drzewie maja adresy MAC lokalnie administrowane (`02:00:...`),
-# wiec producent jest na nich ZAWSZE not determined i zadna asercja nad nimi nie
-# odroznia dzialajacego lookupu od zepsutego zlozenia w `pipeline.analyze`.
-# Ciche rozpiecie `vendor_lookup` przechodzilo caly pakiet bez ani jednej
-# porazki.
+# A gap closed after the phase 3 verification (03-VERIFICATION.md, W-1).
+# Every fixture in the tree carries locally administered MAC addresses
+# (`02:00:...`), so over them the vendor is ALWAYS not determined and no
+# assertion over them tells a working lookup apart from a broken composition in
+# `pipeline.analyze`. Silently unhooking `vendor_lookup` used to pass the whole
+# suite without a single failure.
 #
-# Zrzut budowany w katalogu tymczasowym, nie dopisywany do `tests/fixtures/`:
-# jego jedynym zadaniem jest niesienie prawdziwego prefiksu IEEE, a fixture
-# w drzewie ciagnalby za soba wpis w manifescie i sume kontrolna, ktora
-# rozjechalaby sie przy kazdym odswiezeniu tabeli producentow.
+# The capture is built in a temporary directory rather than added to
+# `tests/fixtures/`: its only job is to carry a real IEEE prefix, and a fixture
+# in the tree would drag along a manifest entry and a checksum that would drift
+# at every refresh of the vendor table.
 #
-# Nazwa producenta NIE jest wpisana w tescie na sztywno - jest odczytywana
-# z tej samej tabeli, ktora czyta potok. Test pilnuje ZLOZENIA (czy nazwa
-# z tabeli dochodzi do artefaktow), nie tresci rejestru IEEE, ktora moze sie
-# zmienic przy odswiezeniu pliku.
+# The vendor name is NOT hard-coded in the test - it is read from the same
+# table the pipeline reads. The test guards the COMPOSITION (whether the name
+# from the table reaches the artifacts), not the content of the IEEE registry,
+# which may change when the file is refreshed.
 
 VENDOR_PROBE_MAC = "00:80:F4:11:22:33"
 VENDOR_PROBE_IP = "192.0.2.40"
@@ -538,7 +540,7 @@ PEER_IP = "192.0.2.41"
 
 
 def _write_probe_capture(path: Path) -> None:
-    import wayside.pcap  # noqa: F401  - izolacja cache scapy PRZED importem warstw
+    import wayside.pcap  # noqa: F401  - scapy cache isolation BEFORE importing the layers
 
     from scapy.layers.inet import IP, TCP
     from scapy.layers.l2 import Ether
@@ -555,9 +557,9 @@ def _write_probe_capture(path: Path) -> None:
 
 
 def test_probe_mac_prefix_is_present_in_the_committed_table():
-    """Bezpiecznik testu nizej: gdy ten prefiks zniknie z tabeli przy jej
-    odswiezeniu, ma sie zapalic TUTAJ, z czytelnym powodem, a nie w tescie
-    zlozenia jako niejasna porazka asercji."""
+    """The fuse for the test below: should this prefix vanish from the table
+    at a refresh, it is meant to trip HERE, with a readable reason, rather than
+    in the composition test as an opaque assertion failure."""
     table = load_oui_table()
 
     assert lookup_vendor(VENDOR_PROBE_MAC, table) is not None

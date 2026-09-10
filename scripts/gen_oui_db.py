@@ -1,30 +1,30 @@
-"""Generator jednorazowy tabeli producentow z rejestru IEEE OUI (ASSET-02).
+"""One-off generator of the vendor table from the IEEE OUI registry (ASSET-02).
 
-Uzycie:
+Usage:
     uv run python scripts/gen_oui_db.py
-        Pobiera `IEEE_OUI_CSV_URL` przez siec i zapisuje
-        `src/wayside/assets/oui_table.tsv` (sciezka domyslna).
+        Downloads `IEEE_OUI_CSV_URL` over the network and writes
+        `src/wayside/assets/oui_table.tsv` (the default path).
 
-    uv run python scripts/gen_oui_db.py --source sciezka/do/oui.csv
-        Buduje tabele z pliku CSV juz lezacego na dysku - zerowych polaczen
-        sieciowych. Droga zapasowa dla maszyny odcietej od sieci
-        (`03-RESEARCH.md`, sekcja "Environment Availability").
+    uv run python scripts/gen_oui_db.py --source path/to/oui.csv
+        Builds the table from a CSV file already sitting on disk - zero
+        network connections. The fallback route for a machine cut off from
+        the network (`03-RESEARCH.md`, section "Environment Availability").
 
-    uv run python scripts/gen_oui_db.py --output sciezka/wyjsciowa.tsv
-        Nadpisuje sciezke wyjsciowa - uzyteczne przy budowaniu pliku do
-        katalogu tymczasowego na potrzeby testu albo porownania.
+    uv run python scripts/gen_oui_db.py --output output/path.tsv
+        Overrides the output path - useful when building the file into a
+        temporary directory for a test or a comparison.
 
-Ten skrypt jest operacja DEWELOPERSKA, uruchamiana recznie. `wayside analyze`
-nigdy go nie wola i nigdy nie siega do sieci - warstwa uruchomieniowa
-(`src/wayside/assets/oui.py`) czyta wylacznie plik wyprodukowany tutaj,
-juz lezacy na dysku (Pattern 6, `03-RESEARCH.md`).
+This script is a DEVELOPER operation, run by hand. `wayside analyze` never
+calls it and never reaches for the network - the runtime layer
+(`src/wayside/assets/oui.py`) reads only the file produced here, already
+sitting on disk (Pattern 6, `03-RESEARCH.md`).
 
-Dwa uruchomienia z tym samym zrodlem CSV, tego samego dnia, daja plik
-wyjsciowy bajtowo identyczny - komentarz naglowka niesie date wygenerowania
-pliku, wiec odtwarzalnosc bajtowa jest ograniczona do jednego dnia
-kalendarzowego (zalozenie Z-24 z PLAN.md: ten plik NIE wchodzi pod bramke
-determinizmu `scripts/gen_fixtures.py --check`, bo dane pochodza od strony
-trzeciej, nie sa fixture'em generowanym z samego repozytorium).
+Two runs against the same CSV source, on the same day, produce a byte
+identical output file - the header comment carries the file's generation
+date, so byte reproducibility is bounded by one calendar day (assumption
+Z-24 from PLAN.md: this file does NOT fall under the determinism gate of
+`scripts/gen_fixtures.py --check`, because the data comes from a third
+party and is not a fixture generated out of the repository itself).
 """
 
 from __future__ import annotations
@@ -47,33 +47,33 @@ __all__ = [
     "main",
 ]
 
-# Adres potwierdzony jako oficjalny endpoint rejestru IEEE Registration
-# Authority [CITED: WebSearch 2026-09-04, 03-RESEARCH.md Pattern 6].
+# Address confirmed as the official endpoint of the IEEE Registration
+# Authority registry [CITED: WebSearch 2026-09-04, 03-RESEARCH.md Pattern 6].
 IEEE_OUI_CSV_URL = "https://standards-oui.ieee.org/oui/oui.csv"
 
-# Nazwy kolumn oczekiwane w naglowku CSV rejestru. Uzywane wylacznie do
-# odczytu wartosci PO tym, jak `csv.DictReader` sam wyprowadzil naglowek
-# z pierwszego wiersza pliku zrodlowego - format pliku dostawcy nie jest
-# kontraktem tego projektu, wiec kolejnosc kolumn nigdy nie jest zakladana.
+# Column names expected in the header of the registry CSV. Used only to read
+# values AFTER `csv.DictReader` has derived the header from the first row of
+# the source file itself - the vendor's file format is not a contract of
+# this project, so column order is never assumed.
 _COLUMN_PREFIX = "Assignment"
 _COLUMN_ORGANIZATION = "Organization Name"
 
 
 def fetch_oui_csv(*, url: str = IEEE_OUI_CSV_URL, source_path: Path | None = None) -> str:
-    """Zwraca tresc pliku CSV rejestru IEEE OUI jako lancuch.
+    """Returns the content of the IEEE OUI registry CSV file as a string.
 
-    `source_path` podany: czyta plik z dysku, jawnym `encoding="utf-8"`,
-    i NIE dotyka sieci - droga zapasowa dla maszyny odcietej. `source_path`
-    pominiety: pobiera `url` przez `urllib.request` z biblioteki standardowej,
-    wylacznie po protokole szyfrowanym, bez przekierowania na protokol
-    nieszyfrowany.
+    `source_path` given: reads the file from disk, with an explicit
+    `encoding="utf-8"`, and does NOT touch the network - the fallback route
+    for a disconnected machine. `source_path` omitted: downloads `url`
+    through `urllib.request` from the standard library, over the encrypted
+    protocol only, with no redirect onto an unencrypted one.
     """
     if source_path is not None:
         return Path(source_path).read_text(encoding="utf-8")
 
     if not url.startswith("https://"):
         raise ValueError(
-            f"Adres zrodla {url!r} nie uzywa protokolu szyfrowanego (https)."
+            f"The source address {url!r} does not use the encrypted protocol (https)."
         )
 
     with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310
@@ -82,37 +82,38 @@ def fetch_oui_csv(*, url: str = IEEE_OUI_CSV_URL, source_path: Path | None = Non
 
 
 def build_table(csv_text: str) -> list[tuple[str, str]]:
-    """Parsuje CSV rejestru IEEE OUI do listy par (prefiks, nazwa organizacji).
+    """Parses the IEEE OUI registry CSV into a list of (prefix, organisation
+    name) pairs.
 
-    Nazwy kolumn sa odczytywane z pierwszego wiersza pliku zrodlowego przez
-    `csv.DictReader` - format pliku dostawcy nie jest kontraktem, ktory ten
-    projekt kontroluje. Prefiks jest normalizowany przez
-    `wayside.assets.oui.normalize_mac_prefix` (ta sama funkcja, ktora
-    warstwa uruchomieniowa uzywa do lookupu - jedno zrodlo prawdy o
-    ksztalcie prefiksu). Nazwa organizacji jest oczyszczona ze znakow
-    tabulacji i konca linii przez zwiniecie bialych znakow - tabulator
-    w nazwie zlamalby format wyjsciowy tabeli.
+    Column names are read from the first row of the source file by
+    `csv.DictReader` - the vendor's file format is not a contract this
+    project controls. The prefix is normalized by
+    `wayside.assets.oui.normalize_mac_prefix` (the same function the runtime
+    layer uses for lookups - one source of truth about the shape of a
+    prefix). The organisation name is cleared of tab and end-of-line
+    characters by collapsing whitespace - a tab inside a name would break
+    the output format of the table.
 
-    Wiersz o prefiksie niepoprawnym albo o pustej nazwie jest pomijany, ale
-    LICZBA pominietych wierszy jest wypisywana na stderr - cicha strata
-    wierszy przy transformacji danych jest tym samym trybem porazki co ciche
-    pominiecie hosta w inwentarzu.
+    A row with an invalid prefix or an empty name is skipped, but the NUMBER
+    of skipped rows is printed to stderr - silently losing rows during a data
+    transformation is the same failure mode as silently dropping a host from
+    the inventory.
 
-    Prefiks wystepujacy w zrodle wiecej niz raz (rejestr IEEE zawiera takie
-    przypadki - reassygnacja tego samego zakresu w czasie) zachowuje
-    OSTATNIA napotkana nazwe organizacji: to jest ten sam porzadek
-    pierwszenstwa, ktory `load_oui_table` przyjmuje przy budowie slownika
-    z pliku, wiec plik wyjsciowy generatora i jego odczyt w warstwie
-    uruchomieniowej sa spojne.
+    A prefix appearing in the source more than once (the IEEE registry does
+    contain such cases - the same range reassigned over time) keeps the LAST
+    organisation name encountered: that is the same order of precedence
+    `load_oui_table` applies when building its dictionary from the file, so
+    the generator's output file and its reading in the runtime layer stay
+    consistent.
 
-    Zwraca liste par posortowana rosnaco po prefiksie.
+    Returns the list of pairs sorted ascending by prefix.
     """
     reader = csv.DictReader(io.StringIO(csv_text))
     fieldnames = reader.fieldnames or []
     if _COLUMN_PREFIX not in fieldnames or _COLUMN_ORGANIZATION not in fieldnames:
         raise ValueError(
-            f"Zrodlo CSV nie ma oczekiwanych kolumn {_COLUMN_PREFIX!r} i "
-            f"{_COLUMN_ORGANIZATION!r} w pierwszym wierszu - znaleziono "
+            f"The CSV source lacks the expected columns {_COLUMN_PREFIX!r} and "
+            f"{_COLUMN_ORGANIZATION!r} in its first row - found "
             f"{fieldnames!r}."
         )
 
@@ -130,8 +131,8 @@ def build_table(csv_text: str) -> list[tuple[str, str]]:
 
     if skipped:
         print(
-            f"Pominieto {skipped} wiersz(y) zrodla o prefiksie niepoprawnym "
-            "albo o pustej nazwie organizacji.",
+            f"Skipped {skipped} source row(s) with an invalid prefix "
+            "or an empty organisation name.",
             file=sys.stderr,
         )
 
@@ -139,23 +140,23 @@ def build_table(csv_text: str) -> list[tuple[str, str]]:
 
 
 def write_table(rows: list[tuple[str, str]], output_path: Path, *, source: str) -> Path:
-    """Zapisuje tabele prefiks-producent pod `output_path`.
+    """Writes the prefix-to-vendor table under `output_path`.
 
-    Jawny `encoding="utf-8"` i jawny `newline="\\n"` - ta sama dyscyplina co
-    `model.write_atomic` z Fazy 2: plik zapisany na Windows nie moze
-    rozjechac sie koncem linii z plikiem zapisanym gdzie indziej. Pierwsze
-    trzy wiersze sa komentarzami niosacymi zrodlo, date wygenerowania pliku
-    i liczbe wpisow; potem wiersze danych, prefiks i nazwa rozdzielone
-    tabulatorem, w kolejnosci juz posortowanej przez `build_table`.
+    Explicit `encoding="utf-8"` and explicit `newline="\\n"` - the same
+    discipline as `model.write_atomic` from Phase 2: a file written on
+    Windows must not diverge in line endings from a file written elsewhere.
+    The first three lines are comments carrying the source, the file's
+    generation date and the number of entries; then the data rows, prefix
+    and name separated by a tab, in the order `build_table` already sorted.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     generated_on = datetime.date.today().isoformat()
     lines = [
-        f"# zrodlo: {source}\n",
-        f"# data wygenerowania: {generated_on}\n",
-        f"# wpisow: {len(rows)}\n",
+        f"# source: {source}\n",
+        f"# generated on: {generated_on}\n",
+        f"# entries: {len(rows)}\n",
     ]
     lines.extend(f"{prefix}\t{name}\n" for prefix, name in rows)
 
@@ -171,8 +172,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help=(
-            "Sciezka do pliku CSV rejestru IEEE OUI juz lezacego na dysku. "
-            "Podana: zero polaczen sieciowych. Pominieta: pobranie przez "
+            "Path to an IEEE OUI registry CSV file already sitting on disk. "
+            "Given: zero network connections. Omitted: a download from "
             f"{IEEE_OUI_CSV_URL}."
         ),
     )
@@ -180,7 +181,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         default=OUI_TABLE_PATH,
-        help=f"Sciezka pliku wyjsciowego (domyslnie {OUI_TABLE_PATH}).",
+        help=f"Path of the output file (default {OUI_TABLE_PATH}).",
     )
     return parser
 
@@ -192,22 +193,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         csv_text = fetch_oui_csv(source_path=args.source)
     except (OSError, ValueError) as exc:
-        print(f"Nie udalo sie odczytac zrodla rejestru IEEE OUI: {exc}", file=sys.stderr)
+        print(f"Could not read the IEEE OUI registry source: {exc}", file=sys.stderr)
         return 1
 
     try:
         rows = build_table(csv_text)
     except ValueError as exc:
-        print(f"Zrodlo CSV ma nieoczekiwany ksztalt: {exc}", file=sys.stderr)
+        print(f"The CSV source has an unexpected shape: {exc}", file=sys.stderr)
         return 1
 
     if not rows:
-        print("Zrodlo nie zawieralo zadnego poprawnego wiersza danych.", file=sys.stderr)
+        print("The source carried no valid data row.", file=sys.stderr)
         return 1
 
     source_label = str(args.source) if args.source is not None else IEEE_OUI_CSV_URL
     output_path = write_table(rows, args.output, source=source_label)
-    print(f"Zapisano {len(rows)} wpisow producentow do {output_path}")
+    print(f"Written {len(rows)} vendor entries to {output_path}")
     return 0
 
 

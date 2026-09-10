@@ -1,35 +1,37 @@
-"""Wygenerowanie przykladowego raportu z podzbioru zbioru 4SICS (REPORT-05).
+"""Generation of the example report from a slice of the 4SICS capture (REPORT-05).
 
-Uzycie:
+Usage:
     uv run python scripts/gen_example_report.py
-        Uruchamia pelna analize na pliku podzbioru zbudowanym przez
-        `scripts/fetch_4sics_sample.py` i zapisuje trzy artefakty pod
+        Runs the full analysis on the slice file built by
+        `scripts/fetch_4sics_sample.py` and writes three artifacts under
         `examples/4sics/`: `analysis.json`, `report.md`, `report.pdf`.
 
-    uv run python scripts/gen_example_report.py --slice sciezka/do/podzbioru.pcap
-        Nadpisuje sciezke pliku podzbioru.
+    uv run python scripts/gen_example_report.py --slice path/to/slice.pcap
+        Overrides the path of the slice file.
 
-    uv run python scripts/gen_example_report.py --output-dir sciezka/wyjsciowa
-        Nadpisuje katalog wyjsciowy - uzyteczne przy porownaniu wyniku z
-        plikami juz lezacymi w repozytorium (test odtwarzalnosci).
+    uv run python scripts/gen_example_report.py --output-dir output/path
+        Overrides the output directory - useful when comparing the result
+        against the files already committed to the repository
+        (reproducibility test).
 
-Dwie rzeczy, ktore ten skrypt niesie i ktore MUSZA pozostac prawdziwe:
+Two properties this script carries that MUST stay true:
 
-1. Znacznik czasu wygenerowania jest STALA (`FIXED_GENERATED_AT`), nigdy
-   odczytem zegara systemowego - dwa uruchomienia w roznych momentach daja
-   wiec ten sam plik (04-RESEARCH.md, Pitfall 7; D-02 z Fazy 2).
-2. Trzy artefakty tego katalogu sa porownywane bajtowo z plikami
-   swiezo wygenerowanymi (test odtwarzalnosci, tests/test_example_report.py)
-   - `examples/4sics/report.md` i `examples/4sics/analysis.json` sa dlatego
-   wylaczone z normalizacji konca linii w `.gitattributes` (zalozenie Z-72):
-   bez tego wylaczenia plik zacommitowany przechodzilby przez normalizacje
-   gita przy checkoucie, a plik swiezo wygenerowany nie, i porownanie
-   bajtowe zestawialoby dwie rozne rzeczy.
+1. The generation timestamp is a CONSTANT (`FIXED_GENERATED_AT`), never a
+   read of the system clock - two runs at different moments therefore
+   produce the same file (04-RESEARCH.md, Pitfall 7; D-02 from Phase 2).
+2. The three artifacts in that directory are compared byte for byte against
+   freshly generated files (reproducibility test,
+   tests/test_example_report.py). That is why `examples/4sics/report.md` and
+   `examples/4sics/analysis.json` are excluded from line-ending
+   normalization in `.gitattributes` (assumption Z-72): without that
+   exclusion the committed file would pass through git normalization on
+   checkout while the freshly generated one would not, and the byte
+   comparison would be putting two different things side by side.
 
-Ten skrypt jest operacja DEWELOPERSKA. `wayside analyze` nigdy go nie wola.
-Odtwarzalnosc tego skryptu jest ograniczona do pliku podzbioru lezacego na
-dysku pod ta sama sciezka i o tej samej tresci - zbuduj go najpierw przez
-`scripts/fetch_4sics_sample.py`, jesli go nie masz.
+This script is a DEVELOPER operation. `wayside analyze` never calls it.
+Its reproducibility is limited to a slice file sitting on disk under the
+same path and with the same content - build it first with
+`scripts/fetch_4sics_sample.py` if you do not have it.
 """
 
 from __future__ import annotations
@@ -51,11 +53,11 @@ from wayside.report_pdf import render_pdf  # noqa: E402
 
 __all__ = ["FIXED_GENERATED_AT", "EXAMPLE_DIR", "generate", "main"]
 
-# Data rekordu decyzji `0005` (ten, ktory rozstrzygnal zbior 4SICS jako
-# zrodlo przykladowego raportu), w strefie czasowej uniwersalnej - stala
-# dowolna byla by wartoscia bez znaczenia, ktorej nikt nie umie uzasadnic
-# przy pierwszej korekcie; ta data wiaze artefakt z decyzja, ktora go
-# powolala (zalozenie Z-74).
+# Date of decision record `0005` (the one that settled the 4SICS capture as
+# the source of the example report), in universal time - an arbitrary
+# constant would be a value nobody could justify at the first correction;
+# this date ties the artifact to the decision that called it into being
+# (assumption Z-74).
 FIXED_GENERATED_AT = datetime(2026, 9, 4, tzinfo=timezone.utc)
 
 EXAMPLE_DIR = Path(__file__).resolve().parent.parent / "examples" / "4sics"
@@ -64,17 +66,18 @@ DEFAULT_SLICE_PATH = DATASET_DIR / SLICE_FILENAME
 
 
 def generate(slice_path: Path, output_dir: Path = EXAMPLE_DIR) -> tuple[Path, Path, Path]:
-    """Generuje trzy artefakty przykladowego raportu pod `output_dir` z
-    pliku podzbioru `slice_path`. Zwraca trojke sciezek
+    """Generates the three example report artifacts under `output_dir` from
+    the slice file `slice_path`. Returns the triple of paths
     (analysis_path, report_path, pdf_path).
 
-    Wola `wayside.pipeline.analyze` z `FIXED_GENERATED_AT` - ta funkcja
-    zapisuje pierwsze dwa artefakty (`analysis.json`, `report.md`) sama, wiec
-    ten skrypt ich nie zapisuje po raz drugi. `render_pdf` jest wolane
-    WPROST na TYM SAMYM slowniku modelu, z TYM SAMYM znacznikiem czasu i
-    z TYMI SAMYMI ostrzezeniami, ktore zwrocila analiza - nigdy przez
-    podproces komendy CLI (04-RESEARCH.md, Open Question 2: komenda CLI
-    bierze znacznik czasu z zegara, a ten skrypt potrzebuje stalej)."""
+    Calls `wayside.pipeline.analyze` with `FIXED_GENERATED_AT` - that
+    function writes the first two artifacts (`analysis.json`, `report.md`)
+    itself, so this script does not write them a second time. `render_pdf`
+    is called DIRECTLY on THE SAME model dictionary, with THE SAME timestamp
+    and THE SAME warnings the analysis returned - never through a subprocess
+    running the CLI command (04-RESEARCH.md, Open Question 2: the CLI
+    command takes its timestamp from the clock, and this script needs a
+    constant)."""
     result = analyze(Path(slice_path), out_dir=Path(output_dir), generated_at=FIXED_GENERATED_AT)
 
     pdf_bytes = render_pdf(
@@ -92,13 +95,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--slice",
         type=Path,
         default=DEFAULT_SLICE_PATH,
-        help=f"Sciezka pliku podzbioru (domyslnie {DEFAULT_SLICE_PATH}).",
+        help=f"Path of the slice file (default {DEFAULT_SLICE_PATH}).",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=EXAMPLE_DIR,
-        help=f"Katalog wyjsciowy (domyslnie {EXAMPLE_DIR}).",
+        help=f"Output directory (default {EXAMPLE_DIR}).",
     )
     return parser
 
@@ -109,16 +112,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.slice.is_file():
         print(
-            f"Plik podzbioru {args.slice} nie istnieje. Zbuduj go najpierw: "
+            f"The slice file {args.slice} does not exist. Build it first: "
             "uv run python scripts/fetch_4sics_sample.py",
             file=sys.stderr,
         )
         return 1
 
     analysis_path, report_path, pdf_path = generate(args.slice, args.output_dir)
-    print(f"Zapisano: {analysis_path}")
-    print(f"Zapisano: {report_path}")
-    print(f"Zapisano: {pdf_path}")
+    print(f"Written: {analysis_path}")
+    print(f"Written: {report_path}")
+    print(f"Written: {pdf_path}")
     return 0
 
 

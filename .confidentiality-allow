@@ -1,108 +1,111 @@
-# Bramka poufnosci - JEDNA lista wyjatkow dla dwoch warstw: warstwy 2
-# (structural-clause-modal) i warstwy 3, tozsamosciowej (identity-*).
+# Confidentiality gate - ONE list of exceptions for two layers: layer 2
+# (structural-clause-modal) and layer 3, the identity layer (identity-*).
 #
-# Trzy rozroznialne postacie wiersza:
-# 1. Wzorzec sciezki BEZ przedrostka - wyjatek warstwy 2, dokladnie jak dzis.
-# 2. `identity-value:<wartosc>` - deklaracja adresowa warstwy 3, obowiazujaca
-#    w calym drzewie niezaleznie od pliku (adres jest INWENTARZEM, nie
-#    allowlista: musi wystapic co najmniej raz w drzewie, inaczej bramka
-#    kompletnosci sie zaczerwienia).
-# 3. `identity-path:<regula albo all>:<wzorzec>` - wyjatek sciezki zawezony
-#    do JEDNEJ reguly warstwy 3, albo - slowem `all` - do wszystkich regul
-#    naraz. Wyjatek jednej reguly NIE zdejmuje pozostalych z tej samej
-#    sciezki.
-# Wiersz zaczynajacy sie od `identity-`, ktory nie pasuje do zadnego z dwoch
-# powyzszych przedrostkow (albo `identity-path:` z nazwa reguly spoza
-# zamknietego zbioru), jest BLEDEM wczytania - nie cichym wzorcem sciezki.
+# Three distinguishable line forms:
+# 1. A path pattern WITHOUT a prefix - a layer 2 exception, exactly as before.
+# 2. `identity-value:<value>` - a layer 3 address declaration, in force across
+#    the whole tree regardless of the file (an address is an INVENTORY, not an
+#    allowlist: it has to occur at least once in the tree, otherwise the
+#    completeness gate turns red).
+# 3. `identity-path:<rule or all>:<pattern>` - a path exception narrowed to ONE
+#    layer 3 rule, or - with the word `all` - to every rule at once. An
+#    exception for one rule does NOT lift the others from the same path.
+# A line starting with `identity-` that matches neither of the two prefixes
+# above (or an `identity-path:` with a rule name outside the closed set) is a
+# LOADING ERROR - not a silent path pattern.
 #
-# Warstwa 0 (sciezkowa, standards/.local) i warstwa 1 (korpusowa) NIE MAJA
-# tu zadnych wyjatkow i nigdy nie beda ich miec - wpisanie ich tutaj
-# zaprzeczyloby celowi tych warstw.
+# Layer 0 (the path layer, standards/.local) and layer 1 (the corpus layer)
+# have NO exceptions here and never will - writing one here would contradict
+# the purpose of those layers.
 #
-# Ponizsze dwa pliki testowe z natury zawieraja wymyslone zdania o ksztalcie
-# normatywnym jako dane testowe (nigdy prawdziwy cytat normy - patrz
-# Pitfall 6 w 01-RESEARCH.md), wiec sa jedynymi uzasadnionymi wpisami.
+# The two test files below inherently contain invented sentences of normative
+# shape as test data (never a real quote of a standard - see Pitfall 6 in
+# 01-RESEARCH.md), so they are the only justified entries.
 tests/test_confidentiality_guard.py
 tests/test_confidentiality_guard_integration.py
 tests/test_review_blockers_01.py
 
-# Artefakt planowania fazy 1 cytuje ten sam wymyslony przyklad testowy
-# (linia 225, blok kodu oznaczony w dokumencie jako "dane WYMYSLONE, nigdy
-# prawdziwy cytat normy"), wiec warstwa 2 slusznie go rozpoznaje po ksztalcie.
-# Bez tego wpisu kazda przyszla edycja tego pliku - przy zamykaniu luk albo
-# przy przeplanowaniu fazy - konczylaby sie odrzuceniem commitu.
-# Sprawdzone przed dopisaniem: to jedyne trafienie bramki w calym drzewie
-# sledzonym przez gita, i jest to przyklad wymyslony, nie cytat.
+# The phase 1 planning artifact quotes that same invented test example (line
+# 225, a code block marked in the document as "INVENTED data, never a real
+# quote of a standard"), so layer 2 rightly recognizes it by its shape.
+# Without this entry every future edit of that file - when closing gaps or
+# replanning the phase - would end in a rejected commit.
+# Checked before adding it: this is the only gate hit in the whole tree
+# tracked by git, and it is an invented example, not a quote.
 .planning/phases/01-fundament-poufno-i-warunek-publikacji/01-RESEARCH.md
 
-# Raport code review fazy 1 cytuje wlasny ciag probny uzyty do wykazania
-# luki CR-02 ("3.4.2 The system must support TLS 1.2..."), wiec warstwa 2
-# slusznie go rozpoznaje po ksztalcie. Zdanie jest wymyslone na potrzeby
-# dowodu, nie jest cytatem zadnej normy.
+# The phase 1 code review report quotes its own probe string, used to
+# demonstrate gap CR-02 - a numbered clause followed by a requirement about
+# a transport protocol version. Layer 2 rightly recognizes it by its shape.
+# The sentence was invented for the purposes of that proof, it is not a
+# quote of any standard, and it is described here rather than repeated
+# verbatim so that this comment does not trip the gate it explains.
 .planning/phases/01-fundament-poufno-i-warunek-publikacji/01-REVIEW.md
 
-# Raport weryfikacji fazy 1 cytuje zdanie probne uzyte do dowiedzenia, ze
-# hak odrzuca tekst o ksztalcie normatywnym. Ta sama klasa co powyzsze.
+# The phase 1 verification report quotes the probe sentence used to prove
+# that the hook rejects text of normative shape. The same class as above.
 #
-# UWAGA NA WZORZEC: to juz trzeci artefakt planowania dopuszczony z tego
-# samego powodu. Nie jest to erozja warstwy 2, tylko jej wlasciwosc: kazdy
-# dokument, ktory OPISUJE dzialanie bramki, musi zawierac przyklad
-# o ksztalcie klauzuli, wiec bramka slusznie go zapala. Jesli lista urosnie
-# dalej, wlasciwa odpowiedzia jest znacznik w tresci (np. komentarz
-# wylaczajacy pojedyncza linie), a nie kolejny wpis na cala sciezke - wpis
-# na plik zdejmuje warstwe 2 z CALEGO pliku, takze z tresci dopisanej pozniej.
+# WATCH THE PATTERN: this is already the third planning artifact admitted for
+# the same reason. That is not an erosion of layer 2 but a property of it:
+# every document that DESCRIBES how the gate works has to contain an example
+# of clause shape, so the gate rightly trips on it. If the list grows further,
+# the right answer is a marker in the content (say a comment disabling a
+# single line), not another whole-path entry - a per-file entry lifts layer 2
+# from the WHOLE file, including content added later.
 .planning/phases/01-fundament-poufno-i-warunek-publikacji/01-VERIFICATION.md
 
-# Ten wpis jest INNEJ klasy niz cztery powyzsze: `analysis.json` nie
-# zawiera zadnego wymyslonego zdania o ksztalcie normatywnym - zawiera
-# `dump_deterministic` (jeden ciag bez konca linii, separator bez bialych
-# znakow). Warstwa 2 dzieli fragment po TERMINATORACH ZDANIA (kropka,
-# wykrzyknik, pytajnik), a minifikowany JSON ma ich bardzo malo (tylko
-# wewnatrz wartosci tekstowych), wiec pojedynczy "fragment" miedzy dwoma
-# takimi terminatorami rozciaga sie na tysiace znakow, tam gdzie w prozie
-# byloby to jedno zdanie. Zmierzone 2026-09-06: fragment od pola
-# `rubric_version":"1.0"` (dopasowuje ksztalt numeru klauzuli) do slowa
-# "nalezy" w calkiem niezwiazanym zdaniu `zones.py` ("... nalezy do Fazy 3
-# (macierz komunikacji)."), setki pol JSON dalej - dwa niezwiazane fragmenty
-# tekstu, zlaczone przez brak kropek miedzy nimi w zserializowanym JSON, nie
-# cytat normy. Wplyw ograniczony do TEGO pliku: `dump_deterministic` jest
-# ta sama funkcja dla kazdego `analysis.json` w projekcie, ale zaden inny
-# taki plik nie jest sledzony przez gita (katalogi wyjsciowe sa
-# gitignorowane) - to jest pierwszy i jedyny commitowany artefakt tego
-# ksztaltu.
+# This entry is of a DIFFERENT class than the four above: `analysis.json`
+# contains no invented sentence of normative shape - it contains
+# `dump_deterministic` output (one string with no line breaks, a separator
+# without whitespace). Layer 2 splits a fragment on SENTENCE TERMINATORS (full
+# stop, exclamation mark, question mark), and minified JSON has very few of
+# them (only inside text values), so a single "fragment" between two such
+# terminators stretches over thousands of characters where in prose it would
+# be one sentence. Measured 2026-09-06: a fragment reaching from the field
+# `rubric_version":"1.0"` (which matches the shape of a clause number) to a
+# modal word in an entirely unrelated sentence of `zones.py`, hundreds of JSON
+# fields further on - two unrelated fragments of text, joined by the absence
+# of full stops between them in the serialized JSON, not a quote of a
+# standard. The impact is bounded to THIS file: `dump_deterministic` is the
+# same function for every `analysis.json` in the project, but no other such
+# file is tracked by git (the output directories are gitignored) - this is the
+# first and only committed artifact of that shape.
 examples/4sics/analysis.json
 
-# --- Wyjatki reguly nazwy wlasnej (identity-project-name), D-23 ------------
+# --- Exceptions to the proper name rule (identity-project-name), D-23 ------
 #
-# Trzy wpisy ponizej sa jedynymi wyjatkami tej reguly w calym repozytorium.
-# Kazdy jest zawezony do JEDNEJ reguly: adres z sieci pracodawcy albo nazwa
-# urzadzenia w ktoryms z tych plikow dalej zapala pozostale reguly warstwy 3.
+# The entries below are the only exceptions to that rule in the whole
+# repository. Each is narrowed to ONE rule: an address from the employer's
+# network or a device name in any of these files still trips the remaining
+# layer 3 rules.
 
-# Sam plik listy wyjatkow: plik, ktory deklaruje wyjatek dla tej reguly, musi
-# miec prawo nazwac to, co wyjmuje w komentarzu-uzasadnieniu.
+# The exception list file itself: a file that declares an exception for this
+# rule has to be allowed to name what it is lifting, in the comment that
+# justifies it.
 identity-path:identity-project-name:.confidentiality-allow
 
-# Sam plik bramki: wzorzec `PROJECT_NAME_PATTERN` niesie oba slowa nazwy jako
-# literal, bo inaczej nie mialby czego dopasowac. Alternatywa - sklejanie
-# literalu z czesci w czasie wykonania, zeby uniknac zapalenia wlasnej reguly
-# - jest obchodzeniem bramki bez zmiany zachowania, dokladnie ten antywzorzec,
-# ktory ta faza gdzie indziej zakazuje (zalozenie Z-96).
+# The gate file itself: the `PROJECT_NAME_PATTERN` pattern carries both words
+# of the name as a literal, because otherwise it would have nothing to match
+# against. The alternative - assembling the literal from parts at run time in
+# order to avoid tripping its own rule - is circumventing the gate without
+# changing its behaviour, exactly the anti-pattern this phase forbids
+# elsewhere (assumption Z-96).
 identity-path:identity-project-name:scripts/confidentiality_guard.py
 
-# --- Deklaracje adresacji (identity-value), regul identity-private-ipv4 ----
-# --- i identity-mac-address, rozstrzygniecie R-5 ---------------------------
+# --- Address declarations (identity-value), for the identity-private-ipv4 --
+# --- and identity-mac-address rules, decision R-5 --------------------------
 #
-# Deklaracja jest INWENTARZEM adresacji obecnej w drzewie, nie allowlista:
-# musi wystapic co najmniej raz w pliku sledzonym nieobjetym wyjatkiem tej
-# reguly (test kompletnosci), a adres bez znanego, publicznego albo
-# syntetycznego pochodzenia nie ma prawa tu wejsc. Deklarowanie jest
-# oswiadczeniem o POCHODZENIU adresu, nigdy sposobem przejscia bramki -
-# kazda grupa nizej niesie komentarz nazywajacy zrodlo.
+# A declaration is an INVENTORY of the addressing present in the tree, not an
+# allowlist: it has to occur at least once in a tracked file not covered by an
+# exception to that rule (the completeness test), and an address without a
+# known public or synthetic provenance has no business being here. Declaring
+# is a statement about the PROVENANCE of an address, never a way of getting
+# past the gate - every group below carries a comment naming the source.
 
-# Generator syntetycznych fixture'ow pcap Modbus/TCP (scripts/gen_fixtures.py).
-# Adresy MAC ponizej sa lokalnie administrowane (drugi bit pierwszego bajtu
-# ustawiony) i wymyslone przez ten generator - docstring modulu nazywa to
-# wprost: "nie naleza do zadnego realnego urzadzenia".
+# The generator of synthetic Modbus/TCP pcap fixtures
+# (scripts/gen_fixtures.py). The MAC addresses below are locally administered
+# (the second bit of the first byte set) and invented by that generator - the
+# module docstring says so outright: "they belong to no real device".
 identity-value:02:00:00:00:00:01
 identity-value:02:00:00:00:00:02
 identity-value:02:00:00:00:00:03
@@ -111,14 +114,14 @@ identity-value:02:00:00:00:00:07
 identity-value:02:00:00:00:00:08
 identity-value:02:00:00:00:00:09
 
-# Publiczny zbior 4SICS Geek Lounge (examples/4sics/, rekord decyzji
-# docs/decisions/0005-zbior-publiczny-dla-przykladu-raportu.md). Adresy IPv4
-# ponizej sa host'y zaobserwowane w publicznie redystrybuowanym ruchu (patrz
-# examples/4sics/README.md, atrybucja Netresec/CS3Sthlm); adresy MAC ponizej
-# sa rzeczywiste sygnatury producenta z tego samego, publicznego przechwytu -
-# nie z sieci pracodawcy. Ich obecnosc w tym publicznym repozytorium jest
-# warunkiem licencyjnym redystrybucji tego materialu (atrybucja), nie
-# przypadkiem.
+# The public 4SICS Geek Lounge capture set (examples/4sics/, decision record
+# docs/decisions/0005-public-dataset-for-the-example-report.md). The IPv4
+# addresses below are hosts observed in publicly redistributed traffic (see
+# examples/4sics/README.md, the Netresec/CS3Sthlm attribution); the MAC
+# addresses below are real vendor signatures from that same public capture -
+# not from the employer's network. Their presence in this public repository is
+# a licensing condition of redistributing that material (attribution), not an
+# accident.
 identity-value:10.10.10.10
 identity-value:10.10.10.20
 identity-value:192.168.2.44
@@ -136,10 +139,10 @@ identity-value:00:a0:45:6f:4b:83
 identity-value:00:e0:62:40:57:66
 identity-value:28:63:36:89:59:82
 
-# Wlasne dane wymyslone w testach jednostkowych (Faza 1: tests/test_oui.py;
-# Faza 2: tests/test_check_engine.py; ten plan: tests/test_confidentiality_guard.py)
-# - fixture'y syntetyczne, generowane przez autora dla potrzeb testu, nigdy
-# pobrane ani zaobserwowane w prawdziwej sieci.
+# Our own data invented in unit tests (Phase 1: tests/test_oui.py; Phase 2:
+# tests/test_check_engine.py; this plan: tests/test_confidentiality_guard.py)
+# - synthetic fixtures, generated by the author for the purposes of a test,
+# never downloaded nor observed on a real network.
 identity-value:10.0.0.1
 identity-value:10.0.0.2
 identity-value:10.0.0.3
@@ -147,9 +150,10 @@ identity-value:10.0.0.4
 identity-value:00:80:f4:11:22:33
 identity-value:aa:bb:cc:dd:ee:ff
 
-# Dokumentacja fazy 5 (05-03-PLAN.md, 05-RESEARCH.md) cytujaca kanoniczne
-# przedzialy adresacji prywatnej z samego dokumentu RFC 1918 jako przyklad
-# ksztaltu wzorca ponizej - nie adresacja z sieci pracodawcy.
+# The phase 5 documentation (05-03-PLAN.md, 05-RESEARCH.md) quoting the
+# canonical private addressing ranges from the RFC 1918 document itself as an
+# example of the shape of the pattern below - not addressing from the
+# employer's network.
 identity-value:10.0.0.0
 identity-value:172.16.0.0
 identity-value:192.168.0.0

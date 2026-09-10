@@ -1,247 +1,274 @@
 # Wayside
 
-Wayside to pasywne narzedzie do oceny bezpieczenstwa sieci OT/ICS: na wejsciu dostaje
-zrzut ruchu (pcap), a na wyjsciu daje inwentaryzacje zasobow, mape komunikacji i liste
-findingow, gdzie kazdy finding ma powolanie na konkretny punkt normy. Narzedzie nigdy
-nie wysyla ani jednego pakietu do sieci - caly odczyt dzieje sie z pliku.
+[![CI](https://github.com/oliver-dolski/wayside/actions/workflows/ci.yml/badge.svg)](https://github.com/oliver-dolski/wayside/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-## Bootstrap
+Wayside is a passive security assessment tool for OT/ICS networks: it takes a
+traffic capture (pcap) as input and returns an asset inventory, a
+communication map and a list of findings, where every finding carries a
+citation to a specific standard clause. The tool never sends a single packet
+to the network - every read happens from a file.
 
-Wymagania wstepne: Windows 11, Windows PowerShell 5.1, git. Wireshark, tshark ani
-sterownik przechwytywania (Npcap) nie sa potrzebne.
+## What a finding looks like
 
-Jedno polecenie po klonie:
+This is a real block from [`examples/4sics/report.md`](examples/4sics/report.md),
+generated from a public dataset:
+
+```text
+### Use of an industrial protocol without an authentication mechanism in the observed communication
+
+- Check identifier: `unauthenticated-industrial-protocol`
+- Severity: high (risk: serious)
+- Session parties: 192.168.2.44:58597 -> 192.168.88.50:502
+- Evidence: packet no. 29, session no. 1
+- Standard citation: IEC-62443-3-3 SR 1.2
+  - Clause scope (own description, not a title from the copy): Software process
+    and device identification and authentication
+  - Status: **PROVISIONAL, UNVERIFIED** (The clause numbering and the paraphrase
+    text await collation against a legal copy of IEC 62443-3-3.)
+- Remediation: Restrict at the network level the set of hosts that may open a
+  session to the controller at all, through segmentation and access control
+  lists. The protocol itself cannot be authenticated without replacing devices
+  or without an intermediary layer.
+```
+
+Three things in that block are the point of the whole project:
+
+- The finding states **observed behaviour**, never a verdict on whether the
+  installation complies with a standard. That verdict belongs to an auditor
+  with a copy of the standard in hand, not to a tool reading a capture.
+- The citation carries a **verification marker**. The numbering above has not
+  been collated against a purchased copy of IEC 62443-3-3, so the report says
+  so in capital letters instead of looking confident.
+- Every inventory field carries its **provenance** - `observed`,
+  `inferred:<method>` or `not-derivable-passively`. A field that cannot be
+  established from a passive capture is a visible row saying exactly that,
+  never a silently omitted one.
+
+## Intended Use
+
+The tool reads only a traffic capture file; under `src/wayside` there is not a
+single import of a networking module, which the test
+`tests/test_oui.py::test_no_network_module_imports_under_src_wayside` enforces.
+The boundary of that proof is named outright in the same paragraph: the gate
+guards imports in the source code, not the actual absence of traffic at
+runtime, so it proves the tool has NO WAY to send a packet, not that it did not
+send one.
+
+### What it is for
+
+- A point-in-time security assessment from an existing traffic capture.
+- An inventory of observed devices.
+- A communication matrix.
+- Findings with a citation to a standard clause.
+- Material for a report to the system owner.
+
+### What it is not for
+
+- It is not continuous network monitoring.
+- It is not an active scanner or a penetration testing tool.
+- It does not issue a verdict on whether an installation meets the
+  requirements of a standard.
+- It does not give a numeric security level.
+
+### Condition of use
+
+A traffic capture from someone else's network may be analysed only with the
+consent of the owner of that network. The tool does not check that consent and
+cannot check it - the passivity of the tool is not an answer to the question of
+whether possessing the capture is lawful.
+
+## Getting started
+
+Prerequisites: Windows 11, Windows PowerShell 5.1, git. Wireshark, tshark and a
+capture driver (Npcap) are not needed.
+
+One command after cloning:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\bootstrap.ps1
 ```
 
-Ostatnim krokiem tego polecenia jest instalacja haka pre-commit
-(`uv run pre-commit install`). Jest to osobny krok, bo git swiadomie NIE
-kopiuje `.git/hooks/*` przy klonowaniu (hak w cudzym repozytorium moglby
-wykonac dowolny kod przy pierwszym commicie) - bez tego kroku bramka
-poufnosci opisana nizej istnieje jako kod, ale nigdy nie zostaje uruchomiona.
+The last step of that command installs the pre-commit hook
+(`uv run pre-commit install`). It is a separate step because git deliberately
+does NOT copy `.git/hooks/*` on clone (a hook in someone else's repository
+could execute arbitrary code on the first commit) - without that step the
+confidentiality gate described below exists as code but never runs.
 
-## Intended Use
-
-Narzedzie czyta wylacznie plik ze zrzutem ruchu; pod katalogiem `src/wayside`
-nie ma ani jednego importu modulu sieciowego, co pilnuje test
-`tests/test_oui.py::test_no_network_module_imports_under_src_wayside`. Granica
-tego dowodu jest nazwana wprost w tym samym akapicie: bramka pilnuje importow
-w kodzie zrodlowym, a nie faktycznego braku ruchu w czasie dzialania, wiec
-dowodzi, ze narzedzie nie MA jak wyslac pakietu, a nie tego, ze go nie
-wyslalo.
-
-### Do czego
-
-- Ocena bezpieczenstwa w punkcie czasu z gotowego zrzutu ruchu.
-- Inwentarz zaobserwowanych urzadzen.
-- Macierz komunikacji.
-- Findingi z powolaniem na punkt normy.
-- Material do raportu dla wlasciciela systemu.
-
-### Do czego nie
-
-- Nie jest ciaglym monitoringiem sieci.
-- Nie jest skanerem aktywnym ani narzedziem testu penetracyjnego.
-- Nie wydaje oceny, czy instalacja spelnia albo nie spelnia wymagan normy.
-- Nie podaje liczbowego poziomu bezpieczenstwa.
-
-### Warunek uzycia
-
-Zrzut ruchu z cudzej sieci wolno analizowac wylacznie za zgoda wlasciciela
-tej sieci. Narzedzie tej zgody nie sprawdza ani sprawdzic nie moze -
-pasywnosc narzedzia nie jest odpowiedzia na pytanie o legalnosc posiadania
-zrzutu.
-
-## Bramka poufnosci
-
-Kazdy `git commit` przechodzi przez `scripts/confidentiality_guard.py`
-w czterech warstwach:
-
-1. **Sciezkowa** - kazdy plik pod `standards/.local/` jest odrzucany,
-   niezaleznie od tresci, nawet gdy zostal dodany przez `git add -f`.
-2. **Korpusowa** - porownuje commitowana tresc z lokalnym, gitignorowanym
-   katalogiem `standards/.local` (shingle dwunastowyrazowe, skroty sha256,
-   nigdy surowy tekst). Dziala WYLACZNIE lokalnie, tam gdzie ten katalog
-   moze istniec.
-3. **Strukturalna** - regex na odcisk jezyka normatywnego (kropkowany numer
-   punktu + modalnosc normatywna w tej samej linii). Dziala bez zadnego
-   korpusu, wiec takze w CI.
-4. **Tozsamosciowa** - piec regul lapiacych tresc z sieci pracodawcy zamiast
-   tresci normy: adresacja prywatna RFC 1918, adres sprzetowy jako sygnatura
-   urzadzenia, nazwa urzadzenia, oraz nazwa wlasna projektu odgrodzonego
-   granica poufnosci autora - te cztery sa regulami KSZTALTU, zbudowanymi
-   z publicznie znanych skrotow branzowych i z ksztaltow adresowych, nigdy
-   z niczyjego inwentarza, i dzialaja bez zadnego lokalnego materialu, a wiec
-   takze w CI. Piata regula jest literalna i dziala WYLACZNIE lokalnie, z
-   pliku gitignorowanego. Adres obecny w repozytorium musi byc zadeklarowany
-   po wartosci razem z pochodzeniem w `.confidentiality-allow` - adres
-   niezadeklarowany zapala bramke niezaleznie od pliku, w ktorym stoi.
-
-Katalog `standards/.local` nigdy nie opuszcza maszyny autora - jest
-gitignorowany i **nie wolno** go wysylac do sekretow repozytorium ani do
-zadnej konfiguracji CI, bo to zniweczyloby cel tej bramki.
-
-**Granice, nazwane wprost, a nie przemilczane:**
-
-- Lokalny hak jest warstwa prewencyjna WYLACZNIE dla commitow wykonanych
-  normalnie. Omija sie go swiadomie flaga `git commit --no-verify` - to jest
-  wlasciwosc kazdego lokalnego haka git, nie luka tej implementacji.
-- Warstwa uruchamiana w CI jest **detekcyjna, nie prewencyjna** - wykrywa po
-  fakcie (juz po `git push`) i nie powstrzymuje samego wyslania tresci. CI
-  nie ma tez dostepu do `standards/.local` (gitignorowany), wiec w CI dzialaja
-  wylacznie warstwa strukturalna i cztery reguly ksztaltu warstwy
-  tozsamosciowej.
-- Piata regula warstwy tozsamosciowej, literalna, dziala WYLACZNIE lokalnie -
-  plik z literalami jest gitignorowany i **nie wolno** go wgrywac do
-  sekretow repozytorium ani do konfiguracji CI, bo to zniweczyloby cel tej
-  warstwy dokladnie tak samo, jak wgranie korpusu norm zniweczyloby warstwe
-  2. Brak tego pliku jest zglaszany ostrzezeniem na standardowe wyjscie
-  bledu, nie przemilczany.
-- Sam skrypt bramki czyta wylacznie tresc tekstowa (importuje wylacznie
-  biblioteke standardowa Pythona), wiec plikow binarnych nie obejmuje -
-  obejmuje je osobny test pakietu, dzialajacy po warstwie tekstowej tych
-  plikow, bo skrypt musi dzialac bez zaleznosci zewnetrznych, a czytnik PDF
-  zaleznoscia jest.
-- Wzorce warstwy tozsamosciowej sa wzorcami ksztaltu, wiec lapia konwencje
-  nazewnicza, a nie kazda mozliwa nazwe - literaly, ktorych zaden ksztalt nie
-  wyraza, sa rola piatej reguly, lokalnej.
-
-**Trafienie w BIEZACYM drzewie naprawia sie poprawka przed commitem. Trafienie
-w HISTORII to zupelnie inna sytuacja: tresc jest juz zapisana i zaden kolejny
-commit tego nie cofa.** Droga naprawy to przepisanie historii przez
-`git filter-repo` PRZED jakimkolwiek publicznym pushem. Jesli publiczny push
-juz sie odbyl, przepisanie historii nie cofa faktu, ze tresc mogla zostac
-zescrapowana albo zmirrorowana - ten kontrakt dotyczy kazdego wzorca tej
-bramki, nie tylko sciezki `standards/.local`.
-
-## Uruchomienie
+## Usage
 
 ```powershell
-uv run wayside inspect <plik.pcap>
-uv run wayside analyze <plik.pcap> --out-dir wayside-out
+uv run wayside inspect <file.pcap>
+uv run wayside analyze <file.pcap> --out-dir wayside-out
 ```
 
-Komenda `analyze` zapisuje w katalogu wyjsciowym `analysis.json` (model
-maszynowy) i `report.md` (raport w markdown). Flaga `--pdf` dokladajac
-trzeci artefakt, `report.pdf`, z osadzonym fontem Unicode (DejaVu Sans):
-w warstwie tekstowej PDF kazdy z osiemnastu polskich znakow diakrytycznych
-wystepuje jako pojedynczy, zlozony punkt kodowy, niezaleznie od fontow
-zainstalowanych w systemie. Granica tego twierdzenia: to, jak dokument
-wyglada w konkretnym czytniku PDF, nie zostalo potwierdzone wzrokowo na
-wielu maszynach (prywatnym rejestrze niepewnosci autora, pozycje 12 i 13). Flaga jest
-domyslnie wylaczona: domyslna sciezka narzedzia nie zyskuje przez to nowej
-zaleznosci uruchomieniowej.
+The `analyze` command writes `analysis.json` (the machine-readable model) and
+`report.md` (a markdown report) into the output directory. The `--pdf` flag
+adds a third artifact, `report.pdf`, with an embedded Unicode font (DejaVu
+Sans): in the text layer of the PDF every character outside ASCII - vendor
+names from the IEEE registry are the routine case - appears as a single,
+composed code point, regardless of the fonts installed on the system. The
+boundary of that claim: how the document looks in a specific PDF reader has not
+been confirmed visually on multiple machines (the author's private uncertainty
+register, entries 12 and 13). The flag is off by default: the tool's default
+path does not gain a new runtime dependency because of it.
 
 ```powershell
-uv run wayside analyze <plik.pcap> --pdf --out-dir wayside-out
+uv run wayside analyze <file.pcap> --pdf --out-dir wayside-out
 ```
 
-## Przykladowy raport
+## Example report
 
-Katalog [`examples/4sics/`](examples/4sics/) niesie gotowy przykladowy
-raport (`analysis.json`, `report.md`, `report.pdf`) wygenerowany z
-publicznego zbioru 4SICS Geek Lounge.
+The directory [`examples/4sics/`](examples/4sics/) carries a complete example
+report (`analysis.json`, `report.md`, `report.pdf`) generated from the public
+4SICS Geek Lounge dataset.
 
-Ruch pochodzi z laboratorium 4SICS Geek Lounge (2015), udostepniony
-publicznie przez Netresec (https://www.netresec.com/) za zgoda CS3Sthlm
-(nastepcy konferencji 4SICS) na udostepnienie przechwyconego ruchu.
+The traffic comes from the 4SICS Geek Lounge lab (2015), made publicly
+available by Netresec (https://www.netresec.com/) with the permission of
+CS3Sthlm (successor to the 4SICS conference) to share the captured traffic.
 
-Strona zbioru: [https://www.netresec.com/?page=PCAP4SICS](https://www.netresec.com/?page=PCAP4SICS).
-Raport jest odtwarzalny ze skryptu pobierajacego - zaden plik zrzutu tego
-zbioru nie jest sledzony przez gita. Szczegoly, atrybucja pelna i granica
-dziedzinowa stoja w [`examples/4sics/README.md`](examples/4sics/README.md).
+Dataset page: [https://www.netresec.com/?page=PCAP4SICS](https://www.netresec.com/?page=PCAP4SICS).
+The report is reproducible from the fetch script - no capture file from that
+dataset is tracked by git. Details, full attribution and the domain boundary
+stand in [`examples/4sics/README.md`](examples/4sics/README.md).
 
-## Stan weryfikacji powolan na normy
+## Confidentiality gate
 
-Kazdy finding niesie powolanie na punkt normy razem z sygnatura i edycja, a
-kazde powolanie niesie takze informacje o tym, czy numeracja tego punktu
-zostala zestawiona z legalnym egzemplarzem dokumentu.
+Every `git commit` passes through `scripts/confidentiality_guard.py` in four
+layers:
 
-IEC 62443-3-3: na moment pisania egzemplarz jest NIEZAKUPIONY, wiec numeracja
-wszystkich punktow tego dokumentu w katalogu norm jest prowizoryczna, a
-kazde powolanie na nia niesie znacznik `verified: no` - dokument jest
-platny. Droga rozstrzygniecia i podzial miedzy oba dokumenty opisuje
-`docs/decisions/0006-weryfikacja-powolan-wobec-egzemplarza-normy.md`.
+1. **Path** - every file under `standards/.local/` is rejected, regardless of
+   content, even when it was added with `git add -f`.
+2. **Corpus** - compares the committed content against the local, gitignored
+   `standards/.local` directory (twelve-word shingles, sha256 digests, never
+   raw text). Works LOCALLY ONLY, where that directory can exist.
+3. **Structural** - a regex for the fingerprint of normative language (a dotted
+   clause number plus a normative modal term on the same line). Works with no
+   corpus at all, so it works in CI too.
+4. **Identity** - five rules catching content from the employer's network
+   rather than the content of a standard: RFC 1918 private addressing, a
+   hardware address as a device signature, a device name, and the proper name
+   of a project fenced off by the author's confidentiality boundary. Those four
+   are SHAPE rules, built from publicly known industry abbreviations and from
+   addressing shapes, never from anyone's inventory, and they work with no
+   local material, hence also in CI. The fifth rule is literal and works
+   LOCALLY ONLY, from a gitignored file. An address present in the repository
+   has to be declared by value together with its origin in
+   `.confidentiality-allow` - an undeclared address fires the gate regardless
+   of the file it sits in.
 
-CLC/TS 50701:2023: sygnatura i edycja sa potwierdzone u zrodla
-(`docs/decisions/0004-sygnatura-clc-ts-50701.md`); numeracja punktow nie
-jest potwierdzona i z zasady nie bedzie, bo tego egzemplarza projekt nie
-kupuje. Dokument ma status specyfikacji technicznej, nie normy europejskiej,
-wiec stosuje sie go dobrowolnie. Pole punktu obu wpisow tego dokumentu w
-katalogu norm niesie jawnie prowizoryczny token, nigdy liczbe wygladajaca
-jak numer punktu.
+The `standards/.local` directory never leaves the author's machine - it is
+gitignored and it **must not** be uploaded to repository secrets or to any CI
+configuration, because that would defeat the purpose of this gate.
 
-Droga podniesienia znacznika: zakup egzemplarza, przeczytanie punktow wobec
-niego, edycja DWOCH pol - pola weryfikacji i pola prowieniencji tytulu
-punktu (`clause_title_source`) - w pliku katalogu norm. Warstwa wczytujaca
-odrzuca wpis, ktory podnosi jedno z tych dwoch pol bez drugiego. Zaden plik
-kodu przy tym nie zmienia sie.
+**The boundaries, named outright rather than passed over in silence:**
 
-Tytul punktu, ktory nie zostal przepisany z egzemplarza, renderuje sie w
-raporcie jako opis wlasny, w innym ksztalcie niz tytul potwierdzony.
+- The local hook is a preventive layer ONLY for commits made normally. It is
+  bypassed deliberately with `git commit --no-verify` - that is a property of
+  every local git hook, not a hole in this implementation.
+- The layer running in CI is **detective, not preventive** - it detects after
+  the fact (after `git push` has already happened) and does not stop the
+  content from being sent. CI also has no access to `standards/.local`
+  (gitignored), so in CI only the structural layer and the four shape rules of
+  the identity layer are active.
+- The fifth rule of the identity layer, the literal one, works LOCALLY ONLY -
+  the file with the literals is gitignored and **must not** be uploaded to
+  repository secrets or to CI configuration, because that would defeat the
+  purpose of the layer it defends exactly as uploading the standards corpus
+  would defeat layer 2. Its absence is reported as a warning on standard error,
+  never passed over in silence.
 
-## Testy
+## Citation verification status
+
+Every finding carries a citation to a standard clause together with the
+designation and edition, and every citation also carries the information of
+whether the numbering of that clause has been collated against a legal copy of
+the document.
+
+IEC 62443-3-3: at the time of writing a copy is NOT PURCHASED, so the numbering
+of every clause of that document in the standards catalogue is provisional, and
+every citation to it carries the marker `verified: no` - the document is paid
+for. The path to resolution and the split between the two documents are
+described in
+`docs/decisions/0006-verification-of-citations-against-a-copy-of-the-standard.md`.
+
+CLC/TS 50701:2023: the designation and edition are confirmed at the source
+(`docs/decisions/0004-clc-ts-50701-designation.md`); the clause numbering is not
+confirmed and by design will not be, because the project does not buy that
+copy. The document has the status of a technical specification, not a European
+standard, so it is applied voluntarily. The clause field of both entries for
+that document in the standards catalogue carries an openly provisional token,
+never a number that looks like a clause number.
+
+The path to raising the marker: buy a copy, read the clauses against it, edit
+TWO fields - the verification field and the clause title provenance field
+(`clause_title_source`) - in the standards catalogue file. The loading layer
+rejects an entry that raises one of those two fields without the other. No code
+file changes in the process.
+
+A clause title that has not been transcribed from a copy renders in the report
+as an own description, in a different shape from a confirmed title.
+
+## Tests
 
 ```powershell
 uv run pytest
 ```
 
-## Weryfikacja w CI
+## Verification in CI
 
-Kazdy `push` i `pull_request` uruchamia `.github/workflows/ci.yml` na
-`windows-latest` - platforma docelowa projektu to Windows 11, wiec pakiet
-zielony wylacznie na Linuksie nie dowodziby, ze narzedzie dziala tam, gdzie
-ma dzialac. Dwa joby:
+Every `push` and `pull_request` runs `.github/workflows/ci.yml` on
+`windows-latest` - the project's target platform is Windows 11, so a suite
+green on Linux alone would not prove the tool works where it is meant to work.
+Two jobs:
 
-1. **`test`** - pelny pakiet testow na swiezym checkoucie: `uv sync --locked`,
-   krok bramki kompletnosci kolekcji (sprawdza, ze piec modulow krytycznych
-   fazy 1 nie zniknelo z kolekcji `pytest`), potem `uv run pytest`.
-2. **`confidentiality-backstop`** - detekcyjny backstop poufnosci: checkout
-   z `fetch-depth: 0` (pelna historia), `scripts/confidentiality_guard.py`
-   w trybie `--no-corpus` na wszystkich sledzonych plikach,
-   `git log --all -- standards/.local`, ktory konczy job bledem, gdy wynik
-   nie jest pusty, oraz trzeci krok: audyt trzech powierzchni CALEJ historii
-   repozytorium (tresc drzew, komunikaty commitow, nazwy plikow) tymi samymi
-   wzorcami warstwy tozsamosciowej co bramka biezaca, uruchamiany z jawnym
-   wlaczeniem znacznika `slow` pakietu testow.
+1. **`test`** - the full test suite on a fresh checkout: `uv sync --locked`, a
+   collection completeness gate step (checking that five critical phase 1
+   modules have not disappeared from the `pytest` collection), then
+   `uv run pytest`.
+2. **`confidentiality-backstop`** - the detective confidentiality backstop: a
+   checkout with `fetch-depth: 0` (full history),
+   `scripts/confidentiality_guard.py` in `--no-corpus` mode over every tracked
+   file, `git log --all -- standards/.local`, which fails the job when the
+   result is not empty, and a third step: an audit of three surfaces of the
+   ENTIRE repository history (tree content, commit messages, file names) with
+   the same identity layer patterns as the current gate, run with the `slow`
+   test marker explicitly enabled.
 
-Ten trzeci krok jest **domyslnie pomijany lokalnie** (znacznik `slow` jest
-filtrowany w opcjach domyslnych pakietu testow), bo jego koszt to trzy
-powierzchnie razy caly zbior commitow repozytorium - deweloper, ktory nigdy
-nie wykonuje publicznego pushu, nigdy go nie uruchamia, i to jest swiadomy
-wybor, nie luka. Miejscem, w ktorym ten skan jest obowiazkowy, jest CI oraz
-bramka przed publicznym pushem (`compliance/history-audit.md`).
+That third step is **skipped locally by default** (the `slow` marker is
+filtered in the test suite's default options), because its cost is three
+surfaces times the whole set of repository commits - a developer who never
+performs a public push never runs it, and that is a deliberate choice, not a
+gap. The place where that scan is mandatory is CI and the gate before a public
+push (`compliance/history-audit.md`).
 
-**Czego CI z zalozenia NIE widzi:** lokalnego korpusu `standards/.local` oraz
-pliku literalow lokalnych warstwy tozsamosciowej (piata regula,
-`identity-local-literal`). Oba sa gitignorowane i nigdy nie trafiaja do
-zdalnego repozytorium ani do sekretow CI - to jest architektoniczna
-koniecznosc, nie niedopatrzenie: wgranie ktoregos z nich do sekretow
-repozytorium zniweczyloby cel warstwy, ktorej bronia. W CI dziala warstwa
-strukturalna (regex na odcisk jezyka normatywnego), kontrola sciezki, oraz
-cztery reguly ksztaltu warstwy tozsamosciowej - nigdy warstwa korpusowa ani
-piata regula, literalna.
+**What CI by design does NOT see:** the local `standards/.local` corpus and the
+file of local literals for the identity layer (the fifth rule,
+`identity-local-literal`). Both are gitignored and never reach the remote
+repository or CI secrets - that is an architectural necessity, not an
+oversight: uploading either of them to repository secrets would defeat the
+purpose of the layer it defends. In CI the structural layer, the path check and
+the four shape rules of the identity layer are active - never the corpus layer
+and never the fifth, literal rule.
 
-**Charakter tej warstwy jest detekcyjny, nie prewencyjny.** CI potwierdza
-naruszenie PO fakcie - juz po `git push` - i uruchamia reakcje: revert,
-przepisanie historii przez `git filter-repo` przed jakimkolwiek publicznym
-pushem, nigdy nie powstrzymuje samego wyslania tresci. Konto osobiste w
-GitHub.com nie ma server-side pre-receive hookow, wiec twarda prewencja po
-stronie zdalnej nie jest w tym projekcie dostepna. Zielone CI potwierdza, ze
-nic, co bramka rozpoznaje, nie przeszlo przy TYM pushu - to nie jest dowod
-szczelnosci w ogole.
+**The character of that layer is detective, not preventive.** CI confirms a
+violation AFTER the fact - after `git push` - and triggers a reaction: a
+revert, a history rewrite with `git filter-repo` before any public push; it
+never stops the content from being sent. A personal account on GitHub.com has
+no server-side pre-receive hooks, so hard prevention on the remote side is not
+available in this project. A green CI run confirms that nothing the gate
+recognises passed in THAT push - it is not proof of tightness in general.
 
-Granice lokalnego haka pre-commit (drugiej strony tej samej bramki) opisane
-sa w sekcji `## Bramka poufnosci` wyzej - oba opisy stoja obok siebie, zeby
-sobie nie zaprzeczac.
+The boundaries of the local pre-commit hook (the other side of the same gate)
+are described in the `## Confidentiality gate` section above - the two
+descriptions stand next to each other so they cannot contradict one another.
 
-## Licencja
+## License
 
-Wayside jest udostepniony na licencji Apache License, wersja 2.0. Pelna
-tresc stoi w pliku [`LICENSE`](LICENSE) w katalogu glownym repozytorium.
-Redystrybucja, takze zmodyfikowanej wersji, wymaga zachowania informacji
-o prawach autorskich i oznaczenia zmienionych plikow (punkt 4 tresci
-licencji). Powod wyboru tej licencji zamiast MIT opisuje rekord decyzji
-[`docs/decisions/0007-licencja-apache-2-0.md`](docs/decisions/0007-licencja-apache-2-0.md).
+Wayside is released under the Apache License, version 2.0. The full text stands
+in the [`LICENSE`](LICENSE) file in the root of the repository.
+Redistribution, including of a modified version, requires retaining the
+copyright notices and marking modified files (section 4 of the license text).
+The reason for choosing this license over MIT is described in the decision
+record
+[`docs/decisions/0007-apache-2-0-license.md`](docs/decisions/0007-apache-2-0-license.md).

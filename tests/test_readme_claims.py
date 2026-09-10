@@ -62,23 +62,27 @@ ALLOWED_STATUS: frozenset[str] = frozenset({"active", "retired"})
 
 INTENDED_USE_HEADER = "## Intended Use"
 REQUIRED_INTENDED_USE_SUBSECTIONS: tuple[str, ...] = (
-    "### Do czego",
-    "### Do czego nie",
-    "### Warunek uzycia",
+    "### What it is for",
+    "### What it is not for",
+    "### Condition of use",
 )
 PASSIVITY_EVIDENCE_NODE_ID = (
     "tests/test_oui.py::test_no_network_module_imports_under_src_wayside"
 )
 
-# Zdania graniczne z D-11 i D-12, skopiowane doslownie do tresci README -
-# jeden zapis obu regul, uzyty jednoczesnie jako tresc dokumentu i jako
-# kryterium bramki ksztaltu.
+# Boundary sentences from D-11 and D-12, copied verbatim into the README
+# text - one statement of both rules, used at once as document content and as
+# the criterion of the shape gate.
 PASSIVITY_BOUNDARY_MARKER = (
-    "bramka pilnuje importow w kodzie zrodlowym, a nie faktycznego braku "
-    "ruchu w czasie dzialania"
+    "the gate guards imports in the source code, not the actual absence of "
+    "traffic at runtime"
 )
-NETWORK_OWNER_CONSENT_MARKER = "wolno analizowac wylacznie za zgoda wlasciciela tej sieci"
-NETWORK_OWNER_NO_CHECK_MARKER = "narzedzie tej zgody nie sprawdza ani sprawdzic nie moze"
+NETWORK_OWNER_CONSENT_MARKER = (
+    "may be analysed only with the consent of the owner of that network"
+)
+NETWORK_OWNER_NO_CHECK_MARKER = (
+    "the tool does not check that consent and cannot check it"
+)
 
 # Skopiowane doslownie z tests/test_standard_designation_gate.py.
 _HEADER_LINE_RE = re.compile(r"^## .+$", re.MULTILINE)
@@ -366,24 +370,29 @@ def _intended_use_shape_errors(text: str) -> list[str]:
     normalized_intro = _normalize_ws(intro)
     if PASSIVITY_EVIDENCE_NODE_ID not in normalized_intro:
         errors.append(
-            "Akapit pasywnosci nie niesie doslownego identyfikatora testu "
-            f"{PASSIVITY_EVIDENCE_NODE_ID!r}."
+            "The passivity paragraph does not carry the literal test "
+            f"identifier {PASSIVITY_EVIDENCE_NODE_ID!r}."
         )
-    # Dopasowanie granicy dowodu case-insensitive: zdanie moze rozpoczynac
-    # akapit (wielka litera na starcie) albo stac w srodku zdania.
+    # The boundary match is case-insensitive: the sentence may open the
+    # paragraph (capital letter at the start) or sit inside another sentence.
     if PASSIVITY_BOUNDARY_MARKER not in normalized_intro.lower():
-        errors.append("Akapit pasywnosci nie nazywa granicy dowodu w tym samym akapicie.")
+        errors.append(
+            "The passivity paragraph does not name the boundary of the proof "
+            "in the same paragraph."
+        )
 
-    warunek_pos = body.find("### Warunek uzycia")
-    if warunek_pos != -1:
-        warunek_body = _normalize_ws(body[warunek_pos:]).lower()
-        if NETWORK_OWNER_CONSENT_MARKER not in warunek_body:
+    condition_pos = body.find("### Condition of use")
+    if condition_pos != -1:
+        condition_body = _normalize_ws(body[condition_pos:]).lower()
+        if NETWORK_OWNER_CONSENT_MARKER not in condition_body:
             errors.append(
-                "Podsekcja warunku uzycia nie niesie zdania o zgodzie wlasciciela sieci."
+                "The condition of use subsection does not carry the sentence "
+                "about the network owner's consent."
             )
-        if NETWORK_OWNER_NO_CHECK_MARKER not in warunek_body:
+        if NETWORK_OWNER_NO_CHECK_MARKER not in condition_body:
             errors.append(
-                "Podsekcja warunku uzycia nie niesie zdania o braku sprawdzania zgody."
+                "The condition of use subsection does not carry the sentence "
+                "about the tool not checking that consent."
             )
 
     return errors
@@ -396,11 +405,12 @@ def _sample_intended_use_text(
     *,
     subsections: tuple[str, ...] = REQUIRED_INTENDED_USE_SUBSECTIONS,
     intro: str = (
-        f"Zdanie o pasywnosci z dowodem {PASSIVITY_EVIDENCE_NODE_ID}. "
+        f"A passivity sentence with the evidence {PASSIVITY_EVIDENCE_NODE_ID}. "
         f"{PASSIVITY_BOUNDARY_MARKER}."
     ),
-    warunek_body: str = (
-        f"Zdanie: {NETWORK_OWNER_CONSENT_MARKER}. {NETWORK_OWNER_NO_CHECK_MARKER}."
+    condition_body: str = (
+        f"A sentence: {NETWORK_OWNER_CONSENT_MARKER}. "
+        f"{NETWORK_OWNER_NO_CHECK_MARKER}."
     ),
 ) -> str:
     """Buduje probny dokument w pamieci z sekcja Intended Use o podanym
@@ -409,7 +419,9 @@ def _sample_intended_use_text(
     lines = [INTENDED_USE_HEADER, "", intro, ""]
     for name in subsections:
         lines.append(name)
-        lines.append(warunek_body if name == "### Warunek uzycia" else "Tresc podsekcji.")
+        lines.append(
+            condition_body if name == "### Condition of use" else "Subsection body."
+        )
         lines.append("")
     return "\n".join(lines)
 
@@ -423,14 +435,16 @@ def test_readme_intended_use_section_shape_is_valid():
 
 
 def test_missing_subsection_fails_shape_gate():
-    text = _sample_intended_use_text(subsections=("### Do czego", "### Warunek uzycia"))
+    text = _sample_intended_use_text(
+        subsections=("### What it is for", "### Condition of use")
+    )
     errors = _intended_use_shape_errors(text)
-    assert any("Do czego nie" in e for e in errors)
+    assert any("What it is not for" in e for e in errors)
 
 
 def test_extra_subsection_does_not_fail_shape_gate():
     text = _sample_intended_use_text(
-        subsections=REQUIRED_INTENDED_USE_SUBSECTIONS + ("### Dodatkowa",)
+        subsections=REQUIRED_INTENDED_USE_SUBSECTIONS + ("### Extra",)
     )
     assert _intended_use_shape_errors(text) == []
 
@@ -453,24 +467,31 @@ def test_passivity_paragraph_carries_evidence_node_id_in_readme():
 
 
 def test_missing_evidence_id_in_intro_fails_shape_gate():
-    text = _sample_intended_use_text(intro="Zdanie bez dowodu i bez granicy.")
+    text = _sample_intended_use_text(
+        intro="A sentence with neither evidence nor a boundary."
+    )
     errors = _intended_use_shape_errors(text)
-    assert any("identyfikatora testu" in e for e in errors)
+    assert any("literal test identifier" in e for e in errors)
 
 
 def test_missing_boundary_marker_fails_shape_gate():
     text = _sample_intended_use_text(
-        intro=f"Zdanie z dowodem {PASSIVITY_EVIDENCE_NODE_ID}, bez zdania o granicy."
+        intro=(
+            f"A sentence with the evidence {PASSIVITY_EVIDENCE_NODE_ID}, with no "
+            "sentence about the boundary."
+        )
     )
     errors = _intended_use_shape_errors(text)
-    assert any("granicy" in e for e in errors)
+    assert any("boundary of the proof" in e for e in errors)
 
 
-def test_warunek_missing_consent_sentence_fails_shape_gate():
-    text = _sample_intended_use_text(warunek_body="Zdanie bez zgody i bez sprawdzania.")
+def test_condition_missing_consent_sentence_fails_shape_gate():
+    text = _sample_intended_use_text(
+        condition_body="A sentence with neither consent nor checking."
+    )
     errors = _intended_use_shape_errors(text)
-    assert any("zgodzie" in e for e in errors) and any(
-        "sprawdzania" in e for e in errors
+    assert any("consent" in e for e in errors) and any(
+        "not checking that consent" in e for e in errors
     )
 
 
@@ -621,15 +642,15 @@ def test_failure_message_never_carries_claim_text():
 
 def test_readme_anchors_lists_headers_in_order():
     anchors = _readme_anchors()
-    assert anchors[0] == "Bootstrap"
+    assert anchors[0] == "What a finding looks like"
     assert anchors[1] == "Intended Use"
-    assert "Testy" in anchors
+    assert "Tests" in anchors
 
 
 def test_excluded_anchors_maps_real_catalog_exclusions_to_reasons():
     excluded = _excluded_anchors()
-    assert "Testy" in excluded
-    assert excluded["Testy"].strip() != ""
+    assert "Tests" in excluded
+    assert excluded["Tests"].strip() != ""
 
 
 # --- Testy: asercja (c) D-16 - kompletnosc pokrycia i pozycje martwe -------

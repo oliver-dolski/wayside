@@ -1,75 +1,67 @@
-# Przykladowy raport: zbior 4SICS
+# Example report: the 4SICS dataset
 
-Atrybucja jest warunkiem licencyjnym redystrybucji tego materialu, nie
-uprzejmoscia - kopiujac ten katalog, kopiuje sie razem z nim ten warunek.
+Attribution is a licence condition of redistributing this material, not a
+courtesy - copying this directory copies that condition along with it.
 
-## Atrybucja
+## Attribution
 
-Ruch pochodzi z laboratorium 4SICS Geek Lounge (2015), udostepniony
-publicznie przez Netresec (https://www.netresec.com/) za zgoda CS3Sthlm
-(nastepcy konferencji 4SICS) na udostepnienie przechwyconego ruchu.
+The traffic comes from the 4SICS Geek Lounge lab (2015), made publicly
+available by Netresec (https://www.netresec.com/) with the permission of
+CS3Sthlm (successor to the 4SICS conference) to share the captured traffic.
 
-Strona zbioru: [https://www.netresec.com/?page=PCAP4SICS](https://www.netresec.com/?page=PCAP4SICS).
-Strona instytucji, ktorej atrybucja sie nalezy: [CS3Sthlm](https://cs3sthlm.se/).
-Redystrybucja jest dozwolona, takze w materialach szkoleniowych, pod
-warunkiem tej atrybucji i odeslania do strony Netresec.
+Dataset page: [https://www.netresec.com/?page=PCAP4SICS](https://www.netresec.com/?page=PCAP4SICS).
+The page of the institution the attribution is owed to: [CS3Sthlm](https://cs3sthlm.se/).
+Redistribution is permitted, including in training material, on condition of
+that attribution and of a link back to the Netresec page.
 
-## Granica dziedzinowa
+## Domain boundary
 
-Ten ruch pochodzi z laboratorium konferencji przemyslowej, NIE z instalacji
-kolejowej. Przykladowy raport ponizej nie pokazuje dziedziny, w
-ktorej ten projekt ma swoj wyroznik - to jest ryzyko rezydualne przyjete
-swiadomie i zapisane w
-[`docs/decisions/0005-zbior-publiczny-dla-przykladu-raportu.md`](../../docs/decisions/0005-zbior-publiczny-dla-przykladu-raportu.md):
-publiczny punkt pobrania z prawdziwym ruchem kolejowym nie istnieje, a
-odtwarzalnosc bije wartosc dziedzinowa. Czytelnik szukajacy dowodu z
-sektora kolejowego nie znajdzie go w tym katalogu.
+This traffic comes from the lab of an industrial conference, NOT from a
+railway installation. The example report below does not show the domain in
+which this project has its distinguishing feature - that is a residual risk
+accepted deliberately and recorded in
+[`docs/decisions/0005-public-dataset-for-the-example-report.md`](../../docs/decisions/0005-public-dataset-for-the-example-report.md):
+a public download point with genuine railway traffic does not exist, and
+reproducibility beats domain value. A reader looking for evidence from the
+railway sector will not find it in this directory.
 
-## Odtworzenie
+## Reproduction
 
-Dwa polecenia, w tej kolejnosci:
+Two commands, in this order:
 
 ```powershell
 uv run python scripts\fetch_4sics_sample.py
 uv run python scripts\gen_example_report.py
 ```
 
-Pierwsze polecenie pobiera plik zrodlowy zbioru (okolo 200 MB) ze strony
-Netresec, weryfikuje jego sume sha256 wobec stalej zapisanej w
-`scripts/fetch_4sics_sample.py` i konczy sie bledem przy niezgodnosci -
-cicha podmiana pliku u zrodla zostanie wiec wykryta, nie cicho uzyta. Potem
-buduje deterministyczny podzbior 40 pakietow (`4sics-slice.pcap`) i
-weryfikuje jego sume tak samo. Drugie polecenie generuje trzy artefakty
-ponizej z tego podzbioru, ze stalym znacznikiem czasu.
+The first command downloads the source file of the dataset (about 200 MB)
+from the Netresec page, verifies its sha256 against the constant recorded in
+`scripts/fetch_4sics_sample.py` and fails on a mismatch - a silent
+substitution of the file at the source will therefore be detected rather than
+silently used. It then builds a deterministic 40-packet slice
+(`4sics-slice.pcap`) and verifies its digest the same way. The second command
+generates the three artifacts below from that slice, with a fixed timestamp.
 
-## Co ten raport pokazuje
+## What this report shows
 
-- **Streszczenie** - liczba findingow tego przebiegu.
-- **Zakres** - rozpoznane protokoly, okno czasowe, snaplen.
-- **Metodyka** - kryteria rubryki wagi, bez wymyslonej skali.
-- **Inwentarz** - osiem hostow zaobserwowanych w podzbiorze, z producentem
-  wyprowadzonym z adresu MAC tam, gdzie dalo sie go ustalic.
-- **Macierz komunikacji** - siedem sesji TCP z ladunkiem.
-- **Findingi** - piec wystapien checka `unauthenticated-industrial-protocol`
-  (jeden host odpytujacy piec roznych serwerow Modbus/TCP bez mechanizmu
-  uwierzytelnienia), kazde z powolaniem na IEC 62443-3-3 i na CLC/TS 50701.
-  Ten sam wzorzec jest teraz czytelny wprost z blokow findingu w
-  `report.md`/`report.pdf` - kazdy blok niesie linie uczestnikow sesji
-  (`Uczestnicy sesji: <zrodlo> -> <cel>`) z tym samym adresem zrodlowym i
-  piecioma roznymi adresami docelowymi.
-- **Zalecenia** - jedno zalecenie, wspolne dla wszystkich pieciu findingow,
-  z liczba findingow, ktorych dotyczy.
+- **Summary** - the number of findings in this run.
+- **Scope** - recognised protocols, the time window, the snaplen.
+- **Methodology** - the severity rubric criteria, with no invented scale.
+- **Asset inventory** - eight hosts observed in the slice, with the vendor
+  derived from the MAC address wherever it could be established.
+- **Communication matrix** - seven TCP sessions carrying payload.
+- **Findings** - five occurrences of the `unauthenticated-industrial-protocol`
+  check (one host polling five different Modbus/TCP servers with no
+  authentication mechanism), each with a citation to IEC 62443-3-3 and to
+  CLC/TS 50701. The same pattern is now readable straight from the finding
+  blocks in `report.md`/`report.pdf` - every block carries a session parties
+  line (`Session parties: <source> -> <target>`) with the same source address
+  and five different destination addresses.
+- **Recommendations** - one recommendation, shared by all five findings,
+  stated once with the number of findings it applies to.
 
-Numeracja punktow normy w powolaniach jest prowizoryczna - `report.md` i
-`report.pdf` niosa przy kazdym powolaniu znacznik
-`PROWIZORYCZNE, NIEZWERYFIKOWANE`. Powod i droga rozstrzygniecia stoi w
-sekcji `## Stan weryfikacji powolan na normy` glownego
-[`README.md`](../../README.md) tego repozytorium - ten katalog nie powtarza
-tamtej tresci.
+## Files
 
-## Trzy artefakty
-
-- `analysis.json` - model maszynowy tego przebiegu.
-- `report.md` - ten sam model, w markdown.
-- `report.pdf` - ten sam model, w postaci gotowej do wyslania, z osadzonym
-  fontem Unicode (DejaVu Sans).
+- `analysis.json` - the machine-readable model, serialised deterministically.
+- `report.md` - the markdown report.
+- `report.pdf` - the same report with an embedded Unicode font.

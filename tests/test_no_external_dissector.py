@@ -2,7 +2,7 @@
 dekodera pakietow.
 
 Zakres skanu (`SCAN_SCOPE`) celowo pomija `docs/` i `.planning/` - to tam
-stoi zapis decyzji `docs/decisions/0001-silnik-dekodowania-v1.md`, ktory
+stoi zapis decyzji `docs/decisions/0001-decoding-engine-v1.md`, ktory
 musi wolno nazwac po imieniu narzedzia, ktorych kod projektu nie uzywa.
 Gdyby te katalogi byly w zakresie, sam dokument opisujacy decyzje lamalby
 wlasna bramke.
@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-DECISION_DOC = "docs/decisions/0001-silnik-dekodowania-v1.md"
+DECISION_DOC = "docs/decisions/0001-decoding-engine-v1.md"
 
 # Zakres skanu jest czescia kontraktu tej bramki (Task 2, plan 01-03).
 # `.github/workflows` powstaje dopiero w planie 01-05 - `scan_tree` jest

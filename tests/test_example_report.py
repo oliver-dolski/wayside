@@ -263,16 +263,20 @@ def test_page_url_present_in_both_readmes():
 
 
 def test_domain_boundary_sentence_present_in_example_readme():
-    # Pole opisu wpisu manifestu nazywa granice dziedzinowa wprost: ruch NIE
-    # pochodzi z instalacji kolejowej. Wystarczy obecnosc tego lancucha w
-    # pliku README katalogu przykladu, odczytana z pola opisu - nie literal
-    # powielony w tym tescie. Porownanie idzie po zwinieciu bialych znakow
-    # (spacji i konca linii) do pojedynczej spacji - markdown zawija dlugie
-    # zdania na wiele linii, a to jest kwestia zapisu, nie tresci.
+    # The description field of the manifest entry names the domain boundary
+    # outright: the traffic does NOT come from a railway installation. The
+    # presence of that string in the README of the example directory is
+    # enough, read from the description field - not a literal duplicated in
+    # this test. The comparison collapses whitespace (spaces and line
+    # endings) to a single space - markdown wraps long sentences over several
+    # lines, and that is a matter of typography, not of content.
     entry = _external_dataset_entry()
     description = entry["description"]
-    marker = "NIE z instalacji kolejowej"
-    assert marker in description, "Pole opisu manifestu nie niesie zdania o granicy dziedzinowej"
+    marker = "NOT from a railway installation"
+    assert marker in description, (
+        "The manifest description field does not carry the domain boundary "
+        "sentence"
+    )
     example_readme = (EXAMPLE_DIR / "README.md").read_text(encoding="utf-8")
     assert marker in " ".join(example_readme.split())
 

@@ -1,338 +1,343 @@
-# Katalog obietnic README (PUB-04, D-14, D-15, D-16, D-17).
+# The README claim catalogue (PUB-04, D-14, D-15, D-16, D-17).
 #
-# Ten plik jest INWENTARZEM obietnic zlozonych w README razem z dowodem
-# kazdej z nich - NIE jest lista zyczen ani planem. Kazdy wpis niesie test
-# wskazany w polu `evidence`, ktory bramka `tests/test_readme_claims.py`
-# sprawdza wobec kolekcji `pytest --collect-only`. Wpis bez dowodu nie ma
-# prawa tu stac.
+# This file is an INVENTORY of the claims made in the README together with the
+# evidence for each of them - it is NOT a wish list and NOT a plan. Every entry
+# names a test in its `evidence` field, which the `tests/test_readme_claims.py`
+# gate checks against the `pytest --collect-only` collection. An entry without
+# evidence has no right to stand here.
 #
-# Dowod reczny (`evidence: manual`) jest dopuszczalny WYLACZNIE z niepustym
-# polem `reason`, sprawdzanym maszynowo. Powod dopuszczenia: czesc prawdziwych
-# zdan README jest twierdzeniem o srodowisku uruchomieniowym, nie o kodzie
-# (np. "Wireshark, tshark ani Npcap nie sa potrzebne") - zakaz dowodu
-# recznego wymusilby albo wyciecie prawdziwego zdania, albo test-atrape.
+# Manual evidence (`evidence: manual`) is admissible ONLY with a non-empty
+# `reason` field, checked by machine. The reason for admitting it: some true
+# README sentences are claims about the runtime environment rather than about
+# the code (e.g. "Wireshark, tshark and Npcap are not needed") - forbidding
+# manual evidence would force either cutting a true sentence or writing a
+# sham test.
 entries:
   - id: passive-no-network-imports
     claim: >-
-      Narzedzie nigdy nie wysyla pakietu do sieci - pod katalogiem
-      src/wayside nie ma ani jednego importu modulu sieciowego.
+      The tool never sends a packet to the network - under src/wayside there
+      is not a single import of a networking module.
     readme_anchor: Intended Use
     evidence: "tests/test_oui.py::test_no_network_module_imports_under_src_wayside"
     status: active
 
-  # --- ## Bootstrap ----------------------------------------------------------
+  # --- ## Getting started ----------------------------------------------------
 
   - id: bootstrap-no-npcap-needed
     claim: >-
-      Wireshark, tshark ani sterownik przechwytywania (Npcap) nie sa
-      potrzebne do pracy z narzedziem - caly odczyt dzieje sie z pliku
-      zrzutu.
-    readme_anchor: Bootstrap
+      Wireshark, tshark and a capture driver (Npcap) are not needed to work
+      with the tool - every read happens from a capture file.
+    readme_anchor: Getting started
     evidence: manual
     reason: >-
-      Twierdzenie o srodowisku uruchomieniowym uzytkownika (brak zaleznosci
-      od narzedzi trzecich), nie o kodzie - jedyna uczciwa weryfikacja to
-      przebieg na czystej maszynie bez Npcap/Wiresharka/tsharka, otwarty
-      w prywatnym rejestrze niepewnosci autora pod pozycjami 1 i 2.
+      A claim about the user's runtime environment (the absence of a
+      dependency on third-party tools), not about the code - the only honest
+      verification is a run on a clean machine without
+      Npcap/Wireshark/tshark, open in the author's private uncertainty
+      register under entries 1 and 2.
     status: active
 
   - id: bootstrap-path-refresh
     claim: >-
-      Skrypt bootstrap.ps1 odswieza PATH biezacego procesu z rejestru
-      miedzy instalacja uv przez winget a ponownym sprawdzeniem jego
-      obecnosci, dzieki czemu jedno uruchomienie po klonie wystarcza
-      takze wtedy, gdy uv trzeba dopiero zainstalowac.
-    readme_anchor: Bootstrap
+      The bootstrap.ps1 script refreshes the PATH of the current process from
+      the registry between installing uv through winget and re-checking that
+      it is present, so that one run after cloning suffices even when uv has
+      to be installed first.
+    readme_anchor: Getting started
     evidence: "tests/test_bootstrap_smoke.py::test_bootstrap_refreshes_path_between_winget_install_and_recheck"
     status: active
 
   - id: bootstrap-hooks-unset-before-install
     claim: >-
-      Skrypt bootstrap.ps1 zdejmuje lokalnie ustawione core.hooksPath
-      przed instalacja haka pre-commit, gdy jest ono ustawione.
-    readme_anchor: Bootstrap
+      The bootstrap.ps1 script unsets a locally configured core.hooksPath
+      before installing the pre-commit hook, when one is set.
+    readme_anchor: Getting started
     evidence: "tests/test_bootstrap_smoke.py::test_bootstrap_unsets_local_hooks_path_before_install"
     status: active
 
   - id: bootstrap-hooks-restore-after-failed-install
     claim: >-
-      Skrypt bootstrap.ps1 przywraca zdjete lokalnie core.hooksPath nawet
-      wtedy, gdy instalacja haka pre-commit sie nie powiedzie, dzieki
-      czemu drugi przebieg skryptu zostaje idempotentny.
-    readme_anchor: Bootstrap
+      The bootstrap.ps1 script restores the core.hooksPath it unset even when
+      the pre-commit hook installation fails, which keeps a second run of the
+      script idempotent.
+    readme_anchor: Getting started
     evidence: "tests/test_bootstrap_smoke.py::test_bootstrap_restores_local_hooks_path_even_when_install_failed"
     status: active
 
-  # --- ## Bramka poufnosci ----------------------------------------------------
+  # --- ## Confidentiality gate ------------------------------------------------
 
   - id: confidentiality-path-layer-blocks-forced-add
     claim: >-
-      Warstwa sciezkowa bramki poufnosci odrzuca kazdy plik pod
-      standards/.local/ przy commicie, niezaleznie od tresci, nawet gdy
-      zostal dodany przez git add -f.
-    readme_anchor: Bramka poufnosci
+      The path layer of the confidentiality gate rejects every file under
+      standards/.local/ at commit time, regardless of content, even when it
+      was added with git add -f.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard_integration.py::test_commit_with_standards_local_file_added_with_force_is_rejected"
     status: active
 
   - id: confidentiality-structural-layer-blocks-normative-clause
     claim: >-
-      Warstwa strukturalna bramki poufnosci odrzuca commit niosacy zdanie
-      o ksztalcie klauzuli normatywnej (kropkowany numer punktu z
-      modalnoscia normatywna w tej samej linii), bez dostepu do lokalnego
-      korpusu norm.
-    readme_anchor: Bramka poufnosci
+      The structural layer of the confidentiality gate rejects a commit
+      carrying a sentence shaped like a normative clause (a dotted clause
+      number with a normative modal term on the same line), with no access to
+      the local standards corpus.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard_integration.py::test_commit_with_forbidden_normative_sentence_is_rejected"
     status: active
 
   - id: confidentiality-corpus-layer-blocks-shingle-match
     claim: >-
-      Warstwa korpusowa bramki poufnosci wykrywa tresc pokrywajaca sie z
-      lokalnym katalogiem standards/.local przez dwunastowyrazowe
-      shingle, dzialajac wylacznie lokalnie, tam gdzie ten katalog moze
-      istniec.
-    readme_anchor: Bramka poufnosci
+      The corpus layer of the confidentiality gate detects content
+      overlapping with the local standards/.local directory through
+      twelve-word shingles, working locally only, where that directory can
+      exist.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard.py::test_corpus_layer_flags_matching_twelve_word_shingle"
     status: active
 
   - id: confidentiality-identity-layer-blocks-project-name-outside-exempted-path
     claim: >-
-      Warstwa tozsamosciowa bramki poufnosci odrzuca commit niosacy nazwe
-      wlasna projektu odgrodzonego granica poufnosci autora poza sciezkami
-      jawnie wyjetymi tej reguly.
-    readme_anchor: Bramka poufnosci
+      The identity layer of the confidentiality gate rejects a commit
+      carrying the proper name of a project fenced off by the author's
+      confidentiality boundary, outside the paths explicitly exempted from
+      that rule.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard_integration.py::test_commit_with_project_name_outside_exempted_path_is_rejected"
     status: active
 
   - id: confidentiality-identity-layer-shape-rules-are-public-abbreviations
     claim: >-
-      Cztery reguly ksztaltu warstwy tozsamosciowej (adresacja prywatna
-      RFC 1918, adres sprzetowy, nazwa urzadzenia, nazwa wlasna) sa
-      zbudowane z publicznie znanych skrotow branzowych i ksztaltow
-      adresowych, dzialaja bez zadnego lokalnego materialu, a wiec takze
-      w CI.
-    readme_anchor: Bramka poufnosci
+      The four shape rules of the identity layer (RFC 1918 private
+      addressing, a hardware address, a device name, a proper name) are built
+      from publicly known industry abbreviations and addressing shapes, work
+      with no local material, and therefore work in CI too.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard.py::test_device_role_prefixes_are_closed_set_of_uppercase_abbreviations"
     status: active
 
   - id: confidentiality-identity-layer-declared-address-required
     claim: >-
-      Adres o ksztalcie adresacji prywatnej albo adresu sprzetowego obecny
-      w drzewie sledzonym musi byc zadeklarowany po wartosci razem z
-      pochodzeniem w .confidentiality-allow - adres niezadeklarowany
-      zapala bramke niezaleznie od pliku.
-    readme_anchor: Bramka poufnosci
+      An address shaped like private addressing or like a hardware address
+      present in the tracked tree has to be declared by value together with
+      its origin in .confidentiality-allow - an undeclared address fires the
+      gate regardless of the file it sits in.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard.py::test_every_identity_address_match_in_tracked_tree_is_declared_or_exempted"
     status: active
 
   - id: confidentiality-identity-layer-fifth-rule-local-only
     claim: >-
-      Piata regula warstwy tozsamosciowej, literalna, dziala WYLACZNIE
-      lokalnie z pliku gitignorowanego, a jej brak jest zglaszany
-      ostrzezeniem na standardowe wyjscie bledu, nie przemilczany.
-    readme_anchor: Bramka poufnosci
+      The fifth rule of the identity layer, the literal one, works LOCALLY
+      ONLY from a gitignored file, and its absence is reported as a warning
+      on standard error, never passed over in silence.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard.py::test_load_identity_local_literals_missing_file_warns_and_returns_empty"
     status: active
 
   - id: confidentiality-identity-layer-does-not-cover-binary-files-itself
     claim: >-
-      Sam skrypt bramki czyta wylacznie tresc tekstowa i nie obejmuje
-      plikow binarnych - warstwa tekstowa zadeklarowanych plikow binarnych
-      sledzonych przez gita jest przeszukana wzorcami tozsamosciowymi
-      osobnym testem pakietu.
-    readme_anchor: Bramka poufnosci
+      The gate script itself reads text content only and does not cover
+      binary files - the text layer of declared binary files tracked by git
+      is searched with the identity patterns by a separate test in the suite.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_confidentiality_guard.py::test_declared_binary_files_text_layer_carries_no_undeclared_identity_match"
     status: active
 
   - id: confidentiality-remediation-contract-covers-every-pattern
     claim: >-
-      Trafienie w historii repozytorium wymaga przepisania historii przez
-      git filter-repo przed jakimkolwiek publicznym pushem, dla kazdego
-      wzorca bramki, nie tylko sciezki standards/.local.
-    readme_anchor: Bramka poufnosci
+      A hit in the repository history requires a history rewrite with git
+      filter-repo before any public push, for every pattern of the gate, not
+      only for the standards/.local path.
+    readme_anchor: Confidentiality gate
     evidence: "tests/test_no_history_leak.py::test_standards_local_never_appears_in_commit_history"
     status: active
 
-  # --- ## Uruchomienie ---------------------------------------------------------
+  # --- ## Usage ---------------------------------------------------------------
 
   - id: analyze-writes-two-artifacts-without-pdf
     claim: >-
-      Komenda `wayside analyze` bez flagi --pdf zapisuje w katalogu
-      wyjsciowym dokladnie dwa artefakty: analysis.json i report.md, bez
-      report.pdf.
-    readme_anchor: Uruchomienie
+      The `wayside analyze` command without the --pdf flag writes exactly two
+      artifacts into the output directory: analysis.json and report.md, with
+      no report.pdf.
+    readme_anchor: Usage
     evidence: "tests/test_report_pdf.py::test_analyze_without_pdf_flag_writes_two_artifacts_and_no_pdf"
     status: active
 
   - id: analyze-pdf-flag-writes-third-artifact
     claim: >-
-      Flaga --pdf dokladajac trzeci artefakt, report.pdf, i konczy sie
-      kodem 0.
-    readme_anchor: Uruchomienie
+      The --pdf flag adds a third artifact, report.pdf, and exits with code 0.
+    readme_anchor: Usage
     evidence: "tests/test_report_pdf.py::test_analyze_with_pdf_flag_writes_three_artifacts_and_exits_zero"
     status: active
 
-  - id: pdf-embeds-unicode-font-for-diacritics
+  - id: pdf-embeds-unicode-font-for-non-ascii
     claim: >-
-      Eksport do PDF osadza font Unicode (DejaVu Sans), dzieki czemu
-      wszystkie polskie znaki diakrytyczne sa obecne w warstwie tekstowej
-      PDF w postaci zlozonej, niezaleznie od fontow zainstalowanych w
-      systemie.
-    readme_anchor: Uruchomienie
+      The PDF export embeds a Unicode font (DejaVu Sans), so that characters
+      outside ASCII are present in the text layer of the PDF as single,
+      composed code points, regardless of the fonts installed on the system.
+    readme_anchor: Usage
     evidence: "tests/test_report_pdf.py::test_text_layer_carries_all_nine_polish_diacritics_as_single_codepoints"
     status: active
 
   - id: pdf-flag-disabled-by-default-no-new-runtime-dependency
     claim: >-
-      Flaga --pdf jest domyslnie wylaczona: domyslna sciezka narzedzia
-      (analyze bez --pdf) nie importuje biblioteki fpdf i nie zyskuje
-      przez to nowej zaleznosci uruchomieniowej.
-    readme_anchor: Uruchomienie
+      The --pdf flag is off by default: the tool's default path (analyze
+      without --pdf) does not import the fpdf library and does not gain a new
+      runtime dependency because of it.
+    readme_anchor: Usage
     evidence: "tests/test_report_pdf.py::test_pdf_library_not_imported_by_default_analyze_run"
     status: active
 
-  # --- ## Przykladowy raport ---------------------------------------------------
+  # --- ## Example report ------------------------------------------------------
 
   - id: example-report-reproducible-from-slice
     claim: >-
-      Przykladowy raport w examples/4sics/ jest odtwarzalny bajtowo ze
-      skryptu pobierajacego podzbior zbioru 4SICS - zaden plik zrzutu
-      tego zbioru nie jest sledzony przez gita.
-    readme_anchor: Przykladowy raport
+      The example report in examples/4sics/ is byte-reproducible from the
+      script fetching a slice of the 4SICS dataset - no capture file from
+      that dataset is tracked by git.
+    readme_anchor: Example report
     evidence: "tests/test_example_report.py::test_example_artifacts_are_byte_reproducible_from_slice"
     status: active
 
-  # --- ## Stan weryfikacji powolan na normy ------------------------------------
+  # --- ## Citation verification status ----------------------------------------
 
   - id: standards-verification-section-present
     claim: >-
-      README niesie sekcje `## Stan weryfikacji powolan na normy`
-      opisujaca status weryfikacji numeracji punktow normatywnych.
-    readme_anchor: Stan weryfikacji powolan na normy
+      The README carries a `## Citation verification status` section
+      describing the verification status of normative clause numbering.
+    readme_anchor: Citation verification status
     evidence: "tests/test_standard_designation_gate.py::test_readme_has_standard_verification_section_header"
     status: active
 
   - id: standards-verification-section-carries-marker
     claim: >-
-      Sekcja stanu weryfikacji powolan niesie znacznik `verified: no` dla
-      powolan na IEC 62443-3-3, ktorych numeracja nie zostala zestawiona
-      z legalnym egzemplarzem normy.
-    readme_anchor: Stan weryfikacji powolan na normy
+      The citation verification section carries the marker `verified: no` for
+      citations to IEC 62443-3-3 whose numbering has not been collated
+      against a legal copy of the standard.
+    readme_anchor: Citation verification status
     evidence: "tests/test_standard_designation_gate.py::test_readme_verification_section_carries_verification_marker"
     status: active
 
   - id: standards-verification-links-decision-records
     claim: >-
-      Sekcja stanu weryfikacji powolan odsyla do obu rekordow decyzji
-      (0004 i 0006), ktore opisuja droge rozstrzygniecia sygnatury CLC/TS
-      50701 i weryfikacji numeracji IEC 62443-3-3.
-    readme_anchor: Stan weryfikacji powolan na normy
+      The citation verification section links to both decision records (0004
+      and 0006), which describe the path to resolving the CLC/TS 50701
+      designation and the verification of IEC 62443-3-3 numbering.
+    readme_anchor: Citation verification status
     evidence: "tests/test_standard_designation_gate.py::test_readme_verification_section_links_both_decision_records"
     status: active
 
   - id: standards-railway-catalog-edition
     claim: >-
-      Kazdy wpis katalogu norm o sygnaturze CLC/TS niesie edycje 2023,
-      zgodnie z rekordem decyzji o sygnaturze CLC/TS 50701:2023.
-    readme_anchor: Stan weryfikacji powolan na normy
+      Every standards catalogue entry with a CLC/TS designation carries the
+      2023 edition, in line with the decision record on the CLC/TS 50701:2023
+      designation.
+    readme_anchor: Citation verification status
     evidence: "tests/test_standard_designation_gate.py::test_every_railway_catalog_entry_has_expected_edition"
     status: active
 
-  # --- ## Weryfikacja w CI ------------------------------------------------------
+  # --- ## Verification in CI ---------------------------------------------------
 
   - id: ci-job-test-syncs-and-runs-pytest
     claim: >-
-      Job `test` w CI synchronizuje srodowisko przez `uv sync --locked` i
-      uruchamia pelny pakiet testow przez `uv run pytest` na swiezym
-      checkoucie.
-    readme_anchor: Weryfikacja w CI
+      The `test` job in CI syncs the environment with `uv sync --locked` and
+      runs the full test suite with `uv run pytest` on a fresh checkout.
+    readme_anchor: Verification in CI
     evidence: "tests/test_ci_workflow_contract.py::test_job_test_syncs_locked_and_runs_pytest"
     status: active
 
   - id: ci-backstop-full-history-checkout
     claim: >-
-      Job `confidentiality-backstop` robi checkout z pelna historia
-      (fetch-depth: 0), zeby skan historii mogl objac wszystkie commity,
-      nie tylko ostatni.
-    readme_anchor: Weryfikacja w CI
+      The `confidentiality-backstop` job checks out with full history
+      (fetch-depth: 0), so that the history scan can cover every commit, not
+      only the last one.
+    readme_anchor: Verification in CI
     evidence: "tests/test_ci_workflow_contract.py::test_backstop_checkout_has_full_history"
     status: active
 
   - id: ci-backstop-runs-guard-without-corpus
     claim: >-
-      Job `confidentiality-backstop` uruchamia
-      `scripts/confidentiality_guard.py` z flaga --no-corpus na
-      wszystkich sledzonych plikach, bo warstwa korpusowa nie ma dostepu
-      do lokalnego katalogu norm w CI.
-    readme_anchor: Weryfikacja w CI
+      The `confidentiality-backstop` job runs
+      `scripts/confidentiality_guard.py` with the --no-corpus flag over every
+      tracked file, because the corpus layer has no access to the local
+      standards directory in CI.
+    readme_anchor: Verification in CI
     evidence: "tests/test_ci_workflow_contract.py::test_backstop_runs_confidentiality_guard_without_corpus"
     status: active
 
   - id: ci-backstop-checks-empty-history-for-local-corpus
     claim: >-
-      Job `confidentiality-backstop` sprawdza, ze katalog standards/.local
-      nigdy nie trafil do historii repozytorium (`git log --all --
-      standards/.local`), i konczy sie bledem, gdy wynik nie jest pusty.
-    readme_anchor: Weryfikacja w CI
+      The `confidentiality-backstop` job checks that the standards/.local
+      directory never reached the repository history (`git log --all --
+      standards/.local`), and fails when the result is not empty.
+    readme_anchor: Verification in CI
     evidence: "tests/test_ci_workflow_contract.py::test_backstop_checks_empty_history_for_local_corpus_path"
     status: active
 
   - id: ci-backstop-runs-history-audit-scan
     claim: >-
-      Job `confidentiality-backstop` niesie trzeci krok: audyt trzech
-      powierzchni calej historii repozytorium (tresc drzew, komunikaty
-      commitow, nazwy plikow) tymi samymi wzorcami warstwy tozsamosciowej co
-      bramka biezaca, uruchamiany z jawnym wlaczeniem znacznika slow.
-    readme_anchor: Weryfikacja w CI
+      The `confidentiality-backstop` job carries a third step: an audit of
+      three surfaces of the entire repository history (tree content, commit
+      messages, file names) with the same identity layer patterns as the
+      current gate, run with the slow marker explicitly enabled.
+    readme_anchor: Verification in CI
     evidence: "tests/test_ci_workflow_contract.py::test_backstop_runs_history_audit_scan_with_slow_marker_enabled"
     status: active
 
   - id: history-audit-scan-skipped-by-default-locally
     claim: >-
-      Skan trzech powierzchni calej historii jest domyslnie pomijany
-      lokalnie (znacznik slow filtrowany w opcjach domyslnych pakietu
-      testow) i uruchamiany jawnie wylacznie w CI.
-    readme_anchor: Weryfikacja w CI
+      The scan of three surfaces of the entire history is skipped locally by
+      default (the slow marker is filtered in the test suite's default
+      options) and run explicitly in CI only.
+    readme_anchor: Verification in CI
     evidence: manual
     reason: >-
-      Twierdzenie o zachowaniu domyslnej kolekcji pytest, potwierdzone
-      pomiarem liczby zebranych testow (z domyslnymi opcjami i z jawnym
-      nadpisaniem) zapisanym w SUMMARY planu 05-04, nie osobnym testem
-      pakietu - test powtarzajacy ten pomiar musialby spawnowac wlasny
-      subprocess pytest przy kazdym przebiegu, co jest dokladnie kosztem,
-      ktorego istnienie znacznika ma unikac.
+      A claim about the behaviour of the default pytest collection,
+      confirmed by measuring the number of collected tests (with default
+      options and with an explicit override) recorded in the SUMMARY of plan
+      05-04, not by a separate test in the suite - a test repeating that
+      measurement would have to spawn its own pytest subprocess on every run,
+      which is exactly the cost the marker exists to avoid.
     status: active
 
   - id: ci-does-not-see-identity-local-literal-file
     claim: >-
-      Plik literalow lokalnych warstwy tozsamosciowej jest gitignorowany i
-      nigdy nie trafia do CI - jego brak jest zglaszany ostrzezeniem, a
-      piata regula pozostaje nieaktywna, dokladnie tak samo jak korpus
-      standards/.local dla warstwy korpusowej.
-    readme_anchor: Weryfikacja w CI
+      The file of local literals for the identity layer is gitignored and
+      never reaches CI - its absence is reported as a warning and the fifth
+      rule stays inactive, exactly as the standards/.local corpus does for
+      the corpus layer.
+    readme_anchor: Verification in CI
     evidence: "tests/test_confidentiality_guard.py::test_load_identity_local_literals_missing_file_warns_and_returns_empty"
     status: active
 
-  # --- ## Licencja --------------------------------------------------------
+  # --- ## License --------------------------------------------------------------
 
   - id: license-content-is-apache-2-0
     claim: >-
-      Plik LICENSE niesie kanoniczna tresc Apache License 2.0, z dokladnie
-      jedna linia roznicy wobec tekstu kanonicznego (wiersz praw
-      autorskich), dowiedziona porownaniem skrotu sha256 po podstawieniu
-      wiersza wzorcowego z powrotem.
-    readme_anchor: Licencja
+      The LICENSE file carries the canonical text of the Apache License 2.0,
+      with exactly one line differing from the canonical text (the copyright
+      line), proven by comparing the sha256 digest after substituting the
+      template line back.
+    readme_anchor: License
     evidence: "tests/test_license.py::test_license_with_placeholder_restored_matches_canonical_sha256"
     status: active
 
-# Naglowki drugiego poziomu README, ktore swiadomie NIE skladaja zadnej
-# obietnicy o kodzie (naglowek niesie polecenie albo odwolanie, nie
-# twierdzenie o zachowaniu narzedzia), wiec katalog powyzej ich nie
-# pokrywa. Kazdy wpis niesie niepuste `reason`, sprawdzane maszynowo
-# (D-16 podpunkt trzeci). Ta lista NIE jest miejscem na obietnice bez
-# pokrycia: naglowek, dla ktorego dowod dalby sie napisac, tu nie stoi.
+# Second-level README headers that deliberately make NO claim about the code
+# (the header carries a command or a reference, not an assertion about the
+# tool's behaviour), so the catalogue above does not cover them. Every entry
+# carries a non-empty `reason`, checked by machine (D-16, third point). This
+# list is NOT a place for claims without evidence: a header for which evidence
+# could be written does not stand here.
 excluded_anchors:
-  - anchor: Testy
+  - anchor: What a finding looks like
     reason: >-
-      Naglowek niesie polecenie uruchomienia pakietu testow (`uv run
-      pytest`), nie twierdzenie o zachowaniu narzedzia - nie ma obietnicy
-      do pokrycia dowodem.
+      The header carries a quotation from an artifact already covered by the
+      example report entry (`example-report-reproducible-from-slice`) - the
+      block shown there is a fragment of the very file that entry's test
+      compares byte for byte, so a separate claim would duplicate the same
+      evidence under a second identifier.
+  - anchor: Tests
+    reason: >-
+      The header carries the command to run the test suite (`uv run pytest`),
+      not an assertion about the tool's behaviour - there is no claim to
+      cover with evidence.

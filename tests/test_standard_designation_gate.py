@@ -41,7 +41,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "pcap"
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-DECISION_RECORD_PATH = REPO_ROOT / "docs" / "decisions" / "0004-sygnatura-clc-ts-50701.md"
+DECISION_RECORD_PATH = (
+    REPO_ROOT / "docs" / "decisions" / "0004-clc-ts-50701-designation.md"
+)
 
 # Wartosc oczekiwana pola `resolved_option` z frontmatteru rekordu decyzji
 # powyzej. Test pierwszy odczytuje frontmatter i porownuje z ta stala - bez
@@ -235,7 +237,7 @@ def test_decision_records_have_no_colliding_numeric_prefix():
 # przeszedlby takze wtedy, gdyby te lancuchy stanely w innej sekcji.
 
 README_PATH = REPO_ROOT / "README.md"
-README_SECTION_HEADER = "## Stan weryfikacji powolan na normy"
+README_SECTION_HEADER = "## Citation verification status"
 VERIFICATION_MARKER_STRING = "verified: no"
 
 _HEADER_LINE_RE = re.compile(r"^## .+$", re.MULTILINE)
@@ -269,8 +271,8 @@ def test_readme_verification_section_carries_verification_marker():
 
 def test_readme_verification_section_links_both_decision_records():
     body = _readme_section_body(README_SECTION_HEADER)
-    assert "0004-sygnatura-clc-ts-50701.md" in body
-    assert "0006-weryfikacja-powolan-wobec-egzemplarza-normy.md" in body
+    assert "0004-clc-ts-50701-designation.md" in body
+    assert "0006-verification-of-citations-against-a-copy-of-the-standard.md" in body
 
 
 # --- Grupa nowa (plan 04-07): bramka obejmuje pliki binarne sledzone przez -

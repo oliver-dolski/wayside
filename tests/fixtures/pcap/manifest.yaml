@@ -3,198 +3,200 @@ fixtures:
     sha256: "14b0e7ee7ebb79c3b13583dc3edcb2f1fbe4c95a1c7e62e17f8a99d7a28ff4f6"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_write_single_register
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Modbus/TCP write function code 0x06 do rejestru trzymajacego (zadanie
-      i odpowiedz), bez uwierzytelnienia, poprawny naglowek MBAP. Adresacja
-      z zakresu dokumentacyjnego RFC 5737, adresy MAC lokalnie administrowane.
+      Modbus/TCP write function code 0x06 to a holding register (request and
+      response), with no authentication, valid MBAP header. Addressing from
+      the RFC 5737 documentation range, locally administered MAC addresses.
     protocol: modbus-tcp
   - path: modbus_write_non_standard_port.pcap
     sha256: "29759efe261f44f2afa3fee2666cc9d1f8382354dcd4fe184a68619c5a5ff0c1"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_non_standard_port
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Ta sama wymiana zapisu 0x06 co fixture bazowy, ale serwer nasluchuje
-      na porcie 10502 zamiast 502 - dowod, ze rozpoznanie Modbus/TCP idzie
-      po ksztalcie naglowka MBAP, niezaleznie od numeru portu (PROTO-01).
+      The same 0x06 write exchange as the base fixture, but the server
+      listens on port 10502 instead of 502 - proof that Modbus/TCP
+      recognition goes by the shape of the MBAP header, regardless of port
+      number (PROTO-01).
     protocol: modbus-tcp
   - path: modbus_malformed_mbap.pcap
     sha256: "f5e5f89d633bf3cedc329b4c552871c5209fba1a0cd943c50de7315997005d29"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_malformed_mbap
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Plik celowo uszkodzony: dwie ramki, kazda lamiaca inny warunek
-      walidacji MBAP. Ramka pierwsza ma niezerowy identyfikator protokolu
-      w bajtach 2:4 ladunku. Ramka druga ma pole dlugosci w bajtach 4:6
-      niespojne z faktyczna liczba pozostalych bajtow. Zadna z ramek nie
-      moze przejsc validate_mbap.
+      A deliberately damaged file: two frames, each breaking a different
+      MBAP validation condition. The first frame has a non-zero protocol
+      identifier in bytes 2:4 of the payload. The second has a length field
+      in bytes 4:6 inconsistent with the actual number of remaining bytes.
+      Neither frame can pass validate_mbap.
     protocol: modbus-tcp
   - path: truncated_mid_record.pcap
     sha256: "bd669457f770d73a8ef205c96c98210573130eb8871bf1dd1c1109c867bd1f6c"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_truncated_mid_record
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Plik celowo uszkodzony: ten sam zapis co fixture bazowy, zapisany bez
-      ostatnich dziesieciu bajtow, tak zeby plik konczyl sie w srodku
-      ostatniego rekordu. Magic globalny pozostaje poprawny - to jest
-      fixture na obciecie wykrywane strukturalnie, nie po liczbie pakietow.
+      A deliberately damaged file: the same write as the base fixture,
+      written without its last ten bytes, so that the file ends in the middle
+      of the last record. The global magic stays valid - this is the fixture
+      for truncation detected structurally, not by packet count.
     protocol: modbus-tcp
   - path: empty_valid_header.pcap
     sha256: "704e5e5b3234433c01fcfd1b20a306e77e985038120492dc53965c3edd38a4ea"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_empty_valid_header
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Plik zawierajacy wylacznie dwudziestoczterobajtowy naglowek globalny
-      klasycznego pcapa, zero rekordow. Strukturalnie poprawny i legalnie
-      pusty (D-01) - nie jest to plik uszkodzony.
+      A file containing only the twenty-four byte global header of classic
+      pcap, zero records. Structurally valid and legally empty (D-01) - it is
+      not a damaged file.
     protocol: none
   - path: modbus_write_single_register.pcapng
     sha256: "821df9d2cf0a19e4eb192fdee501b3470a2098f10df587c76aa6de2770d5667e"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_write_pcapng
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Ta sama wymiana zapisu 0x06 co fixture klasyczny, zapisana w formacie
-      pcapng zamiast klasycznego pcapa - dowod, ze oba formaty nazwane w
-      INGEST-01 przechodza caly potok.
+      The same 0x06 write exchange as the classic fixture, written in the
+      pcapng format instead of classic pcap - proof that both formats named
+      in INGEST-01 pass through the whole pipeline.
     protocol: modbus-tcp
   - path: truncated_mid_block.pcapng
     sha256: "e1125f13a297f8290142482f58ce39a6edbf07758ae8a0bb42cd9bf2678a3fd3"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_truncated_mid_block
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Plik celowo uszkodzony: ten sam zapis co fixture pcapng bazowy,
-      zapisany bez ostatnich dziesieciu bajtow, tak zeby plik konczyl sie
-      w srodku ostatniego Enhanced Packet Block. Odpowiednik
-      truncated_mid_record.pcap dla formatu pcapng.
+      A deliberately damaged file: the same write as the base pcapng
+      fixture, written without its last ten bytes, so that the file ends in
+      the middle of the last Enhanced Packet Block. The pcapng counterpart of
+      truncated_mid_record.pcap.
     protocol: modbus-tcp
   - path: snaplen_truncated_frames.pcap
     sha256: "271437a3e1e48e1cf6dc86541f9a5087f5a2a11a789aa1097cda80fd3d8f125d"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_snaplen_truncated_frames
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Modbus/TCP write function code 0x06, naglowek globalny o snaplenie
-      54 bajtow, dwa rekordy uciete przez snaplen - dlugosc przechwycona
-      rowna dokladnie pelnym naglowkom warstw drugiej do czwartej, dlugosc
-      oryginalna wieksza. Przypadek legalny: audyt strukturalny go
-      akceptuje, nie zglasza obciecia. Adresacja z zakresu dokumentacyjnego
-      RFC 5737, adresy MAC lokalnie administrowane.
+      Modbus/TCP write function code 0x06, a global header with a snaplen of
+      54 bytes, two records truncated by the snaplen - the captured length
+      equals exactly the full layer two to four headers, the original length
+      is greater. A legal case: the structural audit accepts it and reports
+      no truncation. Addressing from the RFC 5737 documentation range,
+      locally administered MAC addresses.
     protocol: modbus-tcp
   - path: corrupted_record_length.pcap
     sha256: "86a03bec25773cb507470e02ac19bc0a0f7720b2da3413f3311c6ca772cfe821"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_corrupted_record_length
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Plik zbudowany z tych samych bajtow co fixture bazowy, z podmienionym
-      w miejscu polem dlugosci przechwyconej pierwszego rekordu na wartosc
-      wieksza od snaplenu. Dlugosc pliku pozostaje identyczna z dlugoscia
-      zrodlowa - struktura jest niespojna, plik nie jest obciety. Rozny od
-      fixture'u uciecia przez snaplen: to jest korupcja pola dlugosci,
-      nie legalne uciecie.
+      A file built from the same bytes as the base fixture, with the
+      captured length field of the first record patched in place to a value
+      greater than the snaplen. The file length stays identical to the source
+      length - the structure is inconsistent, the file is not truncated.
+      Distinct from the snaplen truncation fixture: this is corruption of a
+      length field, not legal truncation.
     protocol: modbus-tcp
   - path: modbus_poll_cycle_short_window.pcap
     sha256: "0fecc748a3e504487a9bc8b3fdb1a0f04a14cbecb872ba68a0303cd9ae45edfa"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_poll_cycle_short_window
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Cztery pakiety, dwa zadania Modbus write function code 0x06 w jednej
-      sesji TCP, odlegle o piec sekund. Okno zrzutu jest krotsze od dwoch
-      i od trzech pelnych odstepow miedzy zadaniami, wiec plik wywoluje
-      ostrzezenie o oknie zbyt krotkim wobec cyklu odpytywania.
+      Four packets, two Modbus write function code 0x06 requests in one TCP
+      session, five seconds apart. The capture window is shorter than two and
+      than three full intervals between requests, so the file triggers the
+      warning about a window too short against the polling cycle.
     protocol: modbus-tcp
   - path: modbus_poll_cycle_full_window.pcap
     sha256: "20963fa101af0f52a46a2042b450b21c67be23c0b589597be986fcd67e5158d0"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_poll_cycle_full_window
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Dwanascie pakietow, szesc zadan Modbus write function code 0x06
-      w jednej sesji TCP, odleglych o jedna sekunde. Okno zrzutu obejmuje
-      piec pelnych odstepow miedzy zadaniami - przypadek negatywny, plik
-      nie wywoluje ostrzezenia o oknie zbyt krotkim.
+      Twelve packets, six Modbus write function code 0x06 requests in one
+      TCP session, one second apart. The capture window spans five full
+      intervals between requests - the negative case, the file triggers no
+      warning about a window too short.
     protocol: modbus-tcp
   - path: modbus_gateway_multi_unit_id.pcap
     sha256: "a7033b6ab9657fa2b79a686beee0ac9478de70a9a9e2ceac5237c1509dfe64c8"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_gateway_multi_unit_id
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Szesc pakietow, trzy wymiany Modbus write function code 0x06 do
-      jednego adresu serwera, z trzema roznymi wartosciami Unit ID. Jeden
-      host sieciowy wystawiajacy trzy adresy logiczne za soba, nie trzy
-      hosty - material na wykrycie bramy z wieloma Unit ID w inwentarzu.
+      Six packets, three Modbus write function code 0x06 exchanges to one
+      server address, with three different Unit ID values. One network host
+      exposing three logical addresses behind it, not three hosts - material
+      for detecting a gateway with multiple Unit IDs in the inventory.
     protocol: modbus-tcp
   - path: modbus_tcp_handshake.pcap
     sha256: "cf92ac59c0e3cdb6b68f360c1e4677b7f9d3573ec5215c9067e3da7181d6b579"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_tcp_handshake
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Piec pakietow: uzgodnienie trojetapowe TCP (SYN, SYN-ACK, ACK) jawnie
-      przed wymiana Modbus write function code 0x06. Pakiet pierwszy niesie
-      flage SYN bez flagi ACK - jedyny pasywny dowod strony inicjujacej
-      sesje. Fixture'y wczesniejsze nie zawieraly uzgodnienia polaczenia.
+      Five packets: a three-way TCP handshake (SYN, SYN-ACK, ACK)
+      explicitly before a Modbus write function code 0x06 exchange. The first
+      packet carries the SYN flag without the ACK flag - the only passive
+      evidence of the session initiating party. Earlier fixtures carried no
+      connection handshake.
     protocol: modbus-tcp
   - path: modbus_rtu_over_tcp.pcap
     sha256: "3858f256043cd1ad21e2528f0c71ab1ff4ec0f082255679953f38861825dce05"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_rtu_over_tcp
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Dwa pakiety w jednej sesji TCP, port docelowy niestandardowy 10502.
-      Ladunek kazdego pakietu to surowa osmiobajtowa ramka Modbus RTU (adres
-      0x01, kod funkcji 0x06 Write Single Register, adres rejestru 0x0001,
-      wartosc 0x002A, suma kontrolna CRC16/Modbus), bez naglowka MBAP -
-      konwerter szeregowo-sieciowy przekazujacy ramke z magistrali wprost do
-      gniazda TCP. Zaden z ladunkow nie przechodzi walidacji MBAP.
+      Two packets in one TCP session, non-standard destination port 10502.
+      The payload of each packet is a raw eight-byte Modbus RTU frame
+      (address 0x01, function code 0x06 Write Single Register, register
+      address 0x0001, value 0x002A, CRC16/Modbus checksum), with no MBAP
+      header - a serial-to-network converter passing a frame from the bus
+      straight into a TCP socket. Neither payload passes MBAP validation.
     protocol: modbus-rtu-over-tcp
   - path: cleartext_telnet_ftp_http.pcap
     sha256: "59d659b74a4abcbd63a87e1b87e28fe41c9cd5e1881f5195267030ba22839b32"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_cleartext_telnet_ftp_http
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Siedem pakietow, trzy sesje TCP jawnotekstowe: Telnet na porcie 23
-      (dwa pakiety z trzybajtowa sekwencja negocjacji opcji), kanal
-      kontrolny FTP na porcie 21 (odpowiedz powitalna serwera, polecenie
-      podania nazwy uzytkownika, polecenie podania hasla), HTTP na porcie
-      niestandardowym 8080 zamiast 80 - rozpoznanie ma isc po zawartosci
-      ladunku, nigdy po numerze portu (PROTO-01 jako wzorzec). Nazwa
-      uzytkownika `testuser` i haslo `testpass123` w kanale kontrolnym FTP
-      sa jawnie wymyslone na potrzeby testu i nie naleza do zadnego konta.
+      Seven packets, three cleartext TCP sessions: Telnet on port 23 (two
+      packets with a three-byte option negotiation sequence), the FTP control
+      channel on port 21 (the server greeting, the user name command, the
+      password command), HTTP on the non-standard port 8080 instead of 80 -
+      recognition is meant to go by payload content, never by port number
+      (PROTO-01 as the pattern). The user name `testuser` and the password
+      `testpass123` in the FTP control channel are openly invented for the
+      test and belong to no account.
     protocol: "telnet,ftp,http"
   - path: modbus_read_only_session.pcap
     sha256: "b71c5fba355bf0b29e4c14c7a833c5c4d46353c721af4fed1fabd11afed836f6"
     source: synthetic
     generator: scripts/gen_fixtures.py::gen_modbus_read_only_session
-    license: "CC0 - dane wlasne, syntetyczne"
+    license: "CC0 - own data, synthetic"
     description: >-
-      Jedna sesja Modbus/TCP, trzy wymiany zadanie-odpowiedz, wszystkie
-      zadania kodu funkcji odczytu rejestrow trzymajacych (0x03) - zero
-      operacji zapisu w calym pliku. Fixture istnieje jako przypadek
-      rozdzielajacy dwa checki: daje finding za uzycie protokolu
-      przemyslowego bez mechanizmu uwierzytelnienia i nie daje findingu za
-      operacje zapisu do sterownika, wiec check zaimplementowany jako filtr
-      na tym drugim zaczerwienilby sie tutaj.
+      One Modbus/TCP session, three request-response exchanges, every
+      request carrying the read holding registers function code (0x03) - zero
+      write operations in the whole file. The fixture exists as the case that
+      separates two checks: it produces a finding for the use of an
+      industrial protocol without an authentication mechanism and produces no
+      finding for a write operation to a controller, so a check implemented
+      as a filter on the latter would turn red here.
     protocol: modbus-tcp
 
-# Wpisy zbiorow zewnetrznych stoja w OSOBNYM bloku, nie na liscie fixture'ow
-# powyzej (zalozenie Z-70): kazdy wpis powyzej wskazuje na plik obecny w
-# tym katalogu, a test tego pilnuje (tests/test_fixture_manifest.py) - plik
-# zbioru zewnetrznego swiadomie NIGDY nie wchodzi do repozytorium (rekord
-# decyzji `0005`), wiec oslabienie tamtej bramki zrobiloby miejsce na wpis,
-# ktory jej zaprzecza. Ten blok niesie wlasny wymog zrodla, licencji i
-# atrybucji, sprawdzany przez tests/test_example_report.py.
+# External dataset entries stand in a SEPARATE block, not on the fixture
+# list above (assumption Z-70): every entry above points at a file present in
+# this directory and a test enforces that (tests/test_fixture_manifest.py) -
+# an external dataset file deliberately NEVER enters the repository (decision
+# record `0005`), so weakening that gate would make room for an entry that
+# contradicts it. This block carries its own requirement of source, licence
+# and attribution, checked by tests/test_example_report.py.
 external_datasets:
-  - name: "4SICS 2015 Geek Lounge (CS3Sthlm, udostepnione przez Netresec)"
+  - name: "4SICS 2015 Geek Lounge (CS3Sthlm, shared by Netresec)"
     page_url: "https://www.netresec.com/?page=PCAP4SICS"
     url: "https://share.netresec.com/s/gw6Y2QzJHqDD5pr/download/4SICS-GeekLounge-151022.pcap"
     filename: "4SICS-GeekLounge-151022.pcap"
@@ -204,23 +206,24 @@ external_datasets:
     slice_packet_count: 40
     source: external
     license: >-
-      Redystrybucja dozwolona, takze w materialach szkoleniowych, pod
-      warunkiem atrybucji dla CS3Sthlm za udostepnienie ruchu z laboratorium
-      4SICS i odeslania do strony Netresec [CITED: WebFetch
+      Redistribution is permitted, including in training material, on
+      condition of attribution to CS3Sthlm for sharing the traffic from the
+      4SICS lab and of a link back to the Netresec page [CITED: WebFetch
       https://www.netresec.com/?page=PCAP4SICS, 2026-09-05].
     attribution: >-
-      Ruch pochodzi z laboratorium 4SICS Geek Lounge (2015), udostepniony
-      publicznie przez Netresec (https://www.netresec.com/) za zgoda
-      CS3Sthlm (nastepcy konferencji 4SICS) na udostepnienie przechwyconego
-      ruchu.
+      The traffic comes from the 4SICS Geek Lounge lab (2015), made publicly
+      available by Netresec (https://www.netresec.com/) with the permission
+      of CS3Sthlm (successor to the 4SICS conference) to share the captured
+      traffic.
     description: >-
-      Podzbior 40 pakietow trzeciego z trzech plikow zrzutu udostepnionych
-      na stronie zbioru, wyciety z pozycji 292150 (po pominieciu ruchu, ktorego
-      dissectory tego repozytorium nie rozpoznaja): piec sesji Modbus/TCP
-      jednego hosta odpytujacego piec roznych serwerow, bez mechanizmu
-      uwierzytelnienia. Ruch pochodzi z laboratorium konferencji
-      przemyslowej, NIE z instalacji kolejowej - przykladowy raport
-      zbudowany z tego podzbioru nie pokazuje dziedziny, w ktorej ten
-      projekt ma swoj wyroznik (ryzyko rezydualne rekordu decyzji `0005`).
+      A 40-packet slice of the third of the three capture files published on
+      the dataset page, cut from offset 292150 (after skipping traffic the
+      dissectors of this repository do not recognise): five Modbus/TCP
+      sessions of one host polling five different servers, with no
+      authentication mechanism. The traffic comes from an industrial
+      conference lab, NOT from a railway installation - the example report
+      built from this slice does not show the domain in which this project
+      has its distinguishing feature (the residual risk of decision record
+      `0005`).
     in_repo: false
     fetch_script: scripts/fetch_4sics_sample.py

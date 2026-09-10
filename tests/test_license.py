@@ -3,7 +3,7 @@
 Ta bramka sprawdza TRESC pliku licencji, nie jej skutek prawny. Ocena skutku
 prawnego wybranej licencji nie jest zagrozeniem technicznym i nie jest
 przedmiotem zadnego testu w tym module - rekord decyzji
-`docs/decisions/0007-licencja-apache-2-0.md` nazywa ryzyko rezydualne wprost,
+`docs/decisions/0007-apache-2-0-license.md` nazywa ryzyko rezydualne wprost,
 a porady prawnej nie udziela ani ten plik, ani ten rekord.
 
 **Porownanie idzie po normalizacji koncow linii do pojedynczego znaku

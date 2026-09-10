@@ -65,39 +65,38 @@ SECURITY_PATH = REPO_ROOT / "SECURITY.md"
 # tests/test_standard_designation_gate.py - jeden zapis tej reguly.
 _HEADER_LINE_RE = re.compile(r"^## .+$", re.MULTILINE)
 
-# D-04: dwa naglowki drugiego poziomu, w kolejnosci wystapienia w pliku.
+# D-04: two second-level headers, in their order of appearance in the file.
 REQUIRED_SECTION_HEADERS: tuple[str, str] = (
-    "## Podatnosc w narzedziu Wayside",
-    "## Podatnosc znaleziona przy uzyciu Wayside w cudzej sieci",
+    "## A vulnerability in the Wayside tool",
+    "## A vulnerability found with Wayside in someone else's network",
 )
 
-# D-06: oba terminy, zapisane dokladnie tak, jak stoja w SECURITY.md.
-ACKNOWLEDGEMENT_WINDOW = "piec dni roboczych"
-ASSESSMENT_WINDOW = "trzydziesci dni"
+# D-06: both windows, written exactly as they stand in SECURITY.md.
+ACKNOWLEDGEMENT_WINDOW = "five business days"
+ASSESSMENT_WINDOW = "thirty days"
 
-# D-06: zamkniety zbior obietnic zakazanych. Kazda pozycja jest sformulowana
-# jako obietnica POZYTYWNA (deklaracja terminu albo nagrody), nigdy jako
-# fragment zdania negujacego - SECURITY.md musi umiec powiedziec "nie ma tu
-# terminu poprawki" bez zapalania wlasnej bramki.
+# D-06: a closed set of forbidden promises. Every entry is phrased as a
+# POSITIVE promise (a declaration of a window or a reward), never as a
+# fragment of a negating sentence - SECURITY.md has to be able to say "no fix
+# release window stands here" without firing its own gate.
 FORBIDDEN_REMEDIATION_PROMISES: tuple[str, ...] = (
-    # Deklaracja liczbowego terminu naprawy - forma z "wynosi" jest
-    # POZYTYWNYM stwierdzeniem terminu, rozna od zdania granicy "tu nie
-    # stoi zaden termin wydania poprawki" (brak slowa "wynosi").
-    "termin wydania poprawki wynosi",
-    # Druga naturalna odmiana tej samej obietnicy - czas przyszly dokonany
-    # ("bedzie wydana"), ktorego zdanie granicy tego pliku nie uzywa.
-    "poprawka bedzie wydana w ciagu",
-    # Trzecia odmiana - poprawka jako zobowiazanie w konkretnym terminie
-    # kalendarzowym, niezalezna leksykalnie od dwoch powyzszych.
-    "zobowiazujemy sie naprawic w terminie",
-    # Obietnica nagrody/wynagrodzenia za zgloszenie - forma z rzeczownikiem
-    # "wynagrodzenie" plus dopelnieniem "za zgloszenie podatnosci", rozna od
-    # zdania granicy "tu nie stoi zaden program wynagrodzen za zgloszenie"
-    # (ktore uzywa dopelniacza liczby mnogiej "wynagrodzen", nie
-    # "wynagrodzenie", i nie niesie slowa "podatnosci").
-    "wynagrodzenie za zgloszenie podatnosci",
-    # Nazwa wlasna programu nagrod za podatnosci, powszechnie rozpoznawalna
-    # w branzy - nie wystepuje w zadnym poprawnym zdaniu granicy.
+    # A declaration of a numeric fix window - the form with "is" is a
+    # POSITIVE statement of a window, distinct from the boundary sentence
+    # "no fix release window stands here" (which carries no "is").
+    "the fix release window is",
+    # The second natural variant of the same promise - the future tense
+    # ("will be released"), which this file's boundary sentence does not use.
+    "a fix will be released within",
+    # The third variant - a fix as a commitment by a specific calendar date,
+    # lexically independent of the two above.
+    "we commit to fixing within",
+    # A promise of a reward for a report - the noun "reward" with the
+    # complement "for reporting a vulnerability", distinct from the boundary
+    # sentence "no reward programme for reports stands here" (which uses
+    # "programme" and does not carry the word "vulnerability").
+    "reward for reporting a vulnerability",
+    # The proper name of a vulnerability reward programme, widely recognised
+    # in the industry - it appears in no correct boundary sentence.
     "bug bounty",
 )
 
@@ -105,12 +104,12 @@ FORBIDDEN_REMEDIATION_PROMISES: tuple[str, ...] = (
 # Porownanie w testach idzie po normalizacji bialych znakow (_normalize_ws),
 # wiec zawijanie linii markdown nie gubi dopasowania.
 CHANNEL_MARKERS: tuple[str, ...] = (
-    "prywatne zglaszanie podatnosci w zakladce bezpieczenstwa tego repozytorium",
+    "private vulnerability reporting in the security tab of this repository",
 )
 
 # D-09: fragment waskiego zdania safe harbor.
 SAFE_HARBOR_MARKERS: tuple[str, ...] = (
-    "nie ponosi z tego tytulu zadnych roszczen ze strony autora",
+    "faces no claims from the author on that account",
 )
 
 # D-07: trzy nazwy publicznych punktow koordynacji, zapisane doslownie.
@@ -246,9 +245,9 @@ def test_forbidden_promise_pattern_does_not_catch_the_own_boundary_sentences():
 
 
 def test_a_genuine_promise_sentence_is_caught_by_the_set():
-    """Test przeciwny drugi kierunek: bez tego bramka moglaby byc pusta
-    i przechodzic zawsze, niezaleznie od tresci."""
-    promise_text = "termin wydania poprawki wynosi czternascie dni.".lower()
+    """The opposite direction: without this the gate could be empty and pass
+    always, regardless of content."""
+    promise_text = "the fix release window is fourteen days.".lower()
     hits = [p for p in FORBIDDEN_REMEDIATION_PROMISES if p.lower() in promise_text]
     assert hits
 
@@ -265,7 +264,7 @@ def test_section_one_body_names_platform_channel():
     normalized = re.sub(r"\s+", " ", body)
     for marker in CHANNEL_MARKERS:
         found = re.sub(r"\s+", " ", marker) in normalized
-        assert found, "Sekcja 1 nie niesie jednego z CHANNEL_MARKERS."
+        assert found, "Section 1 does not carry one of CHANNEL_MARKERS."
 
 
 def test_security_text_carries_no_email_shaped_string():
@@ -316,22 +315,27 @@ def test_section_two_body_carries_every_coordination_route():
 
 def test_section_two_body_states_no_mediation():
     body = _section_body(REQUIRED_SECTION_HEADERS[1]).lower()
-    no_mediation_present = "nie posredniczy" in body
-    no_acceptance_present = "nie przyjmuje" in body
-    assert no_mediation_present, "Sekcja 2 nie niesie zdania 'nie posredniczy'."
-    assert no_acceptance_present, "Sekcja 2 nie niesie zdania 'nie przyjmuje'."
+    no_mediation_present = "does not mediate" in body
+    no_acceptance_present = "does not accept" in body
+    assert no_mediation_present, "Section 2 does not carry 'does not mediate'."
+    assert no_acceptance_present, "Section 2 does not carry 'does not accept'."
 
 
 def test_section_two_body_carries_no_day_count_as_incident_deadline():
-    """Behavior list zadania 1: sekcja druga nie niesie zadnej liczby dni
-    jako terminu zgloszenia incydentu - ani cyfrowej, ani slownej z sekcji 1."""
+    """Task 1 behavior list: the second section carries no day count as an
+    incident reporting deadline - neither numeric nor the spelled-out windows
+    of section 1."""
     body = _section_body(REQUIRED_SECTION_HEADERS[1]).lower()
-    has_numeric_day_count = re.search(r"\b\d+\s+dni\b", body) is not None
-    has_acknowledgement_window_words = "piec dni" in body
-    has_assessment_window_words = "trzydziesci dni" in body
-    assert not has_numeric_day_count, "Sekcja 2 niesie cyfrowa liczbe dni jako termin."
-    assert not has_acknowledgement_window_words, "Sekcja 2 niesie slowny termin sekcji 1 (5 dni)."
-    assert not has_assessment_window_words, "Sekcja 2 niesie slowny termin sekcji 1 (30 dni)."
+    has_numeric_day_count = re.search(r"\b\d+\s+days?\b", body) is not None
+    has_acknowledgement_window_words = "five business days" in body
+    has_assessment_window_words = "thirty days" in body
+    assert not has_numeric_day_count, "Section 2 carries a numeric day count as a deadline."
+    assert not has_acknowledgement_window_words, (
+        "Section 2 carries the spelled-out window of section 1 (five days)."
+    )
+    assert not has_assessment_window_words, (
+        "Section 2 carries the spelled-out window of section 1 (thirty days)."
+    )
 
 
 # --- D-08: brak pliku RFC 9116 ----------------------------------------------

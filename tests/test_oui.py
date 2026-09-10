@@ -49,7 +49,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import gen_oui_db  # noqa: E402
 
-DECISION_RECORD_PATH = REPO_ROOT / "docs" / "decisions" / "0002-redystrybucja-rejestru-oui.md"
+DECISION_RECORD_PATH = REPO_ROOT / "docs" / "decisions" / "0002-oui-registry-redistribution.md"
 
 
 # --- Stale modulu: ksztalt kontraktu z bloku <interfaces> planu ------------

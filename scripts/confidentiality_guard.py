@@ -1,54 +1,55 @@
-"""Bramka poufnosci: cztery warstwy detekcji tresci normatywnej i tozsamosciowej.
+"""The confidentiality gate: four layers detecting normative and identity
+content.
 
-Ten modul jest zaleznosciowo izolowany od reszty pakietu `wayside` i uzywa
-WYLACZNIE biblioteki standardowej Pythona. To jest warunek, nie preferencja:
-hak pre-commit ma dzialac w srodowisku pre-commit (`language: python`, wlasny
-odizolowany venv) i w repozytorium tymczasowym testu integracyjnego, bez
-`uv sync` i bez sieci - dowolna zaleznosc zewnetrzna zlamalaby oba te
-scenariusze.
+This module is dependency-isolated from the rest of the `wayside` package and
+uses the Python standard library ONLY. That is a condition, not a preference:
+the pre-commit hook has to work in the pre-commit environment (`language:
+python`, its own isolated venv) and in the temporary repository of the
+integration test, without `uv sync` and without a network - any external
+dependency would break both scenarios.
 
-Cztery warstwy, od najbardziej do najmniej precyzyjnej:
+Four layers, from the most to the least precise:
 
-- Warstwa 0, sciezkowa (`path-local-corpus`): kazda sciezka pod
-  `standards/.local/` jest naruszeniem, niezaleznie od tresci. Dziala takze
-  na plikach binarnych (dodanych np. przez `git add -f`) i NIGDY nie
-  podlega liscie wyjatkow - to jest ostatnia linia obrony dla najgorszego
-  przypadku: kogos, kto probuje obejsc pozostale warstwy wprost.
-- Warstwa 1, korpusowa (`corpus-shingle`): porownuje skanowany tekst
-  z lokalnym, gitignorowanym katalogiem `standards/.local` przez shingle
-  dwunastowyrazowe (skroty sha256, nigdy surowy tekst). Dziala WYLACZNIE
-  gdy ten katalog istnieje na maszynie - a wiec NIGDY w CI, bo katalog jest
-  gitignorowany i nie trafia do zdalnego repozytorium. To jest architektoniczna
-  koniecznosc: CI nie moze dostac dostepu do tego katalogu bez zniweczenia
-  celu bramki (przeniesienia chronionej tresci do sekretow repozytorium).
-- Warstwa 2, strukturalna (`structural-clause-modal`): regex na odcisk
-  jezyka normatywnego (kropkowany numer punktu + modalnosc normatywna w tej
-  samej linii), dzialajacy bez zadnego korpusu - a wiec takze w CI.
-- Warstwa 3, tozsamosciowa (`identity-*`): piec regul lapiacych tresc z sieci
-  pracodawcy, ktora moglaby przeciec przez zwykly tekst projektu, nie przez
-  cytat normy - adresacja prywatna RFC 1918 poza zadeklarowanymi fixture'ami,
-  adres sprzetowy jako sygnatura urzadzenia, nazwa urzadzenia, i nazwa wlasna
-  projektu odgrodzonego granica poufnosci. Cztery pierwsze reguly sa regulami
-  KSZTALTU, zbudowanymi z publicznie znanych skrotow branzowych i z ksztaltow
-  adresowych, nigdy z niczyjego inwentarza (rozstrzygniecie R-1, plan
-  05-03) - literalna lista nazw urzadzen albo adresow w publicznym pliku
-  ujawnialaby dokladnie te informacje, ktorej ta warstwa ma bronic. Dzialaja
-  bez zadnego korpusu, a wiec takze w CI, dokladnie jak warstwa 2, ktorej sa
-  siostrzane. Piata regula, literalna, dziala WYLACZNIE lokalnie, z pliku
-  gitignorowanego (rozstrzygniecie R-2) - to jest siostra warstwy 1: kontrola,
-  ktora zostaje na jednej maszynie, jest kontrola, nie niedogodnoscia.
+- Layer 0, path (`path-local-corpus`): every path under `standards/.local/` is
+  a violation, regardless of content. It works on binary files too (added e.g.
+  with `git add -f`) and is NEVER subject to the exception list - it is the
+  last line of defence for the worst case: someone trying to bypass the other
+  layers outright.
+- Layer 1, corpus (`corpus-shingle`): compares the scanned text against the
+  local, gitignored `standards/.local` directory through twelve-word shingles
+  (sha256 digests, never raw text). It works ONLY when that directory exists on
+  the machine - therefore NEVER in CI, because the directory is gitignored and
+  does not reach the remote repository. That is an architectural necessity: CI
+  cannot be given access to that directory without defeating the purpose of the
+  gate (moving the protected content into repository secrets).
+- Layer 2, structural (`structural-clause-modal`): a regex for the fingerprint
+  of normative language (a dotted clause number plus a normative modal term on
+  the same line), working with no corpus at all - therefore in CI too.
+- Layer 3, identity (`identity-*`): five rules catching content from the
+  employer's network which could leak through ordinary project prose rather
+  than through a quotation from a standard - RFC 1918 private addressing
+  outside the declared fixtures, a hardware address as a device signature, a
+  device name, and the proper name of a project fenced off by a confidentiality
+  boundary. The first four are SHAPE rules, built from publicly known industry
+  abbreviations and from addressing shapes, never from anyone's inventory
+  (ruling R-1, plan 05-03) - a literal list of device names or addresses in a
+  public file would disclose exactly the information this layer defends. They
+  work with no corpus, therefore in CI too, exactly like layer 2, to which they
+  are siblings. The fifth rule, the literal one, works LOCALLY ONLY, from a
+  gitignored file (ruling R-2) - it is the sibling of layer 1: a control that
+  stays on one machine is a control, not an inconvenience.
 
-Warstwy 2 i 3 dziela JEDNA liste wyjatkow (`.confidentiality-allow`), w trzech
-rozroznialnych postaciach wiersza (wzorzec sciezki bez przedrostka - warstwa
-2; `identity-value:<wartosc>` - deklaracja adresowa warstwy 3; `identity-path:
-<regula albo all>:<wzorzec>` - wyjatek sciezki zawezony do jednej reguly
-warstwy 3, albo do wszystkich). Wyjatki obu warstw sa NIEZALEZNE: dopuszczenie
-jednej reguly nie zdejmuje drugiej z tej samej sciezki.
+Layers 2 and 3 share ONE exception list (`.confidentiality-allow`), in three
+distinguishable line forms (a path pattern with no prefix - layer 2;
+`identity-value:<value>` - an address declaration of layer 3;
+`identity-path:<rule or all>:<pattern>` - a path exemption narrowed to one rule
+of layer 3, or to all of them). The exceptions of the two layers are
+INDEPENDENT: exempting one rule does not lift another from the same path.
 
-Zaden obiekt `Violation` ani zaden komunikat wypisany przez ten modul nie
-niesie dopasowanego fragmentu tekstu - to jest wlasnosc typu (`Violation` nie
-ma pola na tekst), nie tylko konwencja kodowania. Komunikat niesie wylacznie
-sciezke, numer linii i identyfikator reguly.
+No `Violation` object and no message printed by this module carries the matched
+fragment of text - that is a property of the type (`Violation` has no field for
+text), not merely a coding convention. A message carries the path, the line
+number and the rule identifier only.
 """
 
 from __future__ import annotations
@@ -81,11 +82,10 @@ RULE_PATH_LOCAL_CORPUS = "path-local-corpus"
 RULE_CORPUS_SHINGLE = "corpus-shingle"
 RULE_STRUCTURAL_CLAUSE_MODAL = "structural-clause-modal"
 
-# Warstwa 3, tozsamosciowa (D-19, plan 05-03). Kolejnosc jest stala i
-# zamknieta - klasyfikator wierszy listy wyjatkow (`_identity_path_exceptions`)
-# musi znac caly zbior od pierwszego commita tej warstwy, inaczej wiersz
-# odwolujacy sie do reguly dochodzacej w kolejnym zadaniu bylby dzis bledem
-# ksztaltu.
+# Layer 3, identity (D-19, plan 05-03). The order is fixed and closed - the
+# classifier of exception list lines (`_identity_path_exceptions`) has to know
+# the whole set from the first commit of this layer, otherwise a line referring
+# to a rule arriving in a later task would be a shape error today.
 RULE_IDENTITY_PRIVATE_IPV4 = "identity-private-ipv4"
 RULE_IDENTITY_MAC_ADDRESS = "identity-mac-address"
 RULE_IDENTITY_DEVICE_NAME = "identity-device-name"
@@ -100,26 +100,26 @@ IDENTITY_RULE_IDS: tuple[str, ...] = (
     RULE_IDENTITY_LOCAL_LITERAL,
 )
 
-# Dwie reguly adresowe, jedyne honorujace deklaracje wartosci
-# (`identity-value:`, zalozenie Z-93 z planu 05-03): deklaracja jest
-# oswiadczeniem o pochodzeniu ADRESU, nigdy nazwy urzadzenia ani nazwy
-# wlasnej - deklarowanie tamtych po wartosci byloby literalna lista nazw
-# w publicznym pliku, dokladnie to, czego rozstrzygniecie R-1 zakazuje.
+# The two address rules, the only ones honouring value declarations
+# (`identity-value:`, assumption Z-93 from plan 05-03): a declaration is a
+# statement about the origin of an ADDRESS, never of a device name or a proper
+# name - declaring those by value would be a literal list of names in a public
+# file, exactly what ruling R-1 forbids.
 IDENTITY_ADDRESS_RULE_IDS: tuple[str, ...] = (
     RULE_IDENTITY_PRIVATE_IPV4,
     RULE_IDENTITY_MAC_ADDRESS,
 )
 
-# Przedrostki wiersza listy wyjatkow warstwy tozsamosciowej (R-4). Wiersz bez
-# zadnego z tych przedrostkow (i bez przedrostka `identity-` w ogole) jest
-# wzorcem sciezki warstwy strukturalnej, dokladnie jak dzis.
+# The line prefixes of the identity layer exception list (R-4). A line with
+# neither of these prefixes (and with no `identity-` prefix at all) is a path
+# pattern of the structural layer, exactly as today.
 IDENTITY_VALUE_PREFIX = "identity-value:"
 IDENTITY_PATH_PREFIX = "identity-path:"
 IDENTITY_PATH_ALL = "all"
 
-# Marker wspolny obu przedrostkow powyzej - wiersz zaczynajacy sie od niego,
-# ale niepasujacy do zadnego z dwoch, jest bledem ksztaltu, nie cichym
-# wzorcem sciezki warstwy strukturalnej (R-4).
+# The marker shared by both prefixes above - a line starting with it but
+# matching neither of the two is a shape error, not a silent path pattern of
+# the structural layer (R-4).
 _IDENTITY_LINE_PREFIX = "identity-"
 
 DEFAULT_IDENTITY_LOCAL_FILE = ".confidentiality-identity.local"
@@ -129,53 +129,63 @@ DEFAULT_ALLOW_FILE = ".confidentiality-allow"
 
 LOCAL_CORPUS_PATH_PREFIX = "standards/.local"
 
-# Rozmiar shingle'a (w slowach) dla warstwy korpusowej.
+# The shingle size (in words) for the corpus layer.
 SHINGLE_SIZE = 12
 
-# Prog dlugosci fragmentu (w znakach) dla warstwy strukturalnej. Ponizej tego
-# progu kropkowany numer i modalnosc w jednej linii sa zbyt czeste (np. listy
-# punktowane), zeby traktowac je jako odcisk klauzuli normatywnej.
+# The fragment length threshold (in characters) for the structural layer.
+# Below that threshold a dotted number and a modal term on one line are too
+# common (e.g. bullet lists) to be treated as the fingerprint of a normative
+# clause.
 MIN_STRUCTURAL_FRAGMENT_LENGTH = 60
 
-# Ksztalt kropkowanego numeru punktu: dokladnie cyfry-kropka-cyfry (opcjonalnie
-# wiecej segmentow), zeby sygnatury typu "62443-3-3" (myslniki, nie kropki)
-# i numery wersji semantycznej same z siebie NIE zapalaly reguly - regula
-# zapala sie dopiero w polaczeniu z modalnoscia normatywna w tym samym
-# fragmencie (patrz NORMATIVE_MODAL_TERMS nizej).
+# The shape of a dotted clause number: exactly digits-dot-digits (optionally
+# more segments), so that designations like "62443-3-3" (hyphens, not dots)
+# and semantic version numbers do NOT fire the rule on their own - the rule
+# fires only in combination with a normative modal term in the same fragment
+# (see NORMATIVE_MODAL_TERMS below).
 #
-# Negatywne spojrzenie wstecz na `v`/`V` odsiewa numery wersji
-# oprogramowania. Doszlo razem z rozszerzeniem NORMATIVE_MODAL_TERMS
-# o "must" i "should": samo rozszerzenie listy modalnosci zapalilo warstwe
-# na wlasnej prozie projektu (`.planning/research/PITFALLS.md` pisze
-# "CVSS v4.0 ... must be reported separately"), bo `v4.0` ma ksztalt
-# kropkowanego numeru punktu. Zadna norma nie numeruje swoich klauzul
-# jako `v3.4.2`, wiec to wykluczenie nic nie kosztuje po stronie detekcji.
+# The negative lookbehind on `v`/`V` filters out software version numbers. It
+# arrived together with extending NORMATIVE_MODAL_TERMS with "must" and
+# "should": extending the modal list alone fired the layer on the project's own
+# prose (`.planning/research/PITFALLS.md` writes "CVSS v4.0 ... must be
+# reported separately"), because `v4.0` has the shape of a dotted clause
+# number. No standard numbers its clauses as `v3.4.2`, so this exclusion costs
+# nothing on the detection side.
 #
-# Zawezenie jest swiadomie niepelne: "Python 3.12 must ..." dalej zapali
-# warstwe. Od tej reszty jest `.confidentiality-allow`, bo alternatywa -
-# zgadywanie, czy kropkowana liczba jest wersja, czy punktem normy - jest
-# dokladnie ta heurystyka, ktora zamienia bramke w generator szumu.
+# The narrowing is deliberately incomplete. A sentence pairing an interpreter
+# version number with a modal term will still fire the layer - and this
+# comment cannot show that example verbatim, because writing it out fires the
+# rule described right here (the same Pitfall 2 the address pattern below
+# names). For that remainder there is `.confidentiality-allow`, because the
+# alternative - guessing whether a dotted number is a version or a clause of a
+# standard - is exactly the heuristic that turns a gate into a noise
+# generator.
 CLAUSE_NUMBER_PATTERN = re.compile(r"(?<![vV])\d+\.\d+(?:\.\d+)*")
 
-# Modalnosc normatywna. Fragment jest normalizowany (male litery, bez
-# polskich znakow diakrytycznych) przed porownaniem, wiec "nie moze" lapie
-# takze "nie może", "nalezy" lapie "należy" itd. - tresc normy prawie na
-# pewno ma diakrytyki, a lista ponizej jest pisana bez nich z tego samego
-# powodu co reszta repozytorium (bezpieczenstwo kodowania znakow).
+# Normative modal terms. A fragment is normalised (lower case, diacritics
+# stripped) before comparison, so "nie moze" also catches "nie może", "nalezy"
+# catches "należy" and so on - the text of a standard almost certainly carries
+# diacritics, and the list below is written without them for the same reason as
+# the rest of the repository (character encoding safety).
 #
-# Kolejnosc: wariant zaprzeczony przed twierdzacym, zeby dopasowanie
-# zwracalo dluzszy, bardziej konkretny termin.
+# The Polish terms stay on this list although the project's own prose moved to
+# English: the corpus this gate defends is the author's legally purchased
+# copies of standards, and those are read in Polish. A gate that only knew
+# English modal terms would fall silent on exactly the text it exists to stop.
 #
-# Angielskie "must" i "should" doszly po przegladzie (CR-02 z 01-REVIEW.md):
-# lista miala polskie "musi" i "powinien" od poczatku, a ich angielskich
-# odpowiednikow nie - to bylo przeoczenie, nie decyzja. Waga tej luki brala
-# sie stad, ze warstwa strukturalna jest JEDYNA dzialajaca w CI (korpus
-# z natury nie istnieje na runnerze), wiec dziura w niej byla dziura
-# w calym backstopie.
+# The order: the negated variant before the affirmative one, so that a match
+# returns the longer, more specific term.
 #
-# Swiadomie NIE ma tu "may" ani "can": w jezyku normatywnym oznaczaja
-# przyzwolenie, nie wymaganie, a wystepuja w zwyklej prozie na tyle czesto,
-# ze zamienilyby te warstwe w generator falszywych alarmow.
+# English "must" and "should" arrived after a review (CR-02 from
+# 01-REVIEW.md): the list carried Polish "musi" and "powinien" from the start
+# and their English counterparts not - that was an oversight, not a decision.
+# The weight of that gap came from the structural layer being the ONLY one
+# working in CI (the corpus by its nature does not exist on the runner), so a
+# hole in it was a hole in the whole backstop.
+#
+# "may" and "can" are deliberately NOT here: in normative language they denote
+# permission rather than a requirement, and they appear in ordinary prose often
+# enough to turn this layer into a false alarm generator.
 NORMATIVE_MODAL_TERMS: tuple[str, ...] = (
     "shall not",
     "shall",
@@ -191,34 +201,34 @@ NORMATIVE_MODAL_TERMS: tuple[str, ...] = (
     "zaleca sie",
 )
 
-# Fragment jest naruszeniem strukturalnym tylko w obrebie jednej linii - nigdy
-# na polaczeniu wielu linii. To swiadome zawezenie: dokument prozy (README,
-# pyproject.toml) zawiera mnostwo kropkowanych liczb (numery wersji) i
-# pojedynczych slow modalnych rozrzuconych po calym pliku; gdyby warstwa 2
-# laczyla tresc ponad granicami linii w poszukiwaniu "zdania", falszywe
-# alarmy na wlasnej dokumentacji byloby regula, nie wyjatkiem (patrz zagrozenie
-# T-1-guard-false-positive w PLAN.md). Kropka miedzy cyframi (numer klauzuli)
-# nigdy nie konczy fragmentu - stad negatywne lookaheady/lookbehindy ponizej.
+# A fragment is a structural violation only within a single line - never
+# across joined lines. That is a deliberate narrowing: a prose document (the
+# README, pyproject.toml) contains plenty of dotted numbers (version numbers)
+# and single modal words scattered across the file; if layer 2 joined content
+# across line boundaries looking for a "sentence", false alarms on the
+# project's own documentation would be the rule, not the exception (see threat
+# T-1-guard-false-positive in PLAN.md). A dot between digits (a clause number)
+# never ends a fragment - hence the negative lookarounds below.
 _SENTENCE_TERMINATOR_RE = re.compile(r"(?<!\d)[.!?](?!\d)")
 
-# Adresacja prywatna RFC 1918: caly pierwszy zakres (maska /8), drugi zakres
-# zawezony do wlasciwego przedzialu drugiego oktetu (maska /12), trzeci
-# zakres (maska /16) - trzy przedzialy z samego dokumentu RFC 1918, zapisane
-# tu jako regula, nigdy jako literalny przyklad (Pitfall 2 badania fazy:
-# wlasny przyklad ilustracyjny w komentarzu bramki zapala jej wlasna
-# regule). Dopasowanie idzie na tekscie znormalizowanym przez
-# `scan_text_identity` (cyfry i kropki sa niewrazliwe na diakrytyke/wielkosc
-# liter, wiec to nie zmienia dopasowania, tylko utrzymuje jedna sciezke
-# normalizacji).
+# RFC 1918 private addressing: the whole first range (a /8 mask), the second
+# range narrowed to the proper span of the second octet (a /12 mask), the third
+# range (a /16 mask) - the three ranges from the RFC 1918 document itself,
+# written here as a rule, never as a literal example (Pitfall 2 of the phase
+# research: an illustrative example of one's own in a gate comment fires the
+# gate's own rule). Matching runs over text normalised by
+# `scan_text_identity` (digits and dots are insensitive to
+# diacritics/case, so that does not change the match, it only keeps one
+# normalisation path).
 #
-# Negatywne spojrzenie wstecz `(?<![\d.])` odsiewa czlon wewnatrz dluzszego
-# ciagu cyfr i kropek (np. piecioczlonowy numer wersji, gdzie bez tego
-# zawezenia ostatnie cztery czlony zaczynajace sie od "10." zostalyby
-# zlapane jako oddzielny adres) - pomiar z tabeli faktow planu 05-03:
-# wzorzec z badania (Pattern 3) tego nie mial. Ogranicznik z prawej strony
-# `(?!\d)` odsiewa WYLACZNIE kolejna cyfre, NIE kropke - adres na koncu
-# zdania konczy sie kropka, i to jest zapis poprawny, ktory dalej ma dawac
-# naruszenie.
+# The negative lookbehind `(?<![\d.])` filters out a component inside a longer
+# run of digits and dots (e.g. a five-part version number, where without that
+# narrowing the last four parts starting with "10." would be caught as a
+# separate address) - a measurement from the fact table of plan 05-03: the
+# pattern from the research (Pattern 3) did not have it. The right-hand
+# delimiter `(?!\d)` filters out ONLY a following digit, NOT a dot - an
+# address at the end of a sentence ends with a dot, and that is valid
+# notation which still has to produce a violation.
 PRIVATE_IPV4_PATTERN = re.compile(
     r"(?<![\d.])"
     r"(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
@@ -227,39 +237,39 @@ PRIVATE_IPV4_PATTERN = re.compile(
     r"(?!\d)"
 )
 
-# Adres sprzetowy: szesc grup po dwie cyfry szesnastkowe rozdzielone JEDNYM
-# I TYM SAMYM separatorem (dwukropek albo dywiz), z granica slowa po obu
-# stronach. Wymog jednakowego separatora w calym dopasowaniu idzie przez
-# odwolanie do grupy przechwytujacej `\1`, nie przez alternatywe dwoch
-# calych wzorcow - "de:ad-be:ef:00:01" (separatory mieszane) NIE jest wiec
-# dopasowaniem.
+# A hardware address: six groups of two hexadecimal digits separated by ONE
+# AND THE SAME separator (a colon or a hyphen), with a word boundary on both
+# sides. The requirement of an identical separator across the whole match goes
+# through a backreference to the capturing group `\1`, not through an
+# alternation of two whole patterns - "de:ad-be:ef:00:01" (mixed separators) is
+# therefore NOT a match.
 #
-# Dokladnie szesc grup, nie mniej i nie wiecej: krotszy ciag tego ksztaltu
-# (trzy grupy rozdzielone dwukropkiem) jest godzina w znaczniku czasu
-# ("20:18:15"), a dluzszy nie jest adresem sprzetowym.
+# Exactly six groups, no fewer and no more: a shorter run of that shape (three
+# groups separated by colons) is a time in a timestamp ("20:18:15"), and a
+# longer one is not a hardware address.
 #
-# Interpretacja slowa "sygnatury" z kryterium 4 fazy (rozstrzygniecie R-3,
-# plan 05-03): adres sprzetowy jest sygnatura urzadzenia o ksztalcie scisle
-# okreslonym, przecieka z kazdego zrzutu ruchu, i dokladnie w tej dziedzinie
-# to narzedzie pracuje (identyfikacja producenta z rejestru OUI). Sygnatury
-# innego rodzaju (numery seryjne, wewnetrzne numery dokumentow) sa objete
-# regula piata, lokalna (05-03/3) - ich ksztalt jest specyficzny dla
-# organizacji, wiec wpisanie go do publicznego pliku bylo by tym samym
-# wyciekiem, o ktorym mowi R-1.
+# The reading of the word "signatures" from criterion 4 of the phase (ruling
+# R-3, plan 05-03): a hardware address is a device signature of a strictly
+# defined shape, it leaks from every traffic capture, and that is exactly the
+# domain this tool works in (identifying a vendor from the OUI registry).
+# Signatures of other kinds (serial numbers, internal document numbers) are
+# covered by the fifth, local rule (05-03/3) - their shape is specific to an
+# organisation, so writing it into a public file would be the very leak R-1
+# speaks of.
 MAC_ADDRESS_PATTERN = re.compile(
     r"\b[0-9a-f]{2}([:-])(?:[0-9a-f]{2}\1){4}[0-9a-f]{2}\b"
 )
 
-# Zamkniety zbior publicznie znanych skrotow branzowych rol urzadzen OT/ICS
-# i sieciowych (rozstrzygniecie R-1, plan 05-03) - NIGDY niczyj inwentarz.
-# Kazdy skrot stoi w kazdym podreczniku automatyki albo sieci: PLC
-# (sterownik programowalny), RTU (terminal zdalny), HMI (panel operatorski),
-# IED (urzadzenie elektroniczne inteligentne), MTU (jednostka nadrzedna),
-# DCS (system rozproszony), SCADA (system nadzoru), EWS (stacja
-# inzynierska), OWS (stacja operatorska), VFD (napednik czestotliwosciowy),
-# IPC (komputer przemyslowy), RBC (centrum sterowania radiowego, ETCS),
-# LEU (przytorowa jednostka elektroniczna, sygnalizacja kolejowa), SW
-# (przelacznik), FW (zapora), AP (punkt dostepowy).
+# A closed set of publicly known industry abbreviations for OT/ICS and network
+# device roles (ruling R-1, plan 05-03) - NEVER anyone's inventory. Every
+# abbreviation stands in any automation or networking textbook: PLC
+# (programmable logic controller), RTU (remote terminal unit), HMI (human
+# machine interface), IED (intelligent electronic device), MTU (master
+# terminal unit), DCS (distributed control system), SCADA (supervisory control
+# and data acquisition), EWS (engineering workstation), OWS (operator
+# workstation), VFD (variable frequency drive), IPC (industrial PC), RBC (radio
+# block centre, ETCS), LEU (lineside electronic unit, railway signalling), SW
+# (switch), FW (firewall), AP (access point).
 DEVICE_ROLE_PREFIXES: tuple[str, ...] = (
     "PLC",
     "RTU",
@@ -279,52 +289,53 @@ DEVICE_ROLE_PREFIXES: tuple[str, ...] = (
     "AP",
 )
 
-# Prefiks z zamknietego zbioru, potem OBOWIAZKOWY separator (dywiz albo
-# podkreslenie), potem od jednej do czterech cyfr, z granica slowa po obu
-# stronach. Separator jest OBOWIAZKOWY, nie kosmetyczny: wariant bez niego
-# dawal (przy planowaniu) jedno trafienie na nazwie katalogu wyjsciowego w
-# artefakcie planowania fazy 3 - falszywy alarm, ktory kupilby wyjatek
-# zamiast detekcji, zamiast po prostu wymagac separatora.
+# A prefix from the closed set, then a MANDATORY separator (a hyphen or an
+# underscore), then one to four digits, with a word boundary on both sides. The
+# separator is MANDATORY, not cosmetic: the variant without it produced (during
+# planning) one hit on the name of an output directory in a phase 3 planning
+# artifact - a false alarm that would have bought an exemption instead of
+# detection, rather than simply requiring a separator.
 DEVICE_NAME_PATTERN = re.compile(
     r"\b(?:" + "|".join(p.casefold() for p in DEVICE_ROLE_PREFIXES) + r")"
     r"[-_]\d{1,4}\b"
 )
 
-# Nazwa wlasna projektu odgrodzonego granica poufnosci (D-23 fazy publikacji).
-# Dopasowanie idzie na tekscie JUZ znormalizowanym przez `scan_text_identity`
-# (zlozona diakrytyka, zdjeta wielkosc liter), wiec wzorzec ponizej jest
-# zapisany w formie znormalizowanej (male litery). Miedzy dwoma slowami nazwy
-# dopuszczony jest DOWOLNY ciag bialych znakow, dywizow albo podkreslen,
-# W TYM CIAG PUSTY - zapis zlepiony ("...sentinel" bezposrednio po pierwszym
-# slowie) jest najczestsza forma nazwy wlasnej w identyfikatorach i nazwach
-# plikow, i to wlasnie tam nazwy wlasne przeciekaja najczesciej. Sam wzorzec
-# musi niesc oba slowa nazwy jako literal, zeby w ogole cokolwiek dopasowac -
-# to jest powod, dla ktorego TEN plik (i tylko ten) potrzebuje wlasnego
-# wyjatku na `.confidentiality-allow` (zalozenie Z-96): sklejanie literalu
-# z czesci w czasie wykonania byloby obejsciem bramki bez zmiany zachowania,
-# nie mniejszym wyciekiem.
+# The proper name of a project fenced off by a confidentiality boundary (D-23
+# of the publication phase). Matching runs over text ALREADY normalised by
+# `scan_text_identity` (diacritics folded, case stripped), so the pattern below
+# is written in normalised form (lower case). Between the two words of the name
+# ANY run of whitespace, hyphens or underscores is allowed, INCLUDING AN EMPTY
+# ONE - the concatenated form (the second word directly after the first) is the
+# most common shape of a proper name in identifiers and file names, and that is
+# exactly where proper names leak most often. The pattern itself has to carry
+# both words of the name as a literal to match anything at all - that is why
+# THIS file (and only this file) needs its own exemption in
+# `.confidentiality-allow` (assumption Z-96): assembling the literal from parts
+# at runtime would be a way around the gate with no change in behaviour, not a
+# smaller leak.
 PROJECT_NAME_PATTERN = re.compile(r"railguard[\s\-_]*sentinel")
 
 
 class AllowListShapeError(ValueError):
-    """Wiersz `.confidentiality-allow` o nierozpoznanym ksztalcie: przedrostek
-    `identity-` nierozpoznany, albo nazwa reguly w `identity-path:` spoza
-    zamknietego zbioru `IDENTITY_RULE_IDS` (plus `IDENTITY_PATH_ALL`).
+    """A `.confidentiality-allow` line of unrecognised shape: an
+    unrecognised `identity-` prefix, or a rule name in `identity-path:`
+    outside the closed set `IDENTITY_RULE_IDS` (plus `IDENTITY_PATH_ALL`).
 
-    Bez tego wyjatku literowka w nazwie przedrostka albo w nazwie reguly
-    zamienialaby sie po cichu w wzorzec sciezki warstwy strukturalnej nad
-    plikiem o dziwnej nazwie - czyli w wyjatek, ktorego nikt nie zamierzal
-    (R-4, plan 05-03).
+    Without this exception a typo in the prefix or in the rule name would
+    quietly turn into a structural layer path pattern over a file with a
+    strange name - that is, into an exemption nobody intended (R-4, plan
+    05-03).
     """
 
 
 @dataclass(frozen=True)
 class Violation:
-    """Jedno naruszenie bramki poufnosci.
+    """One violation of the confidentiality gate.
 
-    Celowo BRAK pola na dopasowany tekst - to jest twarda wlasnosc typu, nie
-    zalecenie. Wyciek tej klasy (dopasowany fragment tresci normatywnej albo
-    lokalnego korpusu w wyjsciu haka/CI) jest wtedy niemozliwy konstrukcyjnie.
+    There is deliberately NO field for the matched text - that is a hard
+    property of the type, not a recommendation. A leak of this class (a matched
+    fragment of normative content or of the local corpus in the hook/CI output)
+    is then impossible by construction.
     """
 
     path: str
@@ -335,23 +346,22 @@ class Violation:
 
 
 def _normalize_path_str(path: str) -> str:
-    """Normalizuje separatory sciezki do `/`, niezaleznie od platformy."""
+    """Normalises path separators to `/`, regardless of platform."""
     return path.replace("\\", "/")
 
 
 def _fold_path_for_match(path: str) -> str:
-    """Normalizuje sciezke do porownania - warstwa 0 i lista wyjatkow.
+    """Normalises a path for comparison - layer 0 and the exception list.
 
-    Poza separatorami zdejmuje takze wielkosc liter. Bez tego warstwa 0 da
-    sie obejsc sama zmiana wielkosci liter: jedyna wspierana platforma to
-    Windows, ktorego NTFS jest bezwrazliwy na wielkosc liter, a git zapisuje
-    w indeksie literalna forme sciezki. `git add -f Standards/.local/x.txt`
-    dodaje wiec dokladnie ten sam plik z dysku, a porownanie wrazliwe na
-    wielkosc liter go nie widzi (CR-01 z 01-REVIEW.md, potwierdzone
-    wywolaniem, nie lektura).
+    Beyond separators it also strips case. Without that, layer 0 can be
+    bypassed by changing case alone: the only supported platform is Windows,
+    whose NTFS is case-insensitive, while git records the literal form of the
+    path in its index. `git add -f Standards/.local/x.txt` therefore adds
+    exactly the same file from disk, and a case-sensitive comparison does not
+    see it (CR-01 from 01-REVIEW.md, confirmed by running it, not by reading).
 
-    `casefold()` zamiast `lower()`, bo jest scislejsze dla znakow spoza
-    ASCII, a nazwa katalogu nie musi na zawsze zostac czysto angielska.
+    `casefold()` rather than `lower()`, because it is stricter for characters
+    outside ASCII, and a directory name need not stay purely English forever.
     """
     return _normalize_path_str(path).casefold()
 
@@ -362,12 +372,12 @@ def _strip_diacritics(text: str) -> str:
 
 
 def scan_paths(paths: list[str]) -> list[Violation]:
-    """Warstwa 0: sciezka pod `standards/.local/` jest naruszeniem zawsze.
+    """Layer 0: a path under `standards/.local/` is always a violation.
 
-    Dziala na samej sciezce (nie czyta zawartosci pliku), wiec obejmuje takze
-    pliki binarne i pliki, ktore nie istnieja jeszcze na dysku. Nie ma tu
-    zadnej listy wyjatkow - to jedyna warstwa, ktorej nie da sie obejsc
-    wpisem w `.confidentiality-allow`.
+    It works on the path alone (it does not read file content), so it also
+    covers binary files and files that do not yet exist on disk. There is no
+    exception list here - this is the only layer that cannot be bypassed with
+    an entry in `.confidentiality-allow`.
     """
     violations: list[Violation] = []
     for raw_path in paths:
@@ -381,9 +391,9 @@ def scan_paths(paths: list[str]) -> list[Violation]:
                     layer="path",
                     rule_id=RULE_PATH_LOCAL_CORPUS,
                     reason=(
-                        "Sciezka wskazuje na lokalny korpus norm "
-                        "(standards/.local), ktory nigdy nie moze trafic "
-                        "do repozytorium."
+                        "The path points at the local standards corpus "
+                        "(standards/.local), which must never reach the "
+                        "repository."
                     ),
                 )
             )
@@ -391,7 +401,7 @@ def scan_paths(paths: list[str]) -> list[Violation]:
 
 
 def _iter_structural_fragments(line: str) -> list[str]:
-    """Dzieli pojedyncza linie na fragmenty ograniczone terminatorami zdan."""
+    """Splits a single line into fragments delimited by sentence terminators."""
     fragments: list[str] = []
     start = 0
     for match in _SENTENCE_TERMINATOR_RE.finditer(line):
@@ -407,13 +417,14 @@ def _iter_structural_fragments(line: str) -> list[str]:
 
 
 def scan_text_structural(text: str, path: str) -> list[Violation]:
-    """Warstwa 2: kropkowany numer punktu + modalnosc normatywna w linii.
+    """Layer 2: a dotted clause number plus a normative modal term on a
+    line.
 
-    Dziala bez zadnego korpusu - a wiec takze w CI. Fragment jest
-    naruszeniem, gdy jednoczesnie: zawiera ksztalt numeru klauzuli, zawiera
-    jedna z modalnosci z `NORMATIVE_MODAL_TERMS`, oba trafienia leza w tym
-    samym fragmencie (linii), a fragment ma co najmniej
-    `MIN_STRUCTURAL_FRAGMENT_LENGTH` znakow.
+    It works with no corpus at all - therefore in CI too. A fragment is a
+    violation when it simultaneously: carries the shape of a clause number,
+    carries one of the terms from `NORMATIVE_MODAL_TERMS`, has both matches
+    inside the same fragment (line), and is at least
+    `MIN_STRUCTURAL_FRAGMENT_LENGTH` characters long.
     """
     violations: list[Violation] = []
     for line_no, line in enumerate(text.splitlines(), start=1):
@@ -432,8 +443,8 @@ def scan_text_structural(text: str, path: str) -> list[Violation]:
                     layer="structural",
                     rule_id=RULE_STRUCTURAL_CLAUSE_MODAL,
                     reason=(
-                        "Fragment zawiera jednoczesnie ksztalt numeru "
-                        "klauzuli i modalnosc normatywna w tej samej linii."
+                        "The fragment carries both the shape of a clause "
+                        "number and a normative modal term on the same line."
                     ),
                 )
             )
@@ -444,9 +455,9 @@ _WORD_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def _tokenize_with_lines(text: str) -> list[tuple[str, int]]:
-    """Normalizuje tekst do listy (slowo, numer_linii): male litery, bez
-    interpunkcji (`\\w+` ja pomija), zwiniete biale znaki (kazde slowo jest
-    juz osobnym tokenem)."""
+    """Normalises text into a list of (word, line_number): lower case, no
+    punctuation (`\\w+` skips it), collapsed whitespace (every word is already
+    a separate token)."""
     tokens: list[tuple[str, int]] = []
     for line_no, line in enumerate(text.splitlines(), start=1):
         lowered = line.lower()
@@ -458,8 +469,8 @@ def _tokenize_with_lines(text: str) -> list[tuple[str, int]]:
 def _iter_shingles(
     tokens: list[tuple[str, int]], size: int = SHINGLE_SIZE
 ) -> list[tuple[str, int]]:
-    """Zwraca (tekst_shingle'a, numer_linii_pierwszego_slowa) dla kazdego
-    okna o dlugosci `size` slow w `tokens`."""
+    """Returns (shingle text, line number of the first word) for every
+    window of `size` words in `tokens`."""
     words = [word for word, _line in tokens]
     lines = [line for _word, line in tokens]
     shingles: list[tuple[str, int]] = []
@@ -482,20 +493,19 @@ def _corpus_shingle_hashes(corpus_dir: Path) -> set[str]:
 
 
 def scan_text_corpus(text: str, path: str, corpus_dir: Path) -> list[Violation]:
-    """Warstwa 1: shingle dwunastowyrazowe wobec lokalnego korpusu.
+    """Layer 1: twelve-word shingles against the local corpus.
 
-    Zrodlem porownania jest WYLACZNIE `corpus_dir`. Gdy katalog nie istnieje
-    albo jest pusty, wypisuje na stderr jednoznaczne zdanie, ze warstwa nie
-    zostala wykonana, i zwraca pusta liste - wynik czysty bez wykonanej
-    warstwy korpusowej nie moze wygladac tak samo jak wynik czysty z
-    wykonana warstwa korpusowa, wiec ten komunikat jest czescia kontraktu,
-    nie kosmetyka.
+    The source of comparison is `corpus_dir` ONLY. When the directory does not
+    exist or is empty, it prints an unambiguous sentence on stderr saying the
+    layer did not run, and returns an empty list - a clean result without the
+    corpus layer having run must not look the same as a clean result with it,
+    so that message is part of the contract, not cosmetics.
     """
     if not corpus_dir.is_dir():
         print(
-            f"[confidentiality-guard] Warstwa korpusowa POMINIETA: katalog "
-            f"korpusu '{corpus_dir}' nie istnieje na tej maszynie. Ten wynik "
-            f"NIE potwierdza porownania z lokalnym korpusem.",
+            f"[confidentiality-guard] Corpus layer SKIPPED: the corpus "
+            f"directory '{corpus_dir}' does not exist on this machine. This "
+            f"result does NOT confirm a comparison against the local corpus.",
             file=sys.stderr,
         )
         return []
@@ -503,9 +513,9 @@ def scan_text_corpus(text: str, path: str, corpus_dir: Path) -> list[Violation]:
     corpus_hashes = _corpus_shingle_hashes(corpus_dir)
     if not corpus_hashes:
         print(
-            f"[confidentiality-guard] Warstwa korpusowa POMINIETA: katalog "
-            f"korpusu '{corpus_dir}' jest pusty. Ten wynik NIE potwierdza "
-            f"porownania z lokalnym korpusem.",
+            f"[confidentiality-guard] Corpus layer SKIPPED: the corpus "
+            f"directory '{corpus_dir}' is empty. This result does NOT confirm "
+            f"a comparison against the local corpus.",
             file=sys.stderr,
         )
         return []
@@ -527,8 +537,8 @@ def scan_text_corpus(text: str, path: str, corpus_dir: Path) -> list[Violation]:
                 layer="corpus",
                 rule_id=RULE_CORPUS_SHINGLE,
                 reason=(
-                    "Wykryto dwunastowyrazowy fragment pokrywajacy sie "
-                    "z lokalnym korpusem norm."
+                    "A twelve-word fragment overlapping with the local "
+                    "standards corpus was detected."
                 ),
             )
         )
@@ -536,24 +546,25 @@ def scan_text_corpus(text: str, path: str, corpus_dir: Path) -> list[Violation]:
 
 
 def load_identity_local_literals(local_file: Path) -> tuple[str, ...]:
-    """Wczytuje literaly piatej reguly warstwy 3 (`identity-local-literal`)
-    z pliku LOKALNEGO, gitignorowanego, nieobecnego w CI (rozstrzygniecie
-    R-2) - siostra warstwy 1 (korpusowej), ktora dziala na tej samej zasadzie.
+    """Loads the literals of the fifth rule of layer 3
+    (`identity-local-literal`) from a LOCAL, gitignored file absent from CI
+    (ruling R-2) - the sibling of layer 1 (the corpus layer), which works on
+    the same principle.
 
-    Pomija wiersze puste i wiersze zaczynajace sie od `#`, zdejmuje biale
-    znaki brzegowe. Przy braku pliku wypisuje ostrzezenie na standardowe
-    wyjscie bledu i zwraca pusta krotke - cicha nieobecnosc tej kontroli
-    jest gorsza od halasu, dokladnie tak samo jak przy braku katalogu
-    korpusu (warstwa 1). Przy pliku istniejacym, ale bez ani jednego
-    literalu, zwraca pusta krotke i NIE ostrzega (zalozenie Z-94): plik
-    z samymi komentarzami jest jawnym oswiadczeniem "brak literalow
-    lokalnych", droga wyjscia, ktora nie jest wylaczeniem warstwy.
+    It skips empty lines and lines starting with `#`, and strips surrounding
+    whitespace. When the file is absent it prints a warning on standard error
+    and returns an empty tuple - the silent absence of this control is worse
+    than the noise, exactly as with a missing corpus directory (layer 1). When
+    the file exists but carries no literal at all, it returns an empty tuple
+    and does NOT warn (assumption Z-94): a file of comments alone is an
+    explicit statement of "no local literals", an exit route that is not a
+    disabling of the layer.
     """
     if not local_file.is_file():
         print(
-            f"[confidentiality-guard] Plik literalow lokalnych '{local_file}' "
-            "nie istnieje na tej maszynie. Regula literalna warstwy "
-            "tozsamosciowej (identity-local-literal) NIE zostala wykonana.",
+            f"[confidentiality-guard] The local literals file '{local_file}' "
+            "does not exist on this machine. The literal rule of the identity "
+            "layer (identity-local-literal) did NOT run.",
             file=sys.stderr,
         )
         return ()
@@ -567,11 +578,11 @@ def load_identity_local_literals(local_file: Path) -> tuple[str, ...]:
 
 
 def _load_allow_patterns(allow_file: Path) -> list[str]:
-    """Wczytuje wzorce `fnmatch` z pliku wyjatkow warstwy strukturalnej.
+    """Loads `fnmatch` patterns from the structural layer exception file.
 
-    Puste linie i linie zaczynajace sie od `#` sa pomijane. Brak pliku
-    oznacza brak wyjatkow (nie blad) - CLI woluje domyslna sciezke, ktorej
-    nie musi obowiazkowo istniec.
+    Empty lines and lines starting with `#` are skipped. A missing file means
+    no exceptions (not an error) - the CLI calls a default path which need not
+    exist.
     """
     if not allow_file.is_file():
         return []
@@ -585,15 +596,15 @@ def _load_allow_patterns(allow_file: Path) -> list[str]:
 
 
 def _matches_allow_list(path: str, allow_patterns: list[str]) -> bool:
-    """Sprawdza sciezke wobec wzorcow wyjatkow warstwy strukturalnej.
+    """Checks a path against the structural layer exception patterns.
 
-    Porownanie jest bezwrazliwe na wielkosc liter Z ZALOZENIA, tak samo jak
-    warstwa 0 - platforma docelowa to Windows, ktorego NTFS jest bezwrazliwy
-    na wielkosc liter. Samo `fnmatch.fnmatch` dawaloby ten efekt tylko na
-    Windows, bo zdejmuje wielkosc liter przez `os.path.normcase`; ta sama
-    lista wyjatkow zachowywalaby sie inaczej na Linuksie. Jawne `casefold()`
-    plus `fnmatchcase` daje jeden wynik na kazdej platformie i domyka rozjazd
-    z warstwa 0 opisany w WR-03 z 01-REVIEW.md.
+    The comparison is case-insensitive BY DESIGN, exactly as in layer 0 - the
+    target platform is Windows, whose NTFS is case-insensitive. `fnmatch.fnmatch`
+    alone would give that effect only on Windows, because it strips case
+    through `os.path.normcase`; the same exception list would behave
+    differently on Linux. An explicit `casefold()` plus `fnmatchcase` gives one
+    result on every platform and closes the divergence from layer 0 described
+    in WR-03 of 01-REVIEW.md.
     """
     normalized = _fold_path_for_match(path)
     return any(
@@ -602,32 +613,32 @@ def _matches_allow_list(path: str, allow_patterns: list[str]) -> bool:
     )
 
 
-# --- Klasyfikatory wierszy `.confidentiality-allow` (R-4, zalozenie Z-91) ---
+# --- Classifiers of `.confidentiality-allow` lines (R-4, assumption Z-91) ---
 #
-# `_load_allow_patterns` powyzej zostaje NIETKNIETA - ani sygnatura, ani
-# zachowanie: istniejacy test regresji nad drzewem sledzonym wola ta funkcje
-# i przekazuje jej wynik dalej, wiec zmiana typu zwracanego zerwalaby tamten
-# test bez zadnego zysku. Trzy funkcje ponizej klasyfikuja jej surowy wynik
-# (liste wierszy bez komentarzy i pustych linii) na trzy rozroznialne
-# postacie, kazda osobno testowalna.
+# `_load_allow_patterns` above stays UNTOUCHED - neither its signature nor its
+# behaviour: an existing regression test over the tracked tree calls that
+# function and passes its result on, so changing the return type would break
+# that test for no gain. The three functions below classify its raw result (a
+# list of lines without comments and blank lines) into three distinguishable
+# forms, each testable on its own.
 
 
 def _structural_allow_patterns(lines: list[str]) -> list[str]:
-    """Wiersze BEZ przedrostka tozsamosciowego: wzorce sciezki warstwy
-    strukturalnej (warstwa 2), dokladnie jak dzis."""
+    """Lines WITHOUT an identity prefix: path patterns of the structural
+    layer (layer 2), exactly as today."""
     return [line for line in lines if not line.startswith(_IDENTITY_LINE_PREFIX)]
 
 
 def _normalize_identity_value(raw: str) -> str:
-    """Normalizuje wartosc adresowa do postaci porownywalnej: male litery
-    (przez `_strip_diacritics` + `casefold`, jak reszta modulu), i - dla
-    ksztaltu adresu sprzetowego wylacznie - zamiana dywizu na dwukropek.
+    """Normalises an address value into a comparable form: lower case
+    (through `_strip_diacritics` + `casefold`, like the rest of the module),
+    and - for the hardware address shape only - replacing hyphens with colons.
 
-    Bez tej normalizacji ten sam adres sprzetowy zapisany dwoma separatorami
-    (dywizem i dwukropkiem) trafia na liste zadeklarowanych wartosci jako
-    DWIE rozne wartosci, a test kompletnosci deklaracji nie ma jak tego
-    rozstrzygnac (pomiar z tabeli faktow planu 05-03: ta sama
-    wartosc stoi w drzewie zapisana obydwoma separatorami).
+    Without that normalisation the same hardware address written with two
+    separators (a hyphen and a colon) lands on the declared value list as TWO
+    different values, and the declaration completeness test has no way to
+    settle it (a measurement from the fact table of plan 05-03: the same value
+    stands in the tree written with both separators).
     """
     folded = _strip_diacritics(raw).casefold().strip()
     if MAC_ADDRESS_PATTERN.fullmatch(folded):
@@ -636,16 +647,16 @@ def _normalize_identity_value(raw: str) -> str:
 
 
 def _identity_declared_values(lines: list[str]) -> frozenset[str]:
-    """Wiersze `identity-value:<wartosc>`: deklaracje adresowe warstwy 3,
-    obowiazujace w calym drzewie niezaleznie od pliku (zalozenie Z-93:
-    deklaracja jest oswiadczeniem o pochodzeniu ADRESU, nigdy nazwy
-    urzadzenia ani nazwy wlasnej).
+    """Lines `identity-value:<value>`: address declarations of layer 3,
+    holding across the whole tree regardless of file (assumption Z-93: a
+    declaration is a statement about the origin of an ADDRESS, never of a
+    device name or a proper name).
 
-    Kazda wartosc jest normalizowana (`_normalize_identity_value`) przed
-    dodaniem do zbioru. Wartosc, ktora po normalizacji nie pasuje do
-    ZADNEGO z dwoch ksztaltow adresowych (RFC 1918, adres sprzetowy),
-    podnosi `AllowListShapeError` - deklaracja jest inwentarzem adresacji,
-    nie dowolnym tekstem (rozstrzygniecie R-5).
+    Every value is normalised (`_normalize_identity_value`) before being added
+    to the set. A value which after normalisation matches NEITHER of the two
+    address shapes (RFC 1918, a hardware address) raises
+    `AllowListShapeError` - a declaration is an inventory of addressing, not
+    arbitrary text (ruling R-5).
     """
     values: set[str] = set()
     for line in lines:
@@ -658,27 +669,26 @@ def _identity_declared_values(lines: list[str]) -> frozenset[str]:
             or MAC_ADDRESS_PATTERN.fullmatch(normalized)
         ):
             raise AllowListShapeError(
-                f"{DEFAULT_ALLOW_FILE}: deklaracja '{raw_value}' nie pasuje "
-                "do zadnego z dwoch ksztaltow adresowych (RFC 1918 albo "
-                "adres sprzetowy)."
+                f"{DEFAULT_ALLOW_FILE}: the declaration '{raw_value}' matches "
+                "neither of the two address shapes (RFC 1918 or a hardware "
+                "address)."
             )
         values.add(normalized)
     return frozenset(values)
 
 
 def _identity_path_exceptions(lines: list[str]) -> dict[str, list[str]]:
-    """Wiersze `identity-path:<regula albo all>:<wzorzec>`: wyjatki sciezki
-    zawezone do JEDNEJ reguly warstwy 3, albo - ze slowem `IDENTITY_PATH_ALL`
-    - do wszystkich regul naraz (R-4). Klucz zwroconego slownika jest
-    identyfikatorem reguly (albo `IDENTITY_PATH_ALL`); wartosc jest lista
-    wzorcow sciezki zapisanych dla tego klucza.
+    """Lines `identity-path:<rule or all>:<pattern>`: path exemptions
+    narrowed to ONE rule of layer 3, or - with the word `IDENTITY_PATH_ALL` -
+    to all rules at once (R-4). The key of the returned dictionary is a rule
+    identifier (or `IDENTITY_PATH_ALL`); the value is the list of path
+    patterns recorded for that key.
 
-    Wiersz zaczynajacy sie od `identity-`, ktory nie pasuje do zadnego z
-    dwoch znanych przedrostkow, oraz wiersz `identity-path:` z nazwa reguly
-    spoza zamknietego zbioru (i rozna od `all`) podnosza
-    `AllowListShapeError` - bez tej galezi literowka w przedrostku albo
-    w nazwie reguly zamienialaby sie po cichu w wzorzec sciezki warstwy
-    strukturalnej nad plikiem o dziwnej nazwie.
+    A line starting with `identity-` that matches neither of the two known
+    prefixes, and an `identity-path:` line with a rule name outside the closed
+    set (and different from `all`), raise `AllowListShapeError` - without that
+    branch a typo in the prefix or in the rule name would quietly turn into a
+    structural layer path pattern over a file with a strange name.
     """
     known_rule_names = set(IDENTITY_RULE_IDS) | {IDENTITY_PATH_ALL}
     exceptions: dict[str, list[str]] = {}
@@ -688,14 +698,14 @@ def _identity_path_exceptions(lines: list[str]) -> dict[str, list[str]]:
             rule_name, separator, pattern = remainder.partition(":")
             if not separator:
                 raise AllowListShapeError(
-                    f"{DEFAULT_ALLOW_FILE}: wiersz '{line}' niesie przedrostek "
-                    f"'{IDENTITY_PATH_PREFIX}', ale brakuje separatora miedzy "
-                    "nazwa reguly a wzorcem sciezki."
+                    f"{DEFAULT_ALLOW_FILE}: the line '{line}' carries the "
+                    f"prefix '{IDENTITY_PATH_PREFIX}' but the separator between "
+                    "the rule name and the path pattern is missing."
                 )
             if rule_name not in known_rule_names:
                 raise AllowListShapeError(
-                    f"{DEFAULT_ALLOW_FILE}: nazwa reguly '{rule_name}' w "
-                    f"wierszu '{line}' spoza zamknietego zbioru "
+                    f"{DEFAULT_ALLOW_FILE}: the rule name '{rule_name}' in "
+                    f"the line '{line}' is outside the closed set "
                     f"{sorted(known_rule_names)}."
                 )
             exceptions.setdefault(rule_name, []).append(pattern)
@@ -703,10 +713,9 @@ def _identity_path_exceptions(lines: list[str]) -> dict[str, list[str]]:
             continue
         elif line.startswith(_IDENTITY_LINE_PREFIX):
             raise AllowListShapeError(
-                f"{DEFAULT_ALLOW_FILE}: wiersz '{line}' zaczyna sie od "
-                "czlonu tozsamosciowego, ale nie pasuje do zadnego "
-                f"rozpoznanego przedrostka ('{IDENTITY_VALUE_PREFIX}', "
-                f"'{IDENTITY_PATH_PREFIX}')."
+                f"{DEFAULT_ALLOW_FILE}: the line '{line}' starts with the "
+                "identity marker but matches no recognised prefix "
+                f"('{IDENTITY_VALUE_PREFIX}', '{IDENTITY_PATH_PREFIX}')."
             )
     return exceptions
 
@@ -714,13 +723,13 @@ def _identity_path_exceptions(lines: list[str]) -> dict[str, list[str]]:
 def _identity_rule_is_suppressed(
     path: str, rule_id: str, exceptions: dict[str, list[str]]
 ) -> bool:
-    """Sprawdza, czy `rule_id` jest wyjeta dla `path`: wzorce zapisane wprost
-    dla tej reguly ORAZ wzorce zapisane dla wszystkich regul naraz
-    (`IDENTITY_PATH_ALL`). Uzywa tego samego mechanizmu dopasowania sciezki
-    co warstwa 2 (`_matches_allow_list`), zeby bezwrazliwosc na wielkosc
-    liter byla jedna dla calego pliku (zalozenie Z-92) - wyjatki obu warstw
-    pozostaja niezalezne, bo kazda jest stosowana w osobnym miejscu funkcji
-    skanujacej pliki.
+    """Checks whether `rule_id` is exempted for `path`: the patterns recorded
+    explicitly for that rule AND the patterns recorded for all rules at once
+    (`IDENTITY_PATH_ALL`). It uses the same path matching mechanism as layer 2
+    (`_matches_allow_list`), so that case insensitivity is one and the same for
+    the whole file (assumption Z-92) - the exceptions of the two layers stay
+    independent, because each is applied at a separate place in the file
+    scanning function.
     """
     patterns = exceptions.get(rule_id, []) + exceptions.get(IDENTITY_PATH_ALL, [])
     if not patterns:
@@ -735,23 +744,23 @@ def scan_text_identity(
     declared_values: frozenset[str] = frozenset(),
     local_literals: tuple[str, ...] = (),
 ) -> list[Violation]:
-    """Warstwa 3: wzorce tozsamosciowe.
+    """Layer 3: identity patterns.
 
-    Dziala bez zadnego korpusu - a wiec takze w CI, jak warstwa 2, ktorej
-    jest siostrzana. Cztery reguly ksztaltu dzialaja zawsze, WSZEDZIE: adresacja
-    prywatna RFC 1918 poza `declared_values`, adres sprzetowy poza
-    `declared_values`, nazwa urzadzenia, i nazwa wlasna projektu odgrodzonego
-    (`RULE_IDENTITY_PROJECT_NAME`) - zbudowane z publicznie znanych skrotow
-    branzowych i z ksztaltow adresowych, nigdy z niczyjego inwentarza
-    (rozstrzygniecie R-1). Piata regula, literalna (`local_literals`), dziala
-    WYLACZNIE lokalnie, z pliku gitignorowanego (rozstrzygniecie R-2) - to
-    jest najwrazliwsza regula z piatki, bo jej dane wejsciowe sa dokladnie ta
-    trescia, ktorej cala bramka broni, wiec jej pole powodu (jak wszystkie
-    pozostale) nie niesie ani literalu, ani fragmentu linii.
+    It works with no corpus at all - therefore in CI too, like layer 2, to
+    which it is a sibling. The four shape rules work always, EVERYWHERE: RFC
+    1918 private addressing outside `declared_values`, a hardware address
+    outside `declared_values`, a device name, and the proper name of the fenced
+    off project (`RULE_IDENTITY_PROJECT_NAME`) - built from publicly known
+    industry abbreviations and from addressing shapes, never from anyone's
+    inventory (ruling R-1). The fifth, literal rule (`local_literals`) works
+    LOCALLY ONLY, from a gitignored file (ruling R-2) - it is the most
+    sensitive of the five, because its input is exactly the content the whole
+    gate defends, so its reason field (like all the others) carries neither the
+    literal nor a fragment of the line.
 
-    Naruszenia sa zwracane posortowane po numerze linii, a przy tym samym
-    numerze linii po identyfikatorze reguly - kolejnosc stabilna miedzy
-    przebiegami, zeby wyjscie CI dalo sie porownywac (sonda: ordering).
+    Violations are returned sorted by line number, and within the same line
+    number by rule identifier - an order stable between runs, so that CI output
+    can be compared (probe: ordering).
     """
     violations: list[Violation] = []
     for line_no, raw_line in enumerate(text.splitlines(), start=1):
@@ -768,8 +777,9 @@ def scan_text_identity(
                     layer="identity",
                     rule_id=RULE_IDENTITY_PRIVATE_IPV4,
                     reason=(
-                        "Linia niesie adres o ksztalcie adresacji prywatnej "
-                        "RFC 1918, niezadeklarowany w .confidentiality-allow."
+                        "The line carries an address shaped like RFC 1918 "
+                        "private addressing, undeclared in "
+                        ".confidentiality-allow."
                     ),
                 )
             )
@@ -785,8 +795,8 @@ def scan_text_identity(
                     layer="identity",
                     rule_id=RULE_IDENTITY_MAC_ADDRESS,
                     reason=(
-                        "Linia niesie ciag o ksztalcie adresu sprzetowego "
-                        "(sygnatura urzadzenia), niezadeklarowany w "
+                        "The line carries a run shaped like a hardware "
+                        "address (a device signature), undeclared in "
                         ".confidentiality-allow."
                     ),
                 )
@@ -800,8 +810,8 @@ def scan_text_identity(
                     layer="identity",
                     rule_id=RULE_IDENTITY_DEVICE_NAME,
                     reason=(
-                        "Linia niesie ciag o ksztalcie nazwy urzadzenia "
-                        "(przedrostek roli, separator, cyfry)."
+                        "The line carries a run shaped like a device name "
+                        "(a role prefix, a separator, digits)."
                     ),
                 )
             )
@@ -814,8 +824,9 @@ def scan_text_identity(
                     layer="identity",
                     rule_id=RULE_IDENTITY_PROJECT_NAME,
                     reason=(
-                        "Linia niesie nazwe projektu odgrodzonego granica "
-                        "poufnosci (rekord decyzji D-23, faza publikacji)."
+                        "The line carries the name of a project fenced off "
+                        "by a confidentiality boundary (decision record D-23, "
+                        "the publication phase)."
                     ),
                 )
             )
@@ -830,8 +841,8 @@ def scan_text_identity(
                         layer="identity",
                         rule_id=RULE_IDENTITY_LOCAL_LITERAL,
                         reason=(
-                            "Linia niesie literal z lokalnej listy "
-                            "tozsamosciowej "
+                            "The line carries a literal from the local "
+                            "identity list "
                             f"({DEFAULT_IDENTITY_LOCAL_FILE})."
                         ),
                     )
@@ -848,28 +859,26 @@ def scan_files(
     allow_patterns: list[str] | None = None,
     identity_local_file: Path | None = None,
 ) -> list[Violation]:
-    """Uruchamia wszystkie cztery warstwy na liscie sciezek.
+    """Runs all four layers over a list of paths.
 
-    Warstwa 0 dziala na kazdej sciezce z listy, takze plikow, ktorych nie da
-    sie odczytac jako tekst (binarne) - to jest jedyny sposob, w jaki
-    `standards/.local/plik.bin` dodany przez `git add -f` zostaje zlapany.
-    Warstwy 1, 2 i 3 dzialaja wylacznie na plikach czytelnych jako tekst
-    UTF-8.
+    Layer 0 works on every path in the list, including files that cannot be
+    read as text (binary ones) - that is the only way
+    `standards/.local/file.bin` added with `git add -f` gets caught. Layers 1,
+    2 and 3 work only on files readable as UTF-8 text.
 
-    `allow_patterns` niesie SUROWE wiersze `.confidentiality-allow`
-    (`_load_allow_patterns`, niezmieniona) w trzech postaciach: wzorzec
-    sciezki bez przedrostka trafia do warstwy 2 (`_structural_allow_patterns`);
-    `identity-value:` trafia do deklaracji adresowych warstwy 3
-    (`_identity_declared_values`); `identity-path:` trafia do wyjatkow
-    sciezki warstwy 3 (`_identity_path_exceptions`). Wyjatki obu warstw sa
-    NIEZALEZNE - kazdy jest stosowany w osobnym miejscu ponizej (zalozenie
-    Z-92), wiec dopuszczenie jednej reguly nie zdejmuje drugiej z tej samej
-    sciezki.
+    `allow_patterns` carries the RAW `.confidentiality-allow` lines
+    (`_load_allow_patterns`, unchanged) in three forms: a path pattern with no
+    prefix goes to layer 2 (`_structural_allow_patterns`); `identity-value:`
+    goes to the address declarations of layer 3 (`_identity_declared_values`);
+    `identity-path:` goes to the path exemptions of layer 3
+    (`_identity_path_exceptions`). The exceptions of the two layers are
+    INDEPENDENT - each is applied at a separate place below (assumption Z-92),
+    so exempting one rule does not lift another from the same path.
 
-    `identity_local_file` wskazuje plik literalow lokalnych piatej reguly
-    (`load_identity_local_literals`); przy `None` uzywana jest sciezka
-    domyslna (`DEFAULT_IDENTITY_LOCAL_FILE`), wiec kazde dzisiejsze wywolanie
-    bez tego argumentu zostaje poprawne bez zmiany.
+    `identity_local_file` points at the local literals file of the fifth rule
+    (`load_identity_local_literals`); with `None` the default path is used
+    (`DEFAULT_IDENTITY_LOCAL_FILE`), so every existing call without that
+    argument stays correct unchanged.
     """
     allow_patterns = allow_patterns or []
     structural_patterns = _structural_allow_patterns(allow_patterns)
@@ -892,9 +901,9 @@ def scan_files(
         try:
             text = path_obj.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
-            # Plik binarny albo nieczytelny jako tekst - warstwy 1, 2 i 3 z
-            # definicji dzialaja na tresci tekstowej, wiec sa tu pomijane.
-            # Warstwa 0 juz go objela wyzej, jesli sciezka na to wskazywala.
+            # A binary file, or one unreadable as text - layers 1, 2 and 3 by
+            # definition work on textual content, so they are skipped here.
+            # Layer 0 already covered it above, if the path called for it.
             continue
 
         if use_corpus:
@@ -922,41 +931,41 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="confidentiality_guard",
         description=(
-            "Bramka poufnosci: wykrywa doslowny tekst normatywny i pliki "
-            "spod lokalnego korpusu standards/.local."
+            "The confidentiality gate: detects verbatim normative text and "
+            "files from under the local standards/.local corpus."
         ),
     )
     parser.add_argument(
         "paths",
         nargs="*",
-        help="Sciezki do sprawdzenia (zwykle stagowane pliki z pre-commit).",
+        help="Paths to check (usually the staged files from pre-commit).",
     )
     parser.add_argument(
         "--corpus-dir",
         default=DEFAULT_CORPUS_DIR,
-        help=f"Katalog lokalnego korpusu norm (domyslnie {DEFAULT_CORPUS_DIR}).",
+        help=f"The local standards corpus directory (default {DEFAULT_CORPUS_DIR}).",
     )
     parser.add_argument(
         "--no-corpus",
         action="store_true",
-        help="Pomija warstwe korpusowa (tryb CI, ktore z zalozenia nie ma dostepu do korpusu).",
+        help="Skip the corpus layer (CI mode, which by design has no access to the corpus).",
     )
     parser.add_argument(
         "--allow-file",
         default=DEFAULT_ALLOW_FILE,
-        help=f"Plik z wzorcami wyjatkow dla warstwy strukturalnej (domyslnie {DEFAULT_ALLOW_FILE}).",
+        help=f"The file of exception patterns for the structural layer (default {DEFAULT_ALLOW_FILE}).",
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Wypisz naruszenia jako JSON zamiast jednej linii na naruszenie.",
+        help="Print violations as JSON instead of one line per violation.",
     )
     parser.add_argument(
         "--identity-local-file",
         default=DEFAULT_IDENTITY_LOCAL_FILE,
         help=(
-            "Plik literalow lokalnych warstwy tozsamosciowej, LOKALNY "
-            f"i gitignorowany, nieobecny w CI (domyslnie {DEFAULT_IDENTITY_LOCAL_FILE})."
+            "The local literals file of the identity layer, LOCAL and "
+            f"gitignored, absent from CI (default {DEFAULT_IDENTITY_LOCAL_FILE})."
         ),
     )
     return parser

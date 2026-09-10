@@ -196,7 +196,7 @@ def test_corpus_layer_warns_on_stderr_when_corpus_dir_missing(tmp_path, capsys):
 
     assert violations == []
     captured = capsys.readouterr()
-    assert "POMINIETA" in captured.err
+    assert "SKIPPED" in captured.err
     assert captured.out == ""
 
 
@@ -208,7 +208,7 @@ def test_corpus_layer_warns_on_stderr_when_corpus_dir_empty(tmp_path, capsys):
 
     assert violations == []
     captured = capsys.readouterr()
-    assert "POMINIETA" in captured.err
+    assert "SKIPPED" in captured.err
 
 
 # --- Wyciek tresci w wyjsciu --------------------------------------------------

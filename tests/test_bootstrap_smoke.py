@@ -104,7 +104,7 @@ def test_bootstrap_refreshes_path_between_winget_install_and_recheck():
 
     instalacja = tekst.index("winget install --id astral-sh.uv")
     odswiezenie = tekst.index("Update-PathFromRegistry", instalacja)
-    ponowne_sprawdzenie = tekst.index("uv nadal niedostepne na PATH", odswiezenie)
+    ponowne_sprawdzenie = tekst.index("uv is still unavailable on PATH", odswiezenie)
 
     assert instalacja < odswiezenie < ponowne_sprawdzenie, (
         "Odswiezenie PATH musi stac MIEDZY instalacja przez winget a ponownym "
@@ -121,7 +121,7 @@ def test_bootstrap_does_not_tell_user_to_reopen_shell_as_normal_path():
     zostalo juz sprobowane i nie pomoglo.
     """
     tekst = _bootstrap_text()
-    assert "odswiezenia PATH z rejestru" in tekst
+    assert "the PATH refresh from the registry" in tekst
 
 
 # Idempotencja bootstrapu. Wykryte 2026-09-03 przy zmianie nazwy katalogu
@@ -167,7 +167,7 @@ def test_bootstrap_restores_local_hooks_path_even_when_install_failed():
     tekst = _bootstrap_text()
 
     przywrocenie = tekst.index("git config --local core.hooksPath $localHooksPath")
-    rzut = tekst.index("uv run pre-commit install zakonczylo sie kodem", przywrocenie)
+    rzut = tekst.index("uv run pre-commit install exited with code", przywrocenie)
 
     assert przywrocenie < rzut, (
         "Przywrocenie lokalnego core.hooksPath musi poprzedzac sprawdzenie "

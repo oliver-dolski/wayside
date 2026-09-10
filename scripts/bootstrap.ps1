@@ -1,12 +1,13 @@
 # scripts/bootstrap.ps1
 #
-# Jedno polecenie po klonie: instaluje uv (jesli brak) i synchronizuje srodowisko.
-# Pisany pod Windows PowerShell 5.1 (powershell.exe), nie pod PowerShell 7 (pwsh.exe) -
-# bez konstrukcji niedostepnych w 5.1 (np. ForEach-Object -Parallel, operator ternarny).
+# One command after cloning: installs uv (if absent) and syncs the environment.
+# Written for Windows PowerShell 5.1 (powershell.exe), not for PowerShell 7
+# (pwsh.exe) - with no construct unavailable in 5.1 (e.g. ForEach-Object
+# -Parallel, the ternary operator).
 #
-# Ten skrypt NIE zmienia globalnej Execution Policy i NIE uruchamia samoczynnie
-# lancucha pobierz-i-wykonaj (irm | iex). Jesli winget nie jest dostepny, skrypt
-# wypisuje gotowe do recznego skopiowania polecenie zapasowe i konczy sie.
+# This script does NOT change the global Execution Policy and does NOT run a
+# download-and-execute chain (irm | iex) on its own. If winget is unavailable,
+# the script prints a fallback command ready to copy by hand and stops.
 
 $ErrorActionPreference = 'Stop'
 
@@ -16,100 +17,104 @@ function Test-CommandExists {
 }
 
 function Update-PathFromRegistry {
-    # Odswieza PATH biezacego procesu z rejestru, zakres Machine plus User.
-    # To jest dokladnie ta zawartosc, ktora dostaje nowo otwarta powloka, wiec
-    # po tym wywolaniu proces widzi to samo co swieza sesja - bez restartu.
-    $maszyna = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
-    $uzytkownik = [System.Environment]::GetEnvironmentVariable('Path', 'User')
-    $env:Path = (@($maszyna, $uzytkownik) | Where-Object { $_ }) -join ';'
+    # Refreshes the PATH of the current process from the registry, Machine plus
+    # User scope. That is exactly the content a newly opened shell receives, so
+    # after this call the process sees the same as a fresh session - with no
+    # restart.
+    $machine = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $user = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:Path = (@($machine, $user) | Where-Object { $_ }) -join ';'
 }
 
 Write-Host "== Wayside bootstrap =="
 
-$uvZainstalowaneWTejSesji = $false
+$uvInstalledInThisSession = $false
 
 if (-not (Test-CommandExists 'uv')) {
-    Write-Host "uv nie znalezione na PATH."
-    $uvZainstalowaneWTejSesji = $true
+    Write-Host "uv not found on PATH."
+    $uvInstalledInThisSession = $true
 
     if (Test-CommandExists 'winget') {
-        Write-Host "Instaluje uv przez winget..."
+        Write-Host "Installing uv through winget..."
         winget install --id astral-sh.uv -e
         if ($LASTEXITCODE -ne 0) {
-            throw "Instalacja uv przez winget zakonczyla sie kodem $LASTEXITCODE"
+            throw "Installing uv through winget exited with code $LASTEXITCODE"
         }
 
-        # Winget dopisuje katalog z aliasami uv do PATH UZYTKOWNIKA w rejestrze
-        # i sam o tym mowi: "Path environment variable modified; restart your
-        # shell to use the new value". Proces PowerShella dostal jednak wlasna
-        # kopie PATH przy starcie i nie odswiezy jej sam, wiec `Test-CommandExists
-        # 'uv'` ponizej zwracalo falsz na maszynie, na ktorej instalacja WLASNIE
-        # SIE POWIODLA. Skrypt konczyl sie wtedy bledem i kazal otworzyc nowa
-        # powloke, czyli obietnica FOUND-01 "jedno polecenie po klonie" byla
-        # nieprawdziwa: potrzebne byly dwa uruchomienia.
+        # Winget appends the directory with the uv aliases to the USER PATH in
+        # the registry and says so itself: "Path environment variable modified;
+        # restart your shell to use the new value". The PowerShell process,
+        # however, received its own copy of PATH at start and will not refresh
+        # it on its own, so `Test-CommandExists 'uv'` below returned false on a
+        # machine where the installation had JUST SUCCEEDED. The script then
+        # ended with an error telling the user to open a new shell, which made
+        # the FOUND-01 promise of "one command after cloning" untrue: two runs
+        # were needed.
         #
-        # Zmierzone 2026-09-03 na czystym Windows 11 (Hyper-V, brak uv, brak
-        # Npcap) przy UAT fazy 1, test 2. Na maszynie autora ten warunek nigdy
-        # nie zaszedl, bo uv bylo tam na PATH od poczatku.
+        # Measured on 2026-09-03 on a clean Windows 11 (Hyper-V, no uv, no
+        # Npcap) during the phase 1 UAT, test 2. On the author's machine this
+        # condition never occurred, because uv was on PATH there from the
+        # start.
         Update-PathFromRegistry
     }
     else {
-        Write-Host "winget niedostepny na tej maszynie. Zainstaluj uv recznie, np.:"
+        Write-Host "winget is unavailable on this machine. Install uv by hand, e.g.:"
         Write-Host '  powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"'
-        Write-Host "Powyzsze polecenie uzywa zakresowego bypassu polityki wykonywania"
-        Write-Host "tylko dla tego jednego wywolania - nie zmienia globalnej polityki."
-        Write-Host "Po instalacji uruchom ten skrypt ponownie."
+        Write-Host "The command above uses a scoped execution policy bypass for"
+        Write-Host "that single call only - it does not change the global policy."
+        Write-Host "After installing, run this script again."
         exit 1
     }
 
     if (-not (Test-CommandExists 'uv')) {
-        throw "uv nadal niedostepne na PATH mimo instalacji przez winget i odswiezenia PATH z rejestru. Otworz nowa sesje powloki i sprobuj ponownie."
+        throw "uv is still unavailable on PATH despite the winget install and the PATH refresh from the registry. Open a new shell session and try again."
     }
 }
 else {
-    Write-Host "uv jest juz dostepne na PATH."
+    Write-Host "uv is already available on PATH."
 }
 
-Write-Host "Synchronizuje srodowisko (uv sync)..."
+Write-Host "Syncing the environment (uv sync)..."
 uv sync
 if ($LASTEXITCODE -ne 0) {
-    throw "uv sync zakonczylo sie kodem $LASTEXITCODE"
+    throw "uv sync exited with code $LASTEXITCODE"
 }
 
-# Git swiadomie NIE kopiuje .git/hooks/* przy klonowaniu (hak w cudzym
-# repozytorium moglby wykonac dowolny kod przy pierwszym commicie), wiec ten
-# krok jest tu, a nie czyms, co "juz dziala" po samym `uv sync`. Bez niego
-# bramka poufnosci (scripts/confidentiality_guard.py) istnieje jako kod, ale
-# nigdy nie zostaje uruchomiona przy commicie.
+# Git deliberately does NOT copy .git/hooks/* on clone (a hook in someone
+# else's repository could execute arbitrary code on the first commit), so this
+# step is here rather than being something that "already works" after `uv sync`
+# alone. Without it the confidentiality gate
+# (scripts/confidentiality_guard.py) exists as code but never runs at commit
+# time.
 #
-# Dewelopera z wlasnym, scentralizowanym `core.hooksPath` (typowa praktyka
-# bezpieczenstwa/zespolowa, nie tylko jedna maszyna) `pre-commit install`
-# odmawia obslugiwac wprost - narzedzie nie wie, czy hak pod tamta sciezka
-# jest bezpieczny do nadpisania, i celowo sie zatrzymuje. Nadpisanie jest tu
-# wylacznie na czas TEGO JEDNEGO polecenia: `GIT_CONFIG_GLOBAL` przestawia
-# gita na pusty plik configu zamiast prawdziwego globalnego, wiec `pre-commit
-# install` nie widzi zadnego `core.hooksPath`. Nic nie jest zapisywane do
-# prawdziwego globalnego configu dewelopera - podmieniany jest tylko plik, na
-# ktory ta jedna komenda patrzy. (Pusty string w `GIT_CONFIG_VALUE_0` NIE
-# dziala jako obejscie na Windows - PowerShell traktuje `$env:X = ""` jako
-# usuniecie zmiennej, a git wtedy zglasza `missing config value`.)
-# Wartosc `core.hooksPath` moze siedziec w DWOCH zakresach naraz i kazdy
-# wymaga innego obejscia. Zakres globalny zdejmuje `GIT_CONFIG_GLOBAL`
-# opisane wyzej. Zakres LOKALNY tego nie zdejmie w ogole, bo `.git/config`
-# nie jest plikiem globalnym - a wlasnie tam ten skrypt sam przypina
-# `.git/hooks` na koncu swojego pierwszego przebiegu.
+# For a developer with their own centralised `core.hooksPath` (a common
+# security/team practice, not one machine's quirk) `pre-commit install` refuses
+# to proceed outright - the tool does not know whether the hook under that path
+# is safe to overwrite, and stops deliberately. The override here lasts for
+# THIS ONE COMMAND only: `GIT_CONFIG_GLOBAL` points git at an empty config file
+# instead of the real global one, so `pre-commit install` sees no
+# `core.hooksPath`. Nothing is written to the developer's real global config -
+# only the file that this one command looks at is swapped. (An empty string in
+# `GIT_CONFIG_VALUE_0` does NOT work as a workaround on Windows - PowerShell
+# treats `$env:X = ""` as deleting the variable, and git then reports `missing
+# config value`.)
+# The `core.hooksPath` value can sit in TWO scopes at once, and each needs a
+# different workaround. The global scope is lifted by the `GIT_CONFIG_GLOBAL`
+# described above. The LOCAL scope is not lifted by it at all, because
+# `.git/config` is not a global file - and that is exactly where this script
+# pins `.git/hooks` at the end of its first run.
 #
-# Skutek byl taki, ze bootstrap NIE BYL IDEMPOTENTNY: pierwsze uruchomienie
-# przechodzilo (lokalnej wartosci jeszcze nie bylo), a kazde nastepne
-# odbijalo sie o `Cowardly refusing to install hooks with core.hooksPath
-# set`, bo skrypt widzial wlasne przypiecie i stosowal do niego obejscie
-# przeznaczone dla ustawienia globalnego. Wykryte 2026-09-03 przy zmianie
-# nazwy katalogu projektu, ktora wymusila drugi przebieg - ale wywrocilby
-# sie kazdy drugi przebieg, z dowolnego powodu.
+# The effect was that bootstrap WAS NOT IDEMPOTENT: the first run passed (the
+# local value did not exist yet), and every following one bounced off `Cowardly
+# refusing to install hooks with core.hooksPath set`, because the script saw
+# its own pin and applied to it the workaround meant for the global setting.
+# Found on 2026-09-03 during a rename of the project directory, which forced a
+# second run - but any second run would have fallen over, for any reason.
 #
-# Lokalna wartosc jest zdejmowana na czas instalacji i przywracana zaraz
-# po niej, nizej w tym pliku. Bez `core.hooksPath` `pre-commit install`
-# pisze hak do `.git/hooks/pre-commit`, czyli dokladnie tam, gdzie ma byc.
+# The local value is unset for the duration of the installation and restored
+# right after it, further down this file. Without `core.hooksPath`,
+# `pre-commit install` writes the hook to `.git/hooks/pre-commit`, which is
+# exactly where it belongs.
 $existingHooksPath = git config --get core.hooksPath 2>$null
 if ($LASTEXITCODE -ne 0) { $existingHooksPath = $null }
 
@@ -117,19 +122,19 @@ $localHooksPath = git config --local --get core.hooksPath 2>$null
 if ($LASTEXITCODE -ne 0) { $localHooksPath = $null }
 
 if ($existingHooksPath) {
-    Write-Host "core.hooksPath jest ustawione na '$existingHooksPath'."
-    Write-Host "Instaluje z tymczasowym nadpisaniem tego ustawienia (tylko na czas tego polecenia)."
+    Write-Host "core.hooksPath is set to '$existingHooksPath'."
+    Write-Host "Installing with a temporary override of that setting (for this command only)."
     $emptyGlobalConfig = Join-Path ([System.IO.Path]::GetTempPath()) "wayside-empty-gitconfig-$PID.ini"
     New-Item -ItemType File -Path $emptyGlobalConfig -Force | Out-Null
     $env:GIT_CONFIG_GLOBAL = $emptyGlobalConfig
 }
 
 if ($localHooksPath) {
-    Write-Host "core.hooksPath jest przypiete lokalnie do '$localHooksPath' - zdejmuje na czas instalacji."
+    Write-Host "core.hooksPath is pinned locally to '$localHooksPath' - unsetting it for the installation."
     git config --local --unset-all core.hooksPath
 }
 
-Write-Host "Instaluje hak pre-commit (uv run pre-commit install)..."
+Write-Host "Installing the pre-commit hook (uv run pre-commit install)..."
 uv run pre-commit install
 $preCommitInstallExitCode = $LASTEXITCODE
 
@@ -138,51 +143,50 @@ if ($env:GIT_CONFIG_GLOBAL) {
     Remove-Item Env:\GIT_CONFIG_GLOBAL -ErrorAction SilentlyContinue
 }
 
-# Przywrocenie idzie PRZED sprawdzeniem kodu wyjscia, bo skrypt nie moze
-# zostawic repozytorium bez przypiecia takze wtedy, gdy instalacja padla:
-# bez `core.hooksPath` git wrocilby do globalnej sciezki dewelopera i hak
-# poufnosci nie wywolalby sie przy nastepnym commicie.
+# The restore comes BEFORE checking the exit code, because the script must not
+# leave the repository without a pin even when the installation failed: without
+# `core.hooksPath` git would fall back to the developer's global path and the
+# confidentiality hook would not fire on the next commit.
 if ($localHooksPath) {
     git config --local core.hooksPath $localHooksPath
 }
 
 if ($preCommitInstallExitCode -ne 0) {
-    throw "uv run pre-commit install zakonczylo sie kodem $preCommitInstallExitCode"
+    throw "uv run pre-commit install exited with code $preCommitInstallExitCode"
 }
 
 if ($existingHooksPath) {
-    # Hak jest juz zapisany w .git/hooks, ale bez tego kroku git nadal
-    # szukalby go pod poprzednim core.hooksPath przy prawdziwym `git commit`
-    # i haka poufnosci nigdy by nie wywolal. Przypiecie jest LOKALNE (tylko
-    # to jedno repozytorium, w .git/config, nigdy scommitowane) i wskazuje
-    # dokladnie na standardowa, domyslna lokalizacje gita - inne repozytoria
-    # tego dewelopera i jego globalne ustawienie zostaja bez zmian.
+    # The hook is already written into .git/hooks, but without this step git
+    # would still look for it under the previous core.hooksPath on a real `git
+    # commit` and would never fire the confidentiality hook. The pin is LOCAL
+    # (this one repository only, in .git/config, never committed) and points at
+    # git's standard, default location - the developer's other repositories and
+    # their global setting stay unchanged.
     git config --local core.hooksPath ".git/hooks"
-    Write-Host "core.hooksPath przypiete lokalnie do .git/hooks dla tego repozytorium (ustawienie globalne bez zmian)."
+    Write-Host "core.hooksPath pinned locally to .git/hooks for this repository (the global setting is unchanged)."
 }
 
 $hookPath = Join-Path (Join-Path (Get-Location) ".git") "hooks\pre-commit"
 if (-not (Test-Path $hookPath)) {
-    Write-Host "Plik $hookPath nie powstal po instalacji haka." -ForegroundColor Red
+    Write-Host "The file $hookPath was not created by the hook installation." -ForegroundColor Red
     exit 1
 }
-Write-Host "Hak pre-commit zainstalowany: $hookPath"
+Write-Host "Pre-commit hook installed: $hookPath"
 
 Write-Host ""
-Write-Host "== Bootstrap zakonczony =="
-Write-Host "Uruchomienie CLI:  uv run wayside inspect <plik.pcap>"
-Write-Host "Uruchomienie testow: uv run pytest"
+Write-Host "== Bootstrap finished =="
+Write-Host "Run the CLI:    uv run wayside inspect <file.pcap>"
+Write-Host "Run the tests:  uv run pytest"
 
-# Jesli uv zostalo zainstalowane wlasnie teraz, ta podpowiedz nie zadziala
-# w powloce, ktora wywolala ten skrypt: proces potomny nie moze zmienic
-# srodowiska procesu rodzica. Odswiezenie PATH wyzej dziala wewnatrz TEGO
-# procesu, dzieki czemu `uv sync` powyzej sie wykonalo, ale okno, z ktorego
-# skrypt zostal uruchomiony, dalej ma swoja stara kopie PATH. Kodem tego
-# naprawic nie da sie w ogole, wiec mowimy o tym wprost.
-# Zmierzone 2026-09-03 na czystym Windows 11 przy UAT fazy 1, test 2.
-if ($uvZainstalowaneWTejSesji) {
+# If uv was installed just now, this hint will not work in the shell that
+# invoked this script: a child process cannot change the environment of its
+# parent. The PATH refresh above works inside THIS process, which is why `uv
+# sync` above ran, but the window the script was started from still has its old
+# copy of PATH. That cannot be fixed in code at all, so we say it outright.
+# Measured on 2026-09-03 on a clean Windows 11 during the phase 1 UAT, test 2.
+if ($uvInstalledInThisSession) {
     Write-Host ""
-    Write-Host "UWAGA: uv zostalo zainstalowane podczas tego uruchomienia."
-    Write-Host "Zamknij to okno i otworz nowe, zanim wywolasz powyzsze polecenia -"
-    Write-Host "biezace okno ma jeszcze PATH sprzed instalacji."
+    Write-Host "NOTE: uv was installed during this run."
+    Write-Host "Close this window and open a new one before running the commands above -"
+    Write-Host "the current window still has the PATH from before the installation."
 }

@@ -1,24 +1,24 @@
-"""Bramka maszynowa rekordu decyzji `0004` (sygnatura CLC/TS 50701) i rekordu
-`0006` (weryfikacja powolan wobec egzemplarza normy).
+"""Machine gate for decision record `0004` (the CLC/TS 50701 designation) and
+record `0006` (verification of citations against a copy of the standard).
 
-Rekord decyzji `0004`, sekcja "Sposob egzekwowania", zapisuje wprost: bramka
-maszynowa dla tego rozstrzygniecia NIE ISTNIEJE w chwili jego zapisu i
-powstaje razem z planem tej fazy. Ten plik jest ta bramka.
+Decision record `0004`, in its enforcement section, states outright: a machine
+gate for that decision DOES NOT EXIST at the moment it is written and comes
+into being together with the plan of this phase. This file is that gate.
 
-Wartosc `FORBIDDEN_DESIGNATION` jest WZIETA z sekcji "Odrzucone alternatywy"
-rekordu `0004`, nie wpisana z pamieci - rekord jest zrodlem prawdy dla tego,
-co bramka ma zakazac.
+The value of `FORBIDDEN_DESIGNATION` is TAKEN from the rejected alternatives
+section of record `0004` rather than typed from memory - the record is the
+source of truth for what the gate is to forbid.
 
-**Bramka obejmuje takze pliki binarne sledzone przez gita w zakresie skanu**
-(plan `04-07`, zamkniecie WR-03 z `04-VERIFICATION.md`). Skan tekstowy
-`_scan_tree_for_designation` pomija kazdy plik nieodczytywalny jako UTF-8 -
-dokladnie ta droga, przez ktora `examples/4sics/report.pdf` wypadal z zasiegu
-bramki mimo bycia sledzonym przez gita. `BINARY_SCAN_TARGETS` deklaruje po
-nazwie strategie przeszukania kazdego takiego pliku, a test kompletnosci
-zaczerwienia sie na kazdym pliku binarnym niezadeklarowanym. Plan `04-03`
-(eksport do PDF) wyladowal 2026-09-05, wiec `wayside.report_pdf` i `pypdf` sa
-dzis zaleznosciami tego drzewa - import obu jest bezwarunkowy, nie ma juz w
-tym module zadnej sciezki cichego pominiecia.
+**The gate also covers the binary files tracked by git within the scan scope**
+(plan `04-07`, closing WR-03 of `04-VERIFICATION.md`). The text scan
+`_scan_tree_for_designation` skips every file unreadable as UTF-8 - exactly
+the route through which `examples/4sics/report.pdf` fell out of the gate's
+reach despite being tracked by git. `BINARY_SCAN_TARGETS` declares by name the
+search strategy for every such file, and the completeness test turns red on
+every undeclared binary file. Plan `04-03` (the PDF export) landed 2026-09-05,
+so `wayside.report_pdf` and `pypdf` are dependencies of this tree today -
+both imports are unconditional, there is no longer any silent-skip path in
+this module.
 """
 
 from __future__ import annotations
@@ -45,59 +45,62 @@ DECISION_RECORD_PATH = (
     REPO_ROOT / "docs" / "decisions" / "0004-clc-ts-50701-designation.md"
 )
 
-# Wartosc oczekiwana pola `resolved_option` z frontmatteru rekordu decyzji
-# powyzej. Test pierwszy odczytuje frontmatter i porownuje z ta stala - bez
-# tego bramka nie jest zwiazana z rekordem i przestanie miec sens w dniu,
-# w ktorym rekord zostanie zrewidowany, nie zauwazajac tego.
+# The expected value of the `resolved_option` field from the frontmatter of
+# the decision record above. The first test reads the frontmatter and compares
+# it against this constant - without that the gate is not tied to the record
+# and would stop making sense on the day the record is revised, without
+# noticing.
 EXPECTED_RESOLVED_OPTION = "clc-ts-50701-2023"
 
-# Wziete z sekcji "Odrzucone alternatywy" rekordu 0004: "`EN 50701` bez roku
-# (odrzucona, bo cytuje dokument, ktory nie istnieje...)" - postac bez roku,
-# dokladnie tak, jak tam stoi.
+# Taken from the rejected alternatives section of record 0004: "`EN 50701`
+# without a year (rejected, because it cites a document that does not
+# exist...)" - the form without a year, exactly as it stands there.
 FORBIDDEN_DESIGNATION = "EN 50701"
 
-# Katalog dokumentow, katalog planowania i katalog testow sa POZA zakresem,
-# kazdy z osobnego powodu:
-# - docs/decisions/ musi wolno nazwac po imieniu oznaczenie odrzucone
-#   (rekord 0004 sam je cytuje w sekcji "Odrzucone alternatywy");
-# - .planning/ niesie notatki planistyczne, w tym STATE.md i badanie fazy,
-#   ktore rowniez cytuja oznaczenie odrzucone jako zapis stanu wiedzy sprzed
-#   korekty (ten sam powod co w tests/test_no_external_dissector.py);
-# - tests/ niesie ten wlasny plik, ktory musi wolno niesc stala
-#   FORBIDDEN_DESIGNATION jako WARTOSC PYTHONA, nie jako tekst prozy - gdyby
-#   ten katalog byl w zakresie, ten plik lamalby wlasna bramke.
+# The documents directory, the planning directory and the tests directory are
+# OUT of scope, each for its own reason:
+# - docs/decisions/ has to be free to name the rejected designation (record
+#   0004 quotes it itself in its rejected alternatives section);
+# - .planning/ carries planning notes, among them STATE.md and the phase
+#   research, which also quote the rejected designation as a record of the
+#   state of knowledge before the correction (the same reason as in
+#   tests/test_no_external_dissector.py);
+# - tests/ carries this very file, which has to be free to carry the
+#   FORBIDDEN_DESIGNATION constant as a PYTHON VALUE rather than as prose -
+#   were this directory in scope, this file would break its own gate.
 SCAN_SCOPE: tuple[str, ...] = ("src", "scripts", "examples", "README.md")
 
-# Czlon sygnatury specyfikacji technicznej CENELEC - kazdy wpis katalogu norm
-# zaczynajacy sie od tego czlonu ma niesc rok edycji, bo dwie edycje tego
-# dokumentu roznia sie trescia (rekord 0004, sekcja "Sposob egzekwowania").
+# The CENELEC technical specification part of the designation - every
+# standards catalogue entry starting with it is meant to carry the edition
+# year, because the two editions of that document differ in content (record
+# 0004, the enforcement section).
 RAILWAY_STANDARD_PREFIX = "CLC/TS"
 EXPECTED_RAILWAY_EDITION = "2023"
 
 _RESOLVED_OPTION_RE = re.compile(r"^resolved_option:\s*(\S+)\s*$", re.MULTILINE)
 
 
-# --- Test pierwszy: pole rozstrzygniecia frontmatteru rekordu 0004 ---------
+# --- Test one: the resolution field of the record 0004 frontmatter --------
 
 
 def test_decision_record_resolved_option_matches_expected():
     text = DECISION_RECORD_PATH.read_text(encoding="utf-8")
     match = _RESOLVED_OPTION_RE.search(text)
     assert match is not None, (
-        f"Rekord decyzji {DECISION_RECORD_PATH} nie niesie pola "
-        "'resolved_option' w frontmatterze."
+        f"The decision record {DECISION_RECORD_PATH} carries no "
+        "'resolved_option' field in its frontmatter."
     )
     assert match.group(1) == EXPECTED_RESOLVED_OPTION, (
-        f"Pole 'resolved_option' rekordu {DECISION_RECORD_PATH} niesie "
-        f"{match.group(1)!r}, oczekiwano {EXPECTED_RESOLVED_OPTION!r}."
+        f"The 'resolved_option' field of record {DECISION_RECORD_PATH} carries "
+        f"{match.group(1)!r}, expected {EXPECTED_RESOLVED_OPTION!r}."
     )
 
 
-# --- Funkcje pomocnicze wspolne dla testow ponizej --------------------------
+# --- Helpers shared by the tests below -------------------------------------
 #
-# Wzorzec skanu drzewa skopiowany z
-# tests/test_no_external_dissector.py::scan_tree - dopasowanie podciagu bez
-# rozrozniania wielkosci liter, pliki niedekodowalne jako tekst pomijane.
+# The tree scan pattern is copied from
+# tests/test_no_external_dissector.py::scan_tree - case-insensitive substring
+# matching, files undecodable as text skipped.
 
 
 def _scan_tree_for_designation(root: Path, designation: str) -> list[tuple[Path, int]]:
@@ -132,15 +135,16 @@ def _scan_scope_for_designation(designation: str) -> list[tuple[Path, int]]:
 
 
 def _format_hits(hits: list[tuple[Path, int]]) -> str:
-    # Komunikat niesie sciezke i numer linii, nigdy tresc linii - ta sama
-    # dyscyplina co w tests/test_standards_catalog.py i
+    # The message carries the path and the line number, never the content of
+    # the line - the same discipline as in tests/test_standards_catalog.py and
     # scripts/confidentiality_guard.py.
     return "\n".join(f"  {path}:{line}" for path, line in hits)
 
 
 def analyzable_fixtures() -> list[Path]:
-    """Kazdy fixture z katalogu, ktory konczy analize bez wyjatku. Wzorzec
-    `tests/test_standards_catalog.py::analyzable_fixtures`."""
+    """Every fixture of the directory whose analysis finishes without an
+    exception. The `tests/test_standards_catalog.py::analyzable_fixtures`
+    pattern."""
     return sorted(FIXTURE_DIR.glob("*.pcap")) + sorted(FIXTURE_DIR.glob("*.pcapng"))
 
 
@@ -148,35 +152,35 @@ def _analyze_or_skip(fixture: Path, out_dir: Path):
     try:
         return analyze(fixture, out_dir=out_dir, generated_at=GENERATED_AT)
     except (CaptureTruncatedError, CaptureFormatError):
-        pytest.skip(f"fixture {fixture.name} nie produkuje artefaktow (brama D-01)")
+        pytest.skip(f"fixture {fixture.name} produces no artifacts (the D-01 gate)")
 
 
-# --- Test drugi: brak oznaczenia odrzuconego w kodzie, skryptach, ----------
-# --- przykladach i README ---------------------------------------------------
+# --- Test two: no rejected designation in the code, the scripts, ----------
+# --- the examples and the README --------------------------------------------
 
 
 def test_scan_scope_carries_no_forbidden_designation():
     hits = _scan_scope_for_designation(FORBIDDEN_DESIGNATION)
     assert hits == [], (
-        f"Oznaczenie odrzucone w rekordzie decyzji {DECISION_RECORD_PATH} "
-        f"znalezione w:\n{_format_hits(hits)}"
+        f"The designation rejected in decision record {DECISION_RECORD_PATH} "
+        f"found in:\n{_format_hits(hits)}"
     )
 
 
-# --- Test trzeci: brak oznaczenia odrzuconego w wyrenderowanym raporcie ----
-# --- markdown kazdego analizowalnego fixture'u ------------------------------
+# --- Test three: no rejected designation in the rendered markdown report --
+# --- of every analyzable fixture --------------------------------------------
 
 
 @pytest.mark.parametrize("fixture", analyzable_fixtures(), ids=lambda p: p.name)
 def test_rendered_report_carries_no_forbidden_designation(fixture, tmp_path):
     result = _analyze_or_skip(fixture, tmp_path)
     assert FORBIDDEN_DESIGNATION not in result.report_markdown, (
-        f"{fixture.name}: raport markdown niesie oznaczenie odrzucone "
-        f"w rekordzie decyzji {DECISION_RECORD_PATH}."
+        f"{fixture.name}: the markdown report carries the designation rejected "
+        f"in decision record {DECISION_RECORD_PATH}."
     )
 
 
-# --- Test czwarty: brak oznaczenia odrzuconego w warstwie tekstowej PDF ----
+# --- Test four: no rejected designation in the PDF text layer -------------
 
 
 def test_pdf_text_layer_carries_no_forbidden_designation(tmp_path):
@@ -190,13 +194,13 @@ def test_pdf_text_layer_carries_no_forbidden_designation(tmp_path):
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
     assert FORBIDDEN_DESIGNATION not in text, (
-        "Warstwa tekstowa pliku PDF niesie oznaczenie odrzucone w rekordzie "
-        f"decyzji {DECISION_RECORD_PATH}."
+        "The text layer of the PDF file carries the designation rejected in "
+        f"decision record {DECISION_RECORD_PATH}."
     )
 
 
-# --- Test piaty: kazdy wpis katalogu norm o sygnaturze specyfikacji -------
-# --- technicznej niesie edycje oczekiwana -----------------------------------
+# --- Test five: every standards catalogue entry with a technical ----------
+# --- specification designation carries the expected edition -----------------
 
 
 def test_every_railway_catalog_entry_has_expected_edition():
@@ -207,34 +211,36 @@ def test_every_railway_catalog_entry_has_expected_edition():
         if key[0].startswith(RAILWAY_STANDARD_PREFIX)
     }
     assert railway_entries, (
-        f"Zaden wpis katalogu norm nie zaczyna sie od {RAILWAY_STANDARD_PREFIX!r} "
-        "- bramka nie ma czego pilnowac."
+        f"No standards catalogue entry starts with {RAILWAY_STANDARD_PREFIX!r} "
+        "- the gate has nothing to guard."
     )
     for key, entry in railway_entries.items():
         assert entry["edition"] == EXPECTED_RAILWAY_EDITION, (
-            f"Wpis {key} niesie edycje {entry['edition']!r}, oczekiwano "
+            f"Entry {key} carries the edition {entry['edition']!r}, expected "
             f"{EXPECTED_RAILWAY_EDITION!r}."
         )
 
 
-# --- Test szosty: katalog rekordow decyzji bez kolizji prefiksu numeru -----
+# --- Test six: the decision record directory with no numeric prefix clash -
 
 
 def test_decision_records_have_no_colliding_numeric_prefix():
     names = [p.name for p in (REPO_ROOT / "docs" / "decisions").glob("*.md")]
     prefixes = [re.match(r"^(\d+)", name).group(1) for name in names]
     assert len(set(prefixes)) == len(prefixes), (
-        f"Kolizja prefiksu numeru w katalogu rekordow decyzji: {sorted(names)}"
+        f"A numeric prefix clash in the decision record directory: {sorted(names)}"
     )
 
 
-# --- Grupa README (Task 3): sekcja o stanie weryfikacji powolan na normy ---
+# --- The README group (Task 3): the section on the verification status of --
+# --- citations of standards -------------------------------------------------
 #
-# Sekcja NIE jest PUB-03 (Intended Use, Faza 5) - jest wlasna, mala sekcja
-# tej fazy. Wyodrebniona po naglowku, wzorem
-# tests/test_report_forbidden_phrases.py::_section_body, zeby test sprawdzal
-# obecnosc lancuchow W JEJ CIELE, nie w calym README - test nad calym plikiem
-# przeszedlby takze wtedy, gdyby te lancuchy stanely w innej sekcji.
+# That section is NOT PUB-03 (Intended Use, Phase 5) - it is a small section of
+# this phase's own. It is extracted by its header, following
+# tests/test_report_forbidden_phrases.py::_section_body, so that the test
+# checks the presence of the strings IN ITS BODY rather than across the whole
+# README - a test over the whole file would pass even if those strings stood in
+# another section.
 
 README_PATH = REPO_ROOT / "README.md"
 README_SECTION_HEADER = "## Citation verification status"
@@ -252,7 +258,7 @@ def _readme_section_body(header: str) -> str:
         start = match.end()
         end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
         return text[start:end]
-    raise AssertionError(f"README nie ma sekcji '{header}'")
+    raise AssertionError(f"The README has no '{header}' section")
 
 
 def test_readme_has_standard_verification_section_header():
@@ -263,9 +269,9 @@ def test_readme_has_standard_verification_section_header():
 def test_readme_verification_section_carries_verification_marker():
     body = _readme_section_body(README_SECTION_HEADER)
     assert VERIFICATION_MARKER_STRING in body, (
-        "Sekcja README o stanie weryfikacji nie niesie lancucha znacznika "
-        f"weryfikacji {VERIFICATION_MARKER_STRING!r} w dokladnej postaci "
-        "z pliku katalogu."
+        "The README verification status section does not carry the "
+        f"verification marker string {VERIFICATION_MARKER_STRING!r} in the "
+        "exact form it takes in the catalogue file."
     )
 
 
@@ -275,13 +281,13 @@ def test_readme_verification_section_links_both_decision_records():
     assert "0006-verification-of-citations-against-a-copy-of-the-standard.md" in body
 
 
-# --- Grupa nowa (plan 04-07): bramka obejmuje pliki binarne sledzone przez -
-# --- gita w zakresie skanu, WR-03 z 04-VERIFICATION.md ----------------------
+# --- The new group (plan 04-07): the gate covers the binary files tracked --
+# --- by git within the scan scope, WR-03 of 04-VERIFICATION.md --------------
 #
-# Sledzony plik binarny w zakresie skanu jest albo przeszukiwalny po warstwie
-# tekstowej, albo po surowych bajtach - nie ma trzeciej mozliwosci ani listy
-# wykluczen (zalozenie Z-79). Lista wykluczen jest dokladnie tym mechanizmem,
-# przez ktory `examples/4sics/report.pdf` wypadl z zasiegu tej bramki.
+# A tracked binary file within the scan scope is searchable either through its
+# text layer or through its raw bytes - there is no third possibility and no
+# exclusion list (assumption Z-79). An exclusion list is exactly the mechanism
+# through which `examples/4sics/report.pdf` fell out of this gate's reach.
 BINARY_SCAN_TARGETS: dict[str, str] = {
     "examples/4sics/report.pdf": "pdf-text",
     "src/wayside/assets/fonts/DejaVuSans.ttf": "raw-bytes",
@@ -290,12 +296,13 @@ BINARY_SCAN_TARGETS: dict[str, str] = {
 
 
 def _tracked_files_in_scope() -> list[Path]:
-    """Pliki SLEDZONE przez gita w `SCAN_SCOPE`, nie pliki lezace na dysku
-    (zalozenie Z-78): drzewo robocze niesie katalogi skompilowanego kodu
-    posredniego, ktorych w repozytorium nie ma, a pytanie rekordu decyzji
-    `0004` dotyczy zawartosci repozytorium. Niezerowy kod wyjscia gita konczy
-    ten test porazka niosaca wyjscie bledu, nigdy pominieciem - wzorzec
-    `tests/test_example_report.py::_git_tracked_files`."""
+    """The files TRACKED by git within `SCAN_SCOPE`, not the files sitting on
+    disk (assumption Z-78): the working tree carries directories of compiled
+    intermediate code which are not in the repository, and the question of
+    decision record `0004` concerns the contents of the repository. A non-zero
+    git exit code ends this test as a failure carrying the error output, never
+    as a skip - the `tests/test_example_report.py::_git_tracked_files`
+    pattern."""
     result = subprocess.run(
         ["git", "ls-files", "--", *SCAN_SCOPE],
         cwd=REPO_ROOT,
@@ -303,15 +310,15 @@ def _tracked_files_in_scope() -> list[Path]:
         text=True,
     )
     assert result.returncode == 0, (
-        f"git ls-files zakonczyl sie kodem {result.returncode}: {result.stderr}"
+        f"git ls-files exited with code {result.returncode}: {result.stderr}"
     )
     return [REPO_ROOT / line for line in result.stdout.splitlines() if line]
 
 
 def _undecodable_tracked_files() -> list[Path]:
-    """Z plikow sledzonych w zakresie skanu, dokladnie te, ktorych proba
-    odczytu jako tekst UTF-8 konczy sie bledem dekodowania - czyli dokladnie
-    ten zbior, ktory `_scan_tree_for_designation` dzis po cichu pomija."""
+    """Out of the files tracked within the scan scope, exactly those whose
+    attempted read as UTF-8 text ends in a decoding error - that is, exactly
+    the set `_scan_tree_for_designation` silently skips today."""
     undecodable: list[Path] = []
     for path in _tracked_files_in_scope():
         try:
@@ -331,8 +338,8 @@ def test_binary_scan_targets_declare_every_undecodable_tracked_file():
     orphaned = sorted(declared - undecodable)
 
     assert not undeclared and not orphaned, (
-        "Niezadeklarowane pliki binarne sledzone przez gita: "
-        f"{undeclared}; sciezki zadeklarowane bez odpowiadajacego pliku: "
+        "Undeclared binary files tracked by git: "
+        f"{undeclared}; declared paths with no corresponding file: "
         f"{orphaned}"
     )
 
@@ -347,29 +354,29 @@ _FORBIDDEN_PATTERN = re.compile(re.escape(FORBIDDEN_DESIGNATION), re.IGNORECASE)
 )
 def test_declared_binaries_carry_no_forbidden_designation(relative_path, strategy):
     target = REPO_ROOT / relative_path
-    assert target.is_file(), f"Zadeklarowany plik nie istnieje: {relative_path}"
+    assert target.is_file(), f"The declared file does not exist: {relative_path}"
 
     if strategy == "pdf-text":
         reader = pypdf.PdfReader(str(target))
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
         assert not _FORBIDDEN_PATTERN.search(text), (
-            f"{relative_path}: warstwa tekstowa niesie oznaczenie odrzucone "
-            f"(strategia {strategy!r})."
+            f"{relative_path}: the text layer carries the rejected designation "
+            f"(strategy {strategy!r})."
         )
     elif strategy == "raw-bytes":
-        # Dwa kodowania: ASCII i UTF-16BE - tablica nazw pliku czcionki
-        # (tabela `name` formatu TrueType/OpenType) trzyma lancuchy w
-        # UTF-16BE na platformie Microsoft.
+        # Two encodings: ASCII and UTF-16BE - the name table of a font file
+        # (the `name` table of the TrueType/OpenType format) holds its strings
+        # in UTF-16BE on the Microsoft platform.
         data = target.read_bytes()
         ascii_needle = FORBIDDEN_DESIGNATION.encode("ascii")
         utf16be_needle = FORBIDDEN_DESIGNATION.encode("utf-16-be")
         assert ascii_needle not in data, (
-            f"{relative_path}: bajty ASCII niosa oznaczenie odrzucone "
-            f"(strategia {strategy!r})."
+            f"{relative_path}: the ASCII bytes carry the rejected designation "
+            f"(strategy {strategy!r})."
         )
         assert utf16be_needle not in data, (
-            f"{relative_path}: bajty UTF-16BE niosa oznaczenie odrzucone "
-            f"(strategia {strategy!r})."
+            f"{relative_path}: the UTF-16BE bytes carry the rejected designation "
+            f"(strategy {strategy!r})."
         )
-    else:  # pragma: no cover - zabezpieczenie przed trzecia strategia
-        raise AssertionError(f"Nieznana strategia przeszukania: {strategy!r}")
+    else:  # pragma: no cover - a guard against a third strategy
+        raise AssertionError(f"Unknown search strategy: {strategy!r}")

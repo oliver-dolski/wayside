@@ -1,22 +1,26 @@
-"""Bramka maszynowa REPORT-03: eksport raportu do PDF (plan 04-03).
+"""Machine gate REPORT-03: export of the report to PDF (plan 04-03).
 
-Grupa pierwsza (jednostkowa) buduje model recznie, wzorem
-`tests/test_report_render.py::_finding` - `render_pdf` jest funkcja nad
-slownikiem, dowod przez caly potok (plik pcap -> CLI -> report.pdf) stoi w
-grupie czwartej (integracyjnej) nizej. Rationale/paraphrase testowego
-findingu niesie pangram "Zazolc gesla jazn" - dokladnie dziewiec polskich
-znakow diakrytycznych naraz (ą c ę l n o s z z), zeby test kodowania mial
-zrodlo, na ktorym stoi, niezalezne od tresci prawdziwego katalogu norm.
+The first group (unit tests) builds the model by hand, following
+`tests/test_report_render.py::_finding` - `render_pdf` is a function over a
+dictionary, and the proof through the whole pipeline (pcap file -> CLI ->
+report.pdf) sits in the fourth group (integration) below. The rationale of the
+test finding carries a Polish pangram - exactly nine precomposed letters
+outside ASCII in one short sentence. That set is a FONT AND ENCODING PROBE,
+not project prose: it gives the encoding tests a source they can stand on,
+independent of the content of the real standards catalogue, and every one of
+the nine letters has a well-defined canonical decomposition to check NFC
+against NFD.
 
-Grupa druga (brak pliku fontu), grupa trzecia (brak odczytu zegara, przez
-drzewo skladni - ta sama dyscyplina co `tests/test_no_external_dissector.py`,
-bo docstring modulu OPISUJE brak odczytu zegara i naiwny skan tekstowy
-zlapalby wlasna dokumentacje), grupa czwarta (integracyjna w podprocesie,
-wzorem `tests/test_determinism.py::_run_analyze`) i grupa piata (brak nowej
-zaleznosci na sciezce domyslnej, wzorem
-`tests/test_scapy_cache_isolation.py`) domykaja Task 3. Parytet findingow
-miedzy PDF i markdown oraz pomiar determinizmu bajtowego (Task 4) stoja w
-dalszej czesci tego pliku.
+The second group (a missing font file), the third group (no clock read, through
+the syntax tree - the same discipline as
+`tests/test_no_external_dissector.py`, because the module docstring DESCRIBES
+the absence of a clock read and a naive text scan would catch its own
+documentation), the fourth group (integration in a subprocess, following
+`tests/test_determinism.py::_run_analyze`) and the fifth group (no new
+dependency on the default path, following
+`tests/test_scapy_cache_isolation.py`) close Task 3. The finding parity between
+PDF and markdown and the byte determinism measurement (Task 4) sit further
+down in this file.
 """
 
 from __future__ import annotations
@@ -59,30 +63,29 @@ FIXTURE_EMPTY = FIXTURE_DIR / "empty_valid_header.pcap"
 
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-# Zestaw kanoniczny wszystkich dziewieciu polskich znakow diakrytycznych -
-# zrodlo prawdy szersze niz podzbior omiu uzyty przez
-# tests/test_determinism.py::_POLISH_DIACRITICS (ten plik potrzebuje
-# kompletu, nie probki).
+# The canonical set of all nine Polish diacritical letters, used here purely
+# as an encoding probe - a source of truth wider than the probe of
+# tests/test_determinism.py (this file needs the complete set, not a sample).
 POLISH_DIACRITICS: tuple[str, ...] = ("ą", "ć", "ę", "ł", "ń", "ó", "ś", "ź", "ż")
 
-# Pangram niosacy komplet dziewieciu znakow w jednym, krotkim zdaniu -
-# powszechnie znany polski odpowiednik "the quick brown fox".
+# A pangram carrying all nine letters in one short sentence - the widely
+# known Polish counterpart of "the quick brown fox".
 PANGRAM = "Zażółć gęślą jaźń"
 
 PDF_SIGNATURE = b"%PDF-"
 
 
 def _finding(**overrides) -> dict:
-    """Buduje jeden finding w ksztalcie slownika, wzorem
-    `tests/test_report_render.py::_finding`. `rationale` niesie `PANGRAM`,
-    zeby test kodowania mial zrodlo niezalezne od tresci prawdziwego
-    katalogu norm."""
+    """Builds one finding in dictionary shape, following
+    `tests/test_report_render.py::_finding`. The `rationale` carries `PANGRAM`,
+    so that the encoding tests have a source independent of the content of the
+    real standards catalogue."""
     base = {
         "check_id": "modbus-unauthenticated-write",
-        "title": "Operacja zapisu do sterownika przez Modbus/TCP bez uwierzytelnienia",
+        "title": "Write operation to a controller over Modbus/TCP with no authentication at all",
         "severity": "high",
         "risk": "serious",
-        "rationale": f"Wlasna analiza zaobserwowanego ruchu. {PANGRAM}.",
+        "rationale": f"Our own analysis of the observed traffic. {PANGRAM}.",
         "standard_refs": [
             {
                 "standard": "IEC-62443-3-3",
@@ -90,9 +93,9 @@ def _finding(**overrides) -> dict:
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
                 "clause_title_source": "copy",
-                "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
+                "paraphrase": "Paraphrase of the clause, not a quote of the original.",
                 "verified": False,
-                "verification_note": "Numeracja prowizoryczna, czeka na zestawienie z legalnym egzemplarzem normy.",
+                "verification_note": "Provisional numbering, awaiting comparison against a lawfully obtained copy of the standard.",
             }
         ],
         "evidence": {
@@ -101,7 +104,7 @@ def _finding(**overrides) -> dict:
             "source": "10.0.0.1:502",
             "target": "10.0.0.2:50210",
         },
-        "remediation": "Ograniczyc mozliwosc wysylania kodow zapisu do znanych hostow inzynierskich.",
+        "remediation": "Restrict the ability to send write codes to known engineering hosts.",
     }
     base.update(overrides)
     return base
@@ -119,7 +122,7 @@ def _extract_text(pdf_bytes: bytes) -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
-# --- Grupa pierwsza: unit nad modelem budowanym recznie ---------------------
+# --- Group one: unit tests over a hand-built model -------------------------
 
 
 def test_render_pdf_returns_bytes_with_pdf_signature():
@@ -138,8 +141,9 @@ def test_render_pdf_without_findings_is_nonzero_length_with_same_sentence_as_mar
     pdf_text = _extract_text(pdf_bytes)
     markdown_text = render_markdown(analysis, generated_at=GENERATED_AT)
 
-    # Zdanie o braku findingow (sekcja Streszczenie) jest DOKLADNIE tym samym
-    # lancuchem w obu formatach - krawedz empty z must_haves planu.
+    # The sentence about the absence of findings (the Summary section) is
+    # EXACTLY the same string in both formats - the empty edge case of the
+    # plan's must_haves.
     empty_sentence = (
         "Analysis of capture `test.pcap` raised no finding in this run."
     )
@@ -160,14 +164,15 @@ def test_render_pdf_with_one_finding_carries_expected_fields():
     assert "session no. 0" in pdf_text
     assert "SR 1.1" in pdf_text
     assert "Human user identification and authentication" in pdf_text
-    assert "Parafraza punktu normy" in pdf_text
-    assert "Ograniczyc mozliwosc wysylania kodow zapisu" in pdf_text
+    assert "Paraphrase of the clause" in pdf_text
+    assert "Restrict the ability to send write codes" in pdf_text
     assert "Session parties: 10.0.0.1:502 -> 10.0.0.2:50210" in pdf_text
 
 
 def test_pdf_finding_block_uses_session_parties_line_not_own_copy():
-    """G-04-5b: PDF sklada linie uczestnikow sesji ta sama funkcja czysta co
-    markdown, importowana z `wayside.report` - nie wlasna kopia logiki."""
+    """G-04-5b: the PDF assembles the session parties line with the same pure
+    function as the markdown, imported from `wayside.report` - not a copy of
+    the logic of its own."""
     import inspect
 
     assert "session_parties_line" in inspect.getsource(report_pdf)
@@ -182,7 +187,7 @@ def test_render_pdf_unverified_reference_carries_same_status_text_as_markdown():
     assert "PROVISIONAL" in markdown_text and "UNVERIFIED" in markdown_text
     assert "PROVISIONAL" in pdf_text
     assert "UNVERIFIED" in pdf_text
-    assert "Numeracja prowizoryczna, czeka na zestawienie" in pdf_text
+    assert "Provisional numbering, awaiting comparison" in pdf_text
 
 
 def test_render_pdf_verified_reference_carries_verified_status_text():
@@ -194,7 +199,7 @@ def test_render_pdf_verified_reference_carries_verified_status_text():
                 "clause": "SR 1.1",
                 "clause_title": "Human user identification and authentication",
                 "clause_title_source": "copy",
-                "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
+                "paraphrase": "Paraphrase of the clause, not a quote of the original.",
                 "verified": True,
                 "verification_note": "",
             }
@@ -215,36 +220,37 @@ def test_text_layer_carries_all_nine_polish_diacritics_as_single_codepoints():
     )
 
     for letter in POLISH_DIACRITICS:
-        assert letter in pdf_text, f"Znak {letter!r} nieobecny w warstwie tekstowej PDF"
+        assert letter in pdf_text, f"The character {letter!r} is absent from the PDF text layer"
 
 
 def test_text_layer_diacritics_are_never_decomposed_into_base_plus_combining():
-    """Krawedz encoding: kazdy z dziewieciu znakow ma byc pojedynczym punktem
-    kodowym w postaci znormalizowanej ZLOZONEJ (NFC), nigdy para znaku
-    podstawowego i znaku laczacego (NFD) - porownanie tekstu przed i po
-    normalizacji do NFC musi dac ten sam tekst w zakresie tych znakow."""
+    """The encoding edge case: each of the nine letters is meant to be a single
+    code point in the COMPOSED normal form (NFC), never a pair of a base
+    character and a combining one (NFD) - the comparison of the text before and
+    after normalization to NFC has to give the same text as far as those
+    letters go."""
     pdf_text = _extract_text(
         render_pdf(_analysis(findings=[_finding()]), generated_at=GENERATED_AT)
     )
 
-    # Test na calym tekscie: gdyby jakikolwiek znak byl rozlozony (NFD),
-    # normalizacja do NFC zmienilaby tekst - rownosc dowodzi braku
-    # rozlozenia GDZIEKOLWIEK, nie tylko w tych dziewieciu znakach.
+    # A test over the whole text: were any character decomposed (NFD),
+    # normalization to NFC would change the text - equality proves the absence
+    # of decomposition ANYWHERE, not only in those nine letters.
     assert unicodedata.normalize("NFC", pdf_text) == pdf_text
 
-    # Sprawdzenie punktowe ma sens wylacznie dla znakow z WLASCIWA
-    # dekompozycja kanoniczna w Unicode (baza + znak laczacy) - "l"/"L"
-    # (lslash) nie ma zadnej dekompozycji kanonicznej (przekreslenie nie
-    # jest znakiem diakrytycznym w sensie Unicode), wiec
-    # `unicodedata.normalize("NFD", "l") == "l"` i test punktowy dla niego
-    # bylby tautologia (zawsze prawdziwy, gdy sam znak jest obecny).
+    # The per-character check only makes sense for letters with a PROPER
+    # canonical decomposition in Unicode (a base plus a combining mark) - the
+    # stroked l has no canonical decomposition at all (a stroke is not a
+    # diacritic in the Unicode sense), so normalizing it to NFD returns the
+    # same character and a per-character test for it would be a tautology
+    # (always true whenever the character itself is present).
     for letter in POLISH_DIACRITICS:
         decomposed = unicodedata.normalize("NFD", letter)
         if decomposed == letter:
             continue
         assert decomposed not in pdf_text, (
-            f"Znak {letter!r} wystepuje w postaci rozlozonej (NFD) w warstwie "
-            "tekstowej PDF"
+            f"The character {letter!r} appears in decomposed form (NFD) in the "
+            "PDF text layer"
         )
 
 
@@ -261,8 +267,8 @@ def test_text_layer_carries_eight_section_headers_in_order():
 
 
 def test_pdf_finding_block_uses_shared_citation_functions_not_own_copy():
-    """T-4-40: rendering pdf i markdown przez te same dwie funkcje czyste -
-    dowod na drzewie skladni, nie na zgadywaniu (G-04-3c)."""
+    """T-4-40: the pdf and the markdown render through the same two pure
+    functions - proved over the syntax tree, not by guesswork (G-04-3c)."""
     import inspect
 
     src = inspect.getsource(report_pdf)
@@ -277,11 +283,11 @@ def test_pdf_own_provenance_finding_carries_scope_label_not_title_inline():
                 "standard": "IEC-62443-3-3",
                 "edition": "2013",
                 "clause": "SR 1.1",
-                "clause_title": "Tytul opisu wlasnego",
+                "clause_title": "Title of our own description",
                 "clause_title_source": "own",
-                "paraphrase": "Parafraza punktu normy, nie cytat oryginalu.",
+                "paraphrase": "Paraphrase of the clause, not a quote of the original.",
                 "verified": False,
-                "verification_note": "Numeracja prowizoryczna.",
+                "verification_note": "Provisional numbering.",
             }
         ]
     )
@@ -293,14 +299,15 @@ def test_pdf_own_provenance_finding_carries_scope_label_not_title_inline():
     assert CITATION_SCOPE_LABEL in pdf_text
     for line in pdf_text.splitlines():
         if "SR 1.1" in line:
-            assert "Tytul opisu wlasnego" not in line
+            assert "Title of our own description" not in line
 
 
 def test_remediation_list_order_and_content_matches_between_markdown_and_pdf():
-    """G-04-5a, Task 2: sekcja zbiorcza zalecen ma te sama liste, w tej samej
-    kolejnosci, w obu formatach - zbudowana ta sama funkcja czysta
-    `aggregated_remediations`. Model reczny z jednym powtorzonym zaleceniem
-    unika krawedzi zawijania dlugiego tekstu w PDF (`_body`, WORD wrapmode)."""
+    """G-04-5a, Task 2: the aggregated remediation section carries the same
+    list, in the same order, in both formats - built by the same pure function
+    `aggregated_remediations`. The hand-built model with one repeated
+    remediation avoids the long-text wrapping edge case in the PDF (`_body`,
+    WORD wrapmode)."""
     findings = [
         _finding(remediation="X"),
         _finding(remediation="Y"),
@@ -329,19 +336,19 @@ def test_remediation_list_order_and_content_matches_between_markdown_and_pdf():
 
 
 def test_citation_line_and_scope_line_match_report_module_contract():
-    """Sanity: `report_pdf` uzywa DOKLADNIE tych samych funkcji, ktore
-    importuje z `wayside.report` - zaimportowana funkcja i wywolanie w tym
-    module daja identyczny wynik."""
+    """A sanity check: `report_pdf` uses EXACTLY the functions it imports from
+    `wayside.report` - the imported function and the call in this module give
+    an identical result."""
     ref_copy = {
         "standard": "IEC-62443-3-3",
         "clause": "SR 1.1",
-        "clause_title": "Tytul",
+        "clause_title": "Clause title",
         "clause_title_source": "copy",
     }
     ref_own = dict(ref_copy, clause_title_source="own")
 
-    assert "Tytul" in citation_line(ref_copy)
-    assert "Tytul" not in citation_line(ref_own)
+    assert "Clause title" in citation_line(ref_copy)
+    assert "Clause title" not in citation_line(ref_own)
     assert citation_scope_line(ref_copy) is None
     assert citation_scope_line(ref_own) is not None
 
@@ -355,7 +362,7 @@ def test_render_pdf_signature_is_identical_to_render_markdown():
     assert markdown_params == pdf_params
 
 
-# --- Grupa druga: brak pliku fontu ------------------------------------------
+# --- Group two: a missing font file ----------------------------------------
 
 
 def test_missing_font_file_raises_pdf_render_error_with_expected_path(monkeypatch, tmp_path):
@@ -378,17 +385,17 @@ def test_missing_bold_font_file_raises_pdf_render_error_with_expected_path(monke
     assert str(missing_path) in str(excinfo.value)
 
 
-# --- Grupa trzecia: brak odczytu zegara, przez drzewo skladni --------------
+# --- Group three: no clock read, through the syntax tree -------------------
 
 
 _CLOCK_ATTRIBUTES = {"now", "utcnow", "time", "today"}
 
 
 def test_module_source_never_calls_a_clock_function():
-    """Ten sam wzorzec co `tests/test_no_external_dissector.py::scan_tree`:
-    sprawdzenie przez drzewo skladni, nie przez wyszukiwanie tekstowe -
-    docstring modulu OPISUJE brak odczytu zegara, wiec naiwny skan
-    tekstowy zlapalby wlasna dokumentacje jako falszywy alarm."""
+    """The same pattern as `tests/test_no_external_dissector.py::scan_tree`: a
+    check through the syntax tree rather than by text search - the module
+    docstring DESCRIBES the absence of a clock read, so a naive text scan would
+    catch its own documentation as a false alarm."""
     source = Path(report_pdf.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
 
@@ -437,19 +444,19 @@ def test_write_atomic_bytes_interrupted_write_leaves_no_target_file(tmp_path, mo
     target = tmp_path / "out.pdf"
 
     def _boom(*args, **kwargs):
-        raise RuntimeError("przerwanie symulowane w tescie")
+        raise RuntimeError("interruption simulated in the test")
 
     monkeypatch.setattr(os, "replace", _boom)
 
     with pytest.raises(RuntimeError):
-        write_atomic_bytes(target, b"cokolwiek")
+        write_atomic_bytes(target, b"anything")
 
     assert not target.exists()
-    # Zaden plik tymczasowy nie zostaje w katalogu docelowym.
+    # No temporary file is left behind in the target directory.
     assert list(tmp_path.iterdir()) == []
 
 
-# --- Grupa czwarta: integracyjna w podprocesie ------------------------------
+# --- Group four: integration in a subprocess -------------------------------
 
 
 def _run_analyze(
@@ -501,7 +508,7 @@ def test_analyze_with_pdf_flag_on_empty_fixture_exits_zero_with_nonzero_pdf(tmp_
     assert len(pdf_path.read_bytes()) > 0
 
 
-# --- Grupa piata: brak nowej zaleznosci na sciezce domyslnej ---------------
+# --- Group five: no new dependency on the default path ---------------------
 
 
 _PROBE = (
@@ -530,16 +537,17 @@ def test_pdf_library_not_imported_by_default_analyze_run(tmp_path):
 
 
 # =============================================================================
-# Task 4: parytet findingow miedzy PDF, markdown i analysis.json, oraz
-# pomiar determinizmu bajtowego PDF w dwoch osobnych podprocesach.
+# Task 4: finding parity between the PDF, the markdown and analysis.json,
+# plus the PDF byte determinism measurement in two separate subprocesses.
 # =============================================================================
 
 
 def _analyzable_fixtures() -> list[Path]:
-    """Kazdy fixture, ktory konczy analize bez wyjatku. Wzorzec
-    `tests/test_report_forbidden_phrases.py::_analyzable_fixtures` -
-    lista budowana GLOBEM, nie recznym wyliczeniem nazw, zeby fixture
-    dodany w przyszlosci trafil do bramki bez zmiany tego pliku."""
+    """Every fixture whose analysis finishes without an exception. The
+    `tests/test_report_forbidden_phrases.py::_analyzable_fixtures` pattern -
+    the list is built by GLOB rather than by naming the files by hand, so that
+    a fixture added in the future lands in the gate without a change to this
+    file."""
     return sorted(FIXTURE_DIR.glob("*.pcap")) + sorted(FIXTURE_DIR.glob("*.pcapng"))
 
 
@@ -547,13 +555,13 @@ def _analyze_or_skip(fixture: Path, out_dir: Path):
     try:
         return pipeline_analyze(fixture, out_dir=out_dir, generated_at=GENERATED_AT)
     except (CaptureTruncatedError, CaptureFormatError):
-        pytest.skip(f"fixture {fixture.name} nie produkuje artefaktow (brama D-01)")
+        pytest.skip(f"fixture {fixture.name} produces no artifacts (the D-01 gate)")
 
 
-# Etykieta identyfikatora checka jest ZAKOTWICZONA na tej samej fladze w obu
-# formatach ("Check identifier: "), z opcjonalnymi cudzyslowami wstecznymi
-# (markdown niesie je, PDF nie) - jeden wzorzec dla obu wyciagniety wprost z
-# TEKSTU artefaktu, nigdy z kodu renderujacego.
+# The check identifier label is ANCHORED on the same marker in both formats
+# ("Check identifier: "), with optional backticks (the markdown carries them,
+# the PDF does not) - one pattern for both, taken straight from the TEXT of the
+# artifact rather than from the rendering code.
 _CHECK_ID_PATTERN = re.compile(r"Check identifier: `?([a-z0-9-]+)`?")
 
 
@@ -576,10 +584,10 @@ def test_check_id_set_is_identical_across_pdf_markdown_and_analysis_json(
     ids_from_markdown = set(_check_ids_in_text(result.report_markdown))
     ids_from_model = {f["check_id"] for f in result.analysis["findings"]}
 
-    # Roznica symetryczna w komunikacie asercji nazywa brakujacy finding,
-    # nie tylko fakt niezgodnosci (04-03-PLAN.md, Task 4).
+    # The symmetric difference in the assertion message names the missing
+    # finding rather than merely the fact of a mismatch (04-03-PLAN.md, Task 4).
     assert ids_from_pdf == ids_from_markdown, (
-        f"{fixture.name}: roznica PDF/markdown = "
+        f"{fixture.name}: PDF/markdown difference = "
         f"{ids_from_pdf ^ ids_from_markdown}"
     )
     assert ids_from_pdf == ids_from_model, (
@@ -604,8 +612,9 @@ def test_check_id_label_count_equals_finding_count(fixture, tmp_path):
 
 
 def test_two_findings_with_identical_title_yield_two_separate_blocks_in_pdf():
-    """Krawedz adjacency, nad modelem recznym: zaden fixture projektu nie
-    daje dwoch findingow o identycznym tytule (04-03-PLAN.md, Task 4)."""
+    """The adjacency edge case, over a hand-built model: no fixture of this
+    project yields two findings with an identical title (04-03-PLAN.md,
+    Task 4)."""
     duplicate_finding = _finding()
     analysis = _analysis(findings=[duplicate_finding, duplicate_finding])
 
@@ -614,16 +623,17 @@ def test_two_findings_with_identical_title_yield_two_separate_blocks_in_pdf():
     check_ids = _check_ids_in_text(pdf_text)
     assert len(check_ids) == 2
     assert check_ids == ["modbus-unauthenticated-write", "modbus-unauthenticated-write"]
-    # Tytul findingu (naglowek pogrubiony) wystepuje tez dwa razy, nie raz -
-    # scalenie dwoch findingow w jeden blok jest realnym trybem porazki
-    # renderowania (fpdf2 nie odrzuca dwoch identycznych multi_cell).
+    # The finding title (the bold header) also appears twice rather than once -
+    # merging two findings into one block is a real rendering failure mode
+    # (fpdf2 does not reject two identical multi_cell calls).
     assert pdf_text.count(duplicate_finding["title"]) == 2
 
 
 def test_check_id_first_occurrence_order_matches_model_order(tmp_path):
-    """Krawedz ordering: kolejnosc pierwszych wystapien identyfikatorow w
-    tekscie PDF ma byc identyczna z kolejnoscia w modelu (kolejnosc ustalona
-    przez `checks.engine.run_checks` po trojce kluczy)."""
+    """The ordering edge case: the order of the first occurrences of the
+    identifiers in the PDF text is meant to be identical to the order in the
+    model (the order established by `checks.engine.run_checks` over the triple
+    of keys)."""
     result = _analyze_or_skip(FIXTURE_WRITE, tmp_path)
     pdf_text = _extract_text(
         render_pdf(result.analysis, generated_at=GENERATED_AT, warnings=result.warnings)
@@ -638,12 +648,12 @@ def test_check_id_first_occurrence_order_matches_model_order(tmp_path):
     assert first_occurrences == order_in_model
 
 
-# --- Pomiar determinizmu bajtowego PDF w dwoch osobnych podprocesach -------
+# --- The PDF byte determinism measurement in two separate subprocesses ----
 #
-# Zbudowana raz per test, ta sama sonda uzyta w dwoch wywolaniach subprocess -
-# dwa OSOBNE procesy sa tu wymagane, nie dwa wywolania w jednym: identyfikator
-# plikowy dokumentu i subsetting fontu moga byc stabilne w jednym procesie i
-# rozne miedzy procesami (04-RESEARCH.md, Pitfall 8).
+# Built once per test, the same probe used in two subprocess calls - two
+# SEPARATE processes are required here, not two calls inside one: the file
+# identifier of the document and the font subsetting may be stable within one
+# process and differ between processes (04-RESEARCH.md, Pitfall 8).
 
 _DETERMINISM_PROBE = (
     "import json, sys\n"
@@ -672,7 +682,7 @@ def _render_pdf_via_subprocess(
         env=env,
     )
     assert result.returncode == 0, (
-        f"sonda determinizmu PDF nie zwrocila kodu 0: stdout={result.stdout!r} "
+        f"the PDF determinism probe did not return code 0: stdout={result.stdout!r} "
         f"stderr={result.stderr!r}"
     )
     return hashlib.sha256(output_path.read_bytes()).hexdigest()
@@ -680,10 +690,10 @@ def _render_pdf_via_subprocess(
 
 @pytest.mark.parametrize("pythonhashseed", ["0", "1337"])
 def test_pdf_bytes_are_identical_across_two_subprocesses(tmp_path, pythonhashseed):
-    """Dwa wywolania renderowania PDF w dwoch OSOBNYCH podprocesach, z
-    identycznym modelem i identycznym znacznikiem czasu, daja bajty o tej
-    samej sumie sha256 - miara empiryczna, nie zalozenie (04-RESEARCH.md,
-    Pitfall 8; 04-03-PLAN.md, Task 4)."""
+    """Two PDF rendering calls in two SEPARATE subprocesses, with an identical
+    model and an identical timestamp, give bytes with the same sha256 sum - an
+    empirical measurement, not an assumption (04-RESEARCH.md, Pitfall 8;
+    04-03-PLAN.md, Task 4)."""
     result = _analyze_or_skip(FIXTURE_WRITE, tmp_path / "prep")
     analysis_path = tmp_path / "analysis_for_probe.json"
     analysis_path.write_text(dump_deterministic(result.analysis), encoding="utf-8")
@@ -699,9 +709,9 @@ def test_pdf_bytes_are_identical_across_two_subprocesses(tmp_path, pythonhashsee
 
 
 def test_pdf_bytes_are_identical_across_pythonhashseed_values(tmp_path):
-    """Ten sam pomiar co wyzej, powtorzony z dwoma ROZNYMI wartosciami
-    ziarna hashowania procesu - dowod, ze wynik nie jest artefaktem
-    jednego, przypadkowo stabilnego ziarna."""
+    """The same measurement as above, repeated with two DIFFERENT values of the
+    process hash seed - proof that the result is not an artifact of one
+    accidentally stable seed."""
     result = _analyze_or_skip(FIXTURE_WRITE, tmp_path / "prep")
     analysis_path = tmp_path / "analysis_for_probe.json"
     analysis_path.write_text(dump_deterministic(result.analysis), encoding="utf-8")

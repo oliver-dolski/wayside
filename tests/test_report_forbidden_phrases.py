@@ -1,42 +1,53 @@
-"""Bramka tekstowa STD-07, RISK-01 i RISK-02 nad WYNIKIEM renderowania.
+"""Text gate for STD-07, RISK-01 and RISK-02 over the RESULT of rendering.
 
-Trzy rzeczy, ktore ten plik ma powiedziec wprost.
+Three things this file is meant to say outright.
 
-**Bramka dziala nad wynikiem, nie nad logika.** Skanuje `report.md` i tresc
-`analysis.json` z PRAWDZIWEJ analizy kazdego fixture'a, nie model budowany
-recznie. `tests/test_report_render.py` ma wlasny test nad modelem recznym
-i ten plik go NIE zastepuje: tamten pilnuje ksztaltu renderowania, ten pilnuje
-tego, co faktycznie wychodzi z potoku.
+**The gate works over the result, not over the logic.** It scans `report.md`
+and the content of `analysis.json` of a REAL analysis of every fixture, not a
+hand-built model. `tests/test_report_render.py` has its own test over a
+hand-built model and this file does NOT replace it: that one guards the shape
+of the rendering, this one guards what actually comes out of the pipeline.
 
-**Bramka powstala PO ustaleniu ostatecznej tresci sekcji, nie przed.** Faza 2
-zaplacila juz raz za odwrotna kolejnosc: zbyt szeroki wzorzec zlapal wlasny,
-poprawny tekst raportu jako naruszenie, bo zdanie wyjasniajace, czego narzedzie
-NIE robi, z natury zawiera slowo, ktorego zakaz dotyczy. Dlatego ten plik
-powstaje w ostatniej fali fazy 3, gdy sekcje zakresu, metodyki, inwentarza,
-macierzy komunikacji i ograniczen sa juz w postaci ostatecznej.
+**The gate was written AFTER the final content of the sections was settled,
+not before.** Phase 2 paid once already for the opposite order: a pattern too
+wide caught the report's own correct text as a violation, because a sentence
+explaining what the tool does NOT do inherently contains the word the
+prohibition is about. That is why this file comes in the last wave of phase 3,
+once the scope, methodology, inventory, communication matrix and limitations
+sections are in their final form.
 
-**Zwezenia wzorca wobec listy z `03-RESEARCH.md`, kazde z powodem.**
+**The pattern list is bilingual on purpose.** The report is English today, so
+the English patterns are the ones that can actually fire; the Polish ones stay
+as a regression guard, the same reasoning that keeps `NORMATIVE_MODAL_TERMS`
+bilingual in the confidentiality gate. Widening the detection never costs
+correctness here - a false alarm would, and that is what the narrowings below
+prevent.
 
-1. Wzorzec twierdzenia o zgodnosci jest ZAKOTWICZONY na granicy slowa
-   i wylicza koncowki przymiotnikowe oraz rzeczownikowe, zamiast lapac sam
-   rdzen (zalozenie Z-36). Powod: rdzen bez zakotwiczenia lapie przyslowek
-   uzywany w zwyklej prozie w znaczeniu "wedlug". Fragment, ktory to wymusil:
-   zwrot `zgodnie z` wystepuje w zdaniach opisowych calego projektu i nie jest
-   twierdzeniem o zgodnosci z norma. Przypadek negatywny ma wlasny test.
+**Narrowings against the list from `03-RESEARCH.md`, each with its reason.**
 
-2. Wzorzec NIE obejmuje czasownika `spelnia` ani `nie spelnia` (zalozenie
-   Z-37). Powod: to jest czasownik zdania z sekcji metodyki, ktore WYJASNIA,
-   ze narzedzie oceny zgodnosci nie wydaje. Fragment, ktory to wymusil:
-   `nigdy ocene, czy instalacja spelnia albo nie spelnia wymagan normy`
-   w `src/wayside/report.py`. Zakaz szerszy niz zakazana tresc usunalby
-   z raportu wlasnie te czesc, ktora tresci zakazanej najmocniej przeczy.
+1. The compliance-claim pattern is ANCHORED on word boundaries and enumerates
+   the adjectival and nominal endings instead of catching the stem alone
+   (assumption Z-36). The reason: an unanchored stem catches the Polish adverb
+   used in ordinary prose to mean "according to". The fragment that forced it:
+   that adverb occurs in descriptive sentences across the project and is not a
+   claim of conformity with a standard. The negative case has its own test.
 
-3. Wzorzec poziomu bezpieczenstwa wymaga CYFRY z zakresu 1-4 obok skrotu.
-   Powod: sam skrot bez liczby wystepuje w powolaniach na punkt normy
-   (`SR 1.1`) i w prozie o poziomach jako pojeciu, a zakazem jest przypisanie
-   poziomu, nie wzmianka o jego istnieniu.
+2. The pattern does NOT cover the verb "meet", nor its Polish counterpart
+   (assumption Z-37). The reason: that is the verb of the methodology
+   sentence which EXPLAINS that the tool issues no compliance judgement. The
+   fragment that forced it: "never a judgement on whether an installation does
+   or does not meet the requirements of a standard" in
+   `src/wayside/report.py`. A prohibition wider than the forbidden content
+   would strip from the report exactly the part that contradicts that content
+   most strongly.
 
-Zaden inny wzorzec z listy badania nie zostal zwezony.
+3. The security level pattern requires a DIGIT in the range 1-4 next to the
+   acronym. The reason: the bare acronym without a number occurs in citations
+   of a clause of a standard (`SR 1.1`) and in prose about levels as a
+   concept, while what is forbidden is assigning a level, not mentioning that
+   levels exist.
+
+No other pattern from the research list was narrowed.
 """
 
 from __future__ import annotations
@@ -59,43 +70,45 @@ GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def normalize_for_match(text: str) -> str:
-    """Male litery i zdjete polskie znaki diakrytyczne (zalozenie Z-35).
+    """Lower case with diacritics stripped (assumption Z-35).
 
-    Sposob zdejmowania jest ten sam co w `scripts/confidentiality_guard.py`
-    (`_strip_diacritics`): dwie rozne normalizacje w jednym repozytorium
-    rozjezdzaja sie po pierwszej poprawce w jednej z nich. Katalog norm
-    z Fazy 2 niesie prawdziwe znaki diakrytyczne, a kod zrodlowy pisze bez
-    nich - wzorzec nad surowym tekstem przepuscilby jeden z tych dwoch zapisow.
+    The way they are stripped is the same as in
+    `scripts/confidentiality_guard.py` (`_strip_diacritics`): two different
+    normalizations in one repository drift apart at the first fix to one of
+    them. The author's corpus of standards carries real diacritics while the
+    source code writes without them - a pattern over the raw text would let one
+    of those two spellings through.
     """
     decomposed = unicodedata.normalize("NFKD", text.lower())
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
-# Wzorce nad tekstem JUZ znormalizowanym, wiec bez znakow diakrytycznych
-# i bez wielkich liter. Zakotwiczenie `\b` jest cala roznica miedzy dzialajaca
-# bramka a generatorem falszywych alarmow - patrz zwezenie 1 w docstringu.
+# Patterns over text that is ALREADY normalized, so without diacritics and
+# without upper case. The `\b` anchoring is the whole difference between a
+# working gate and a generator of false alarms - see narrowing 1 in the
+# docstring.
 COMPLIANCE_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     (
-        "zgodnosc-przymiotnik-pl",
+        "compliance-adjective-pl",
         re.compile(r"\b(?:nie)?\s*zgodn(?:y|a|e|ego|ej|ym|ymi|ych|osc|osci|oscia)\b"),
     ),
     ("compliant-en", re.compile(r"\b(?:non-?)?compliant\b")),
     ("compliance-en", re.compile(r"\bcompliance\b")),
-    ("certyfikacja-pl", re.compile(r"\bcertyfik\w*\b")),
+    ("certification-pl", re.compile(r"\bcertyfik\w*\b")),
     ("certification-en", re.compile(r"\bcertif\w*\b")),
 )
 
-# Trzy zapisy liczbowego poziomu bezpieczenstwa. Cyfra jest wymagana - patrz
-# zwezenie 3 w docstringu.
+# Three spellings of a numeric security level. The digit is required - see
+# narrowing 3 in the docstring.
 SECURITY_LEVEL_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
-    ("security-level-skrot", re.compile(r"\bsl[\s-]?[1-4]\b")),
+    ("security-level-acronym", re.compile(r"\bsl[\s-]?[1-4]\b")),
     ("security-level-en", re.compile(r"\bsecurity\s+level\s*[1-4]\b")),
-    ("poziom-bezpieczenstwa-pl", re.compile(r"\bpoziom\w*\s+bezpieczenstwa\s*[1-4]\b")),
+    ("security-level-phrase-pl", re.compile(r"\bpoziom\w*\s+bezpieczenstwa\s*[1-4]\b")),
 )
 
-# Zbiorczy wskaznik liczbowy w postaci ulamka ze stu. Wzorzec przeniesiony
-# z `tests/test_report_render.py` (stala o tej samej nazwie) - jedno pojecie,
-# ten sam zapis w obu bramkach.
+# An aggregate numeric indicator in the form of a fraction of a hundred. The
+# pattern is carried over from `tests/test_report_render.py` (a constant of the
+# same name) - one concept, the same expression in both gates.
 NUMERIC_SCORE_PATTERN = re.compile(r"\b\d{1,3}\s*/\s*100\b")
 
 _CONTEXT_RADIUS = 30
@@ -104,15 +117,15 @@ _CONTEXT_RADIUS = 30
 def scan_forbidden(
     text: str, patterns: tuple[tuple[str, re.Pattern], ...]
 ) -> list[tuple[str, str]]:
-    """Zwraca pary `(nazwa wzorca, krotki kontekst wokol trafienia)`.
+    """Returns pairs of `(pattern name, a short context around the hit)`.
 
-    Kontekst jest potrzebny do naprawy: bez niego komunikat testu mowi, ze cos
-    jest zle, ale nie gdzie. Jednoczesnie jest KROTKI, zeby komunikat nie stal
-    sie kanalem wycieku tresci - to samo napiecie, ktore
-    `scripts/confidentiality_guard.py` rozstrzygnal na korzysc calkowitego
-    braku pola tekstowego w `Violation`. Rozroznienie jest takie: tam wejsciem
-    jest tresc normy objeta poufnoscia, tutaj wlasny raport projektu. Nie
-    przenos tego rozwiazania z powrotem do tamtej bramki.
+    The context is needed for the fix: without it the test message says that
+    something is wrong but not where. At the same time it is SHORT, so that the
+    message does not become a channel for leaking content - the same tension
+    `scripts/confidentiality_guard.py` settled in favour of having no text
+    field at all in `Violation`. The distinction is this: there the input is
+    the text of a standard covered by confidentiality, here it is the project's
+    own report. Do not carry this solution back into that gate.
     """
     normalized = normalize_for_match(text)
     hits: list[tuple[str, str]] = []
@@ -125,21 +138,21 @@ def scan_forbidden(
 
 
 ALL_PATTERNS = COMPLIANCE_CLAIM_PATTERNS + SECURITY_LEVEL_PATTERNS + (
-    ("wskaznik-liczbowy", NUMERIC_SCORE_PATTERN),
+    ("numeric-indicator", NUMERIC_SCORE_PATTERN),
 )
 
 
 def _analyzable_fixtures() -> list[Path]:
-    """Kazdy fixture z katalogu, ktory konczy analize bez wyjatku.
+    """Every fixture of the directory whose analysis finishes without an exception.
 
-    Lista budowana GLOBEM po katalogu, nie recznym wyliczeniem nazw: lista
-    reczna nie obejmie fixture'a dodanego w Fazie 4, a wtedy bramka cicho
-    przestanie pokrywac nowa tresc.
+    The list is built by GLOB over the directory rather than by naming the
+    files by hand: a hand-written list would not cover a fixture added in
+    Phase 4, and the gate would then silently stop covering the new content.
 
-    Fixture'y konczace analize wyjatkiem (zrzut obciety, uszkodzony, format
-    nieobslugiwany) sa pomijane JAWNYM filtrem na dwa nazwane typy wyjatku,
-    nie blokiem przechwytujacym cokolwiek - inaczej regresja w potoku ukrylaby
-    sie jako "fixture bez artefaktow".
+    Fixtures whose analysis ends in an exception (a truncated or corrupted
+    capture, an unsupported format) are skipped by an EXPLICIT filter on two
+    named exception types rather than by a block catching anything - otherwise
+    a regression in the pipeline would hide as "a fixture with no artifacts".
     """
     return sorted(FIXTURE_DIR.glob("*.pcap")) + sorted(FIXTURE_DIR.glob("*.pcapng"))
 
@@ -148,7 +161,7 @@ def _analyze_or_skip(fixture: Path, out_dir: Path):
     try:
         return analyze(fixture, out_dir=out_dir, generated_at=GENERATED_AT)
     except (CaptureTruncatedError, CaptureFormatError):
-        pytest.skip(f"fixture {fixture.name} nie produkuje artefaktow (brama D-01)")
+        pytest.skip(f"fixture {fixture.name} produces no artifacts (the D-01 gate)")
 
 
 # --- normalize_for_match ----------------------------------------------------
@@ -174,25 +187,25 @@ def test_scan_forbidden_on_clean_text_returns_empty_list():
 
 
 def test_scan_forbidden_rejects_a_compliance_claim():
-    """Test PRZECIWNY: bez niego wzorzec zepsuty tak, ze nie lapie niczego,
-    przechodzi caly pakiet na zielono."""
+    """The OPPOSITE test: without it a pattern broken so that it catches
+    nothing passes the whole suite green."""
     text = "Instalacja jest zgodna z wymaganiem normy w tym zakresie."
 
     hits = scan_forbidden(text, COMPLIANCE_CLAIM_PATTERNS)
 
     assert hits
-    assert hits[0][0] == "zgodnosc-przymiotnik-pl"
+    assert hits[0][0] == "compliance-adjective-pl"
     assert len(hits[0][1]) < len(text) + 1
 
 
 def test_scan_forbidden_rejects_a_numeric_security_level():
-    """Drugi test przeciwny, dla drugiej rodziny wzorcow."""
-    text = "Sterownik zostal oceniony na SL-2 w tym segmencie."
+    """The second opposite test, for the second family of patterns."""
+    text = "The controller was assessed at SL-2 in this segment."
 
     hits = scan_forbidden(text, SECURITY_LEVEL_PATTERNS)
 
     assert hits
-    assert hits[0][0] == "security-level-skrot"
+    assert hits[0][0] == "security-level-acronym"
 
 
 def test_compliance_pattern_catches_diacritic_and_ascii_spelling():
@@ -214,17 +227,19 @@ def test_compliance_pattern_catches_negated_and_noun_forms():
 
 
 def test_compliance_pattern_does_not_catch_the_adverb_meaning_according_to():
-    """Przypadek negatywny wymuszony przez zwezenie 1 z docstringu."""
+    """The negative case forced by narrowing 1 of the docstring."""
     text = "Waga findingu wynika zgodnie z kryteriami zapisanej rubryki."
 
     assert scan_forbidden(text, COMPLIANCE_CLAIM_PATTERNS) == []
 
 
 def test_compliance_pattern_does_not_catch_the_methodology_verb():
-    """Przypadek negatywny wymuszony przez zwezenie 2 z docstringu - zdanie
-    sekcji metodyki obecne w raporcie od Fazy 2, w obu wariantach."""
+    """The negative case forced by narrowing 2 of the docstring - the
+    methodology sentence the report has carried since Phase 2, in the English
+    form it takes today and in the Polish form it took before."""
     for text in (
-        "nigdy ocene, czy instalacja spelnia wymagania normy",
+        "never a judgement on whether an installation does or does not meet "
+        "the requirements of a standard",
         "nigdy ocene, czy instalacja spelnia albo nie spelnia wymagan normy",
     ):
         assert scan_forbidden(text, COMPLIANCE_CLAIM_PATTERNS) == [], text
@@ -247,7 +262,7 @@ def test_security_level_pattern_does_not_catch_bare_acronym_or_clause_number():
         assert scan_forbidden(text, SECURITY_LEVEL_PATTERNS) == [], text
 
 
-# --- Bramka nad wynikiem prawdziwej analizy ---------------------------------
+# --- The gate over the result of a real analysis ---------------------------
 
 
 @pytest.mark.parametrize(
@@ -265,9 +280,9 @@ def test_rendered_report_carries_no_forbidden_phrase(fixture, tmp_path):
     "fixture", _analyzable_fixtures(), ids=lambda path: path.name
 )
 def test_analysis_json_carries_no_forbidden_phrase(fixture, tmp_path):
-    """Zalozenie Z-38: artefakt maszynowy jest publikowanym wyjsciem tak samo
-    jak raport, wiec zakaz obowiazujacy tylko w jednym z dwoch bylby zakazem
-    pozornym."""
+    """Assumption Z-38: the machine artifact is published output just as much
+    as the report, so a prohibition holding in only one of the two would be a
+    prohibition in appearance only."""
     result = _analyze_or_skip(fixture, tmp_path)
     serialized = json.dumps(result.analysis, ensure_ascii=False)
 
@@ -276,25 +291,26 @@ def test_analysis_json_carries_no_forbidden_phrase(fixture, tmp_path):
     assert hits == [], f"{fixture.name}: {hits}"
 
 
-# --- RISK-01: metoda oceny wagi w sekcji metodyki prawdziwego raportu -------
+# --- RISK-01: the severity method in the methodology section of a real ----
+# --- report ---------------------------------------------------------------
 #
-# Wartosc tego testu wobec `tests/test_report_render.py`: tamten dowodzi, ze
-# renderer UMIE wypisac kryteria, ten dowodzi, ze w PRAWDZIWYM raporcie
-# z prawdziwej analizy faktycznie sa. Lamie sie, gdy ktos dopisze piaty poziom
-# wagi do rubryki i zapomni o raporcie - kryteria sa czytane z modulu
-# produkcyjnego, nigdy z kopii w tym pliku.
+# The value of this test against `tests/test_report_render.py`: that one proves
+# the renderer CAN print the criteria, this one proves they really are in a
+# REAL report from a real analysis. It breaks when somebody adds a fifth
+# severity level to the rubric and forgets the report - the criteria are read
+# from the production module, never from a copy in this file.
 
 HEADER_PATTERN = re.compile(r"^## (.+)$", flags=re.MULTILINE)
 
 
 def _section_body(text: str, name: str) -> str:
-    """Tresc jednej sekcji, od jej naglowka do nastepnego.
+    """The body of one section, from its header to the next one.
 
-    Wycinanie po naglowku nie jest ostroznoscia na wyrost: zdanie kryterium
-    obecne gdziekolwiek w raporcie zaliczyloby test szukajacy podciagu w calym
-    tekscie, a RISK-01 mowi wprost o sekcji metodyki. Test nad calym plikiem
-    przeszedlby takze wtedy, gdyby sekcja metodyki zniknela, a kryteria
-    wyladowaly w zaleceniach.
+    Cutting by header is not excessive caution: a criterion sentence present
+    anywhere in the report would satisfy a test looking for a substring across
+    the whole text, and RISK-01 speaks outright about the methodology section.
+    A test over the whole file would pass even if the methodology section
+    vanished and the criteria landed in the recommendations.
     """
     matches = list(HEADER_PATTERN.finditer(text))
     for index, match in enumerate(matches):
@@ -303,7 +319,7 @@ def _section_body(text: str, name: str) -> str:
         start = match.end()
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         return text[start:end]
-    raise AssertionError(f"Raport nie ma sekcji '{name}'")
+    raise AssertionError(f"The report has no '{name}' section")
 
 
 @pytest.mark.parametrize(
@@ -315,7 +331,7 @@ def test_methodology_section_carries_every_rubric_criterion(fixture, tmp_path):
     body = _section_body(result.report_markdown, "Methodology")
 
     for severity, criterion in risk.RUBRIC_CRITERIA.items():
-        assert criterion in body, f"{fixture.name}: brak kryterium dla wagi {severity}"
+        assert criterion in body, f"{fixture.name}: no criterion for severity {severity}"
 
 
 @pytest.mark.parametrize(
@@ -338,4 +354,4 @@ def test_methodology_section_names_every_allowed_severity(fixture, tmp_path):
     body = _section_body(result.report_markdown, "Methodology")
 
     for severity in risk.ALLOWED_SEVERITIES:
-        assert severity in body, f"{fixture.name}: brak nazwy wagi {severity}"
+        assert severity in body, f"{fixture.name}: the severity name {severity} is absent"

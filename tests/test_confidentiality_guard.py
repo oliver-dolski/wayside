@@ -1,11 +1,16 @@
-"""Testy jednostkowe FOUND-03: trzy warstwy `scripts/confidentiality_guard.py`.
+"""Unit tests FOUND-03: the three layers of `scripts/confidentiality_guard.py`.
 
-Dane testowe ponizej sa ZAWSZE wymyslone: zdania w stylu klauzuli normatywnej
-ulozone na potrzeby testu, nigdy prawdziwy fragment IEC 62443, EN 50701 ani
-zadnej innej normy. Wklejenie prawdziwego cytatu tutaj odtworzyloby dokladnie
-ten wyciek, ktoremu ta bramka ma zapobiegac - tyle ze w pliku testowym
-zamiast w katalogu norm (Pitfall 6 w 01-RESEARCH.md). Ten plik jest dlatego
-wpisany do `.confidentiality-allow` (warstwa 2, wylacznie).
+The test data below is ALWAYS invented: sentences in the style of a normative
+clause, composed for the purposes of the test, never a real fragment of
+IEC 62443, of the CENELEC railway specification or of any other standard.
+Pasting a real quote here would reproduce exactly the leak this gate is meant
+to prevent - only in a test file instead of in the corpus of standards
+(Pitfall 6 in 01-RESEARCH.md). That is why this file is listed in
+`.confidentiality-allow` (layer 2, and layer 2 only).
+
+Some probes stay in Polish on purpose: the modal term list of the structural
+layer is bilingual, because the author's corpus of standards is Polish, and a
+probe in one language would exercise only half of it.
 """
 
 from __future__ import annotations
@@ -23,15 +28,16 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import confidentiality_guard as guard  # noqa: E402
 
-# Wymyslone zdanie o ksztalcie klauzuli normatywnej: kropkowany numer punktu
-# + modalnosc "shall" + dlugosc powyzej progu. Uzywane wielokrotnie ponizej.
+# An invented sentence of normative clause shape: a dotted clause number plus
+# the modal "shall" plus a length above the threshold. Used repeatedly below.
 FAKE_CLAUSE_SENTENCE = (
     "3.4.2 The system shall enforce authentication for all write operations "
     "performed against any field-side controller in the demonstration zone."
 )
 
-# Wersja polska (bez diakrytykow w danych zrodlowych repo, ale bramka ma
-# lapac tez wersje z diakrytykami - patrz test_structural_layer_normalizes_diacritics).
+# The Polish version, written WITH diacritics on purpose - the gate has to
+# catch that spelling too (see test_structural_layer_normalizes_diacritics).
+# This is the only place in the suite that carries them.
 FAKE_CLAUSE_SENTENCE_PL_DIACRITICS = (
     "3.4.2 System nie może dopuścić do zapisu w rejestrze bez uwierzytelnienia "
     "operatora obslugujacego stacje demonstracyjna w tej sieci testowej."
@@ -104,7 +110,7 @@ def test_path_layer_does_not_flag_public_standards_directory():
 
 
 def test_structural_layer_flags_clause_number_with_modal_in_same_line():
-    violations = guard.scan_text_structural(FAKE_CLAUSE_SENTENCE, "wymyslony.txt")
+    violations = guard.scan_text_structural(FAKE_CLAUSE_SENTENCE, "invented.txt")
     assert len(violations) == 1
     assert violations[0].rule_id == guard.RULE_STRUCTURAL_CLAUSE_MODAL
     assert violations[0].line == 1
@@ -112,7 +118,7 @@ def test_structural_layer_flags_clause_number_with_modal_in_same_line():
 
 def test_structural_layer_normalizes_diacritics_before_matching_modal_terms():
     violations = guard.scan_text_structural(
-        FAKE_CLAUSE_SENTENCE_PL_DIACRITICS, "wymyslony.txt"
+        FAKE_CLAUSE_SENTENCE_PL_DIACRITICS, "invented.txt"
     )
     assert len(violations) == 1
     assert violations[0].rule_id == guard.RULE_STRUCTURAL_CLAUSE_MODAL
@@ -123,7 +129,7 @@ def test_structural_layer_ignores_modal_without_clause_number():
         "System musi wymuszac uwierzytelnianie dla wszystkich operacji "
         "zapisu wykonywanych na dowolnym sterowniku w strefie testowej."
     )
-    assert guard.scan_text_structural(text, "wymyslony.txt") == []
+    assert guard.scan_text_structural(text, "invented.txt") == []
 
 
 def test_structural_layer_ignores_clause_number_without_modal():
@@ -131,12 +137,12 @@ def test_structural_layer_ignores_clause_number_without_modal():
         "Sekcja 3.4.2 opisuje architekture referencyjna strefy testowej "
         "uzywanej w tym srodowisku demonstracyjnym do celow szkoleniowych."
     )
-    assert guard.scan_text_structural(text, "wymyslony.txt") == []
+    assert guard.scan_text_structural(text, "invented.txt") == []
 
 
 def test_structural_layer_ignores_short_fragment_below_threshold():
     text = "3.4.2 shall."
-    assert guard.scan_text_structural(text, "wymyslony.txt") == []
+    assert guard.scan_text_structural(text, "invented.txt") == []
 
 
 def test_structural_layer_ignores_dash_separated_standard_signature():
@@ -144,9 +150,9 @@ def test_structural_layer_ignores_dash_separated_standard_signature():
         "Powolanie na punkt normy 62443-3-3 musi znalezc sie w kazdym "
         "raporcie wygenerowanym przez to narzedzie zgodnie z konwencja."
     )
-    # "62443-3-3" nie ma ksztaltu \d+\.\d+(\.\d+)* (myslniki, nie kropki),
-    # wiec mimo obecnosci "musi" fragment nie jest naruszeniem.
-    assert guard.scan_text_structural(text, "wymyslony.txt") == []
+    # "62443-3-3" does not have the shape \d+\.\d+(\.\d+)* (hyphens, not
+    # dots), so despite carrying a modal term the fragment is not a violation.
+    assert guard.scan_text_structural(text, "invented.txt") == []
 
 
 def test_structural_layer_allow_list_suppresses_violation_only_for_listed_file():
@@ -167,10 +173,10 @@ def test_corpus_layer_flags_matching_twelve_word_shingle(tmp_path):
         "alpha bravo charlie delta echo foxtrot golf hotel india juliet "
         "kilo lima"
     )
-    (corpus_dir / "norma-wymyslona.txt").write_text(shared_sentence, encoding="utf-8")
+    (corpus_dir / "invented-standard.txt").write_text(shared_sentence, encoding="utf-8")
 
     scanned_text = f"Wstep bez znaczenia. {shared_sentence}. Koniec bez znaczenia."
-    violations = guard.scan_text_corpus(scanned_text, "wymyslony.txt", corpus_dir)
+    violations = guard.scan_text_corpus(scanned_text, "invented.txt", corpus_dir)
 
     assert len(violations) == 1
     assert violations[0].rule_id == guard.RULE_CORPUS_SHINGLE
@@ -179,20 +185,20 @@ def test_corpus_layer_flags_matching_twelve_word_shingle(tmp_path):
 def test_corpus_layer_ignores_text_with_no_shingle_overlap(tmp_path):
     corpus_dir = tmp_path / "standards" / ".local"
     corpus_dir.mkdir(parents=True)
-    (corpus_dir / "norma-wymyslona.txt").write_text(
+    (corpus_dir / "invented-standard.txt").write_text(
         "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima",
         encoding="utf-8",
     )
 
-    unrelated_text = "To jest zdanie, ktore nie ma nic wspolnego z korpusem testowym."
-    assert guard.scan_text_corpus(unrelated_text, "wymyslony.txt", corpus_dir) == []
+    unrelated_text = "This is a sentence with nothing whatsoever to do with the test corpus."
+    assert guard.scan_text_corpus(unrelated_text, "invented.txt", corpus_dir) == []
 
 
 def test_corpus_layer_warns_on_stderr_when_corpus_dir_missing(tmp_path, capsys):
     missing_dir = tmp_path / "standards" / ".local"
     assert not missing_dir.exists()
 
-    violations = guard.scan_text_corpus("dowolny tekst", "wymyslony.txt", missing_dir)
+    violations = guard.scan_text_corpus("any text", "invented.txt", missing_dir)
 
     assert violations == []
     captured = capsys.readouterr()
@@ -204,14 +210,14 @@ def test_corpus_layer_warns_on_stderr_when_corpus_dir_empty(tmp_path, capsys):
     empty_dir = tmp_path / "standards" / ".local"
     empty_dir.mkdir(parents=True)
 
-    violations = guard.scan_text_corpus("dowolny tekst", "wymyslony.txt", empty_dir)
+    violations = guard.scan_text_corpus("any text", "invented.txt", empty_dir)
 
     assert violations == []
     captured = capsys.readouterr()
     assert "SKIPPED" in captured.err
 
 
-# --- Wyciek tresci w wyjsciu --------------------------------------------------
+# --- Content leaking into the output ---------------------------------------
 
 
 def test_output_never_carries_matched_text(capsys):
@@ -219,14 +225,14 @@ def test_output_never_carries_matched_text(capsys):
         [
             "--no-corpus",
             "--allow-file",
-            "/nieistniejacy/plik/wyjatkow.txt",
+            "/nonexistent/allow/file.txt",
         ]
     )
-    # Bez plikow na wejsciu nic sie nie dzieje - test wlasciwy jest nizej,
-    # ten tylko upewnia sie, ze main() dziala bez plikow (kod 0).
+    # With no files on the input nothing happens - the real test is below,
+    # this one only makes sure main() runs without files (code 0).
     assert exit_code == 0
 
-    fake_file = "wymyslony_do_wyjscia.txt"
+    fake_file = "invented_for_output.txt"
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -246,20 +252,21 @@ def test_output_never_carries_matched_text(capsys):
         assert guard.RULE_STRUCTURAL_CLAUSE_MODAL in captured.out
 
 
-# --- Warstwa 3: tozsamosciowa - regula nazwy wlasnej (05-03/1) --------------
+# --- Layer 3: the identity layer - the proper name rule (05-03/1) ----------
 #
-# Nazwa wlasna projektu odgrodzonego granica poufnosci NIGDY nie jest pisana
-# tutaj jako jeden literal - ten plik jest sledzony przez gita i objety
-# regresja warstwy 3 (test_identity_layer_is_clean_over_tracked_tree, plan
-# 05-03/2), wiec literal jednym kawalkiem zapaliby wlasna bramke tego
-# repozytorium. Sklejenie trzech czesci w czasie wykonania daje dokladnie
-# ten sam ciag znakow, ktory bramka ma wykryc, bez wpisania go doslownie.
+# The proper name of the project fenced off by the confidentiality boundary is
+# NEVER written here as a single literal - this file is tracked by git and
+# covered by the layer 3 regression
+# (test_identity_layer_is_clean_over_tracked_tree, plan 05-03/2), so a literal
+# in one piece would trip this repository's own gate. Joining three parts at
+# run time gives exactly the same character sequence the gate is to detect,
+# without writing it out.
 _PROJECT_NAME_JOINED = "Rail" + "Guard" + "Sentinel"
 
 
 def test_identity_layer_flags_project_name_shape():
-    text = "linia bez znaczenia\n" + _PROJECT_NAME_JOINED + " w srodku zdania\n"
-    violations = guard.scan_text_identity(text, "wymyslony.md")
+    text = "an irrelevant line\n" + _PROJECT_NAME_JOINED + " in the middle of a sentence\n"
+    violations = guard.scan_text_identity(text, "invented.md")
     assert len(violations) == 1
     assert violations[0].rule_id == guard.RULE_IDENTITY_PROJECT_NAME
     assert violations[0].layer == "identity"
@@ -294,7 +301,7 @@ def test_identity_layer_violation_reason_never_carries_project_name():
 
 
 def test_identity_layer_orders_violations_by_line():
-    text = "\n".join([_PROJECT_NAME_JOINED, "nic tu nie ma", _PROJECT_NAME_JOINED])
+    text = "\n".join([_PROJECT_NAME_JOINED, "nothing here", _PROJECT_NAME_JOINED])
     violations = guard.scan_text_identity(text, "x.md")
     lines = [v.line for v in violations]
     assert lines == sorted(lines)
@@ -304,7 +311,7 @@ def test_identity_layer_orders_violations_by_line():
 def test_structural_and_identity_layers_on_one_line_give_two_separate_violations(
     tmp_path,
 ):
-    target = tmp_path / "wymyslony.txt"
+    target = tmp_path / "invented.txt"
     target.write_text(
         FAKE_CLAUSE_SENTENCE + " " + _PROJECT_NAME_JOINED, encoding="utf-8"
     )
@@ -343,7 +350,7 @@ def test_identity_path_exceptions_classifies_rule_specific_and_all():
 
 def test_identity_path_exceptions_rejects_rule_name_outside_closed_set():
     with pytest.raises(guard.AllowListShapeError):
-        guard._identity_path_exceptions(["identity-path:nie-ma-takiej-reguly:x"])
+        guard._identity_path_exceptions(["identity-path:no-such-rule:x"])
 
 
 def test_identity_path_exceptions_rejects_unrecognized_identity_prefix():
@@ -375,7 +382,7 @@ def test_identity_rule_is_suppressed_honors_all_keyword():
 
 
 def test_identity_exception_does_not_suppress_structural_layer(tmp_path):
-    target = tmp_path / "wymyslony.txt"
+    target = tmp_path / "invented.txt"
     target.write_text(
         FAKE_CLAUSE_SENTENCE + " " + _PROJECT_NAME_JOINED, encoding="utf-8"
     )
@@ -394,7 +401,7 @@ def test_identity_exception_does_not_suppress_structural_layer(tmp_path):
 
 
 def test_structural_exception_does_not_suppress_identity_layer(tmp_path):
-    target = tmp_path / "wymyslony.txt"
+    target = tmp_path / "invented.txt"
     target.write_text(
         FAKE_CLAUSE_SENTENCE + " " + _PROJECT_NAME_JOINED, encoding="utf-8"
     )
@@ -414,22 +421,23 @@ def test_confidentiality_allow_file_declares_identity_project_name_exceptions():
     lines = guard._load_allow_patterns(REPO_ROOT / ".confidentiality-allow")
     exceptions = guard._identity_path_exceptions(lines)
     patterns = exceptions.get(guard.RULE_IDENTITY_PROJECT_NAME, [])
-    # Dwie sciezki, obie niosace tresc samego zakazu: plik listy wyjatkow musi
-    # miec prawo nazwac to, co wyjmuje, a plik bramki niesie literal we wzorcu,
-    # bo inaczej nie mialby czego dopasowac. Nic poza tymi dwiema.
+    # Two paths, both carrying the content of the prohibition itself: the
+    # exception list file has to be allowed to name what it lifts, and the gate
+    # file carries the literal inside its pattern, because otherwise it would
+    # have nothing to match against. Nothing beyond those two.
     assert sorted(patterns) == [
         ".confidentiality-allow",
         "scripts/confidentiality_guard.py",
     ]
 
 
-# --- Warstwa 3: tozsamosciowa - trzy reguly ksztaltu (05-03/2) --------------
+# --- Layer 3: the identity layer - the three shape rules (05-03/2) ---------
 #
-# Wartosci ponizej sa WYMYSLONE i celowo NIE koliduja z zadna zadeklarowana
-# wartoscia w .confidentiality-allow - test reguly ma dowodzic detekcji, wiec
-# musi uzywac wartosci NIEzadeklarowanej. Sklejone z fragmentow, zeby ten sam
-# plik (sledzony przez gita) nie wpadl przypadkiem na liste dopasowan wlasnej
-# regresji.
+# The values below are INVENTED and deliberately do NOT collide with any value
+# declared in .confidentiality-allow - a test of a rule has to prove detection,
+# so it has to use an UNDECLARED value. They are joined from fragments so that
+# this same file (tracked by git) does not accidentally land on the match list
+# of its own regression.
 _UNDECLARED_PRIVATE_IPV4 = "10." + "31.7.5"
 _UNDECLARED_MAC = "de:ad:be:" + "ef:00:01"
 _UNDECLARED_MAC_DASHED = "DE-AD-BE-" + "EF-00-01"
@@ -521,7 +529,7 @@ def test_device_role_prefixes_are_closed_set_of_uppercase_abbreviations():
 
 def test_identity_declared_values_rejects_value_matching_no_address_shape():
     with pytest.raises(guard.AllowListShapeError):
-        guard._identity_declared_values(["identity-value:nie-adres"])
+        guard._identity_declared_values(["identity-value:not-an-address"])
 
 
 def test_identity_declared_values_from_real_allow_file_is_in_measured_order_of_magnitude():
@@ -553,15 +561,15 @@ def test_identity_layer_orders_multiple_rules_on_same_line_by_rule_id():
     }
 
 
-# --- Regresja warstwy 3 nad CALYM drzewem sledzonym, razem z .planning/ -----
+# --- The layer 3 regression over the WHOLE tracked tree, .planning/ too ----
 #
-# Zakres jest CELOWO SZERSZY niz `test_guard_is_clean_over_tracked_tree`
-# (warstwa strukturalna), ktory pomija `.planning/`: katalog planowania jest
-# sledzony przez gita i jedzie do publicznego repozytorium (D-20), wiec adres
-# pracodawcy w notatce planistycznej jest dokladnie tak publiczny, jak w
-# pliku zrodlowym. Pominiecie uzasadnione dla odcisku jezyka normatywnego
-# (dokumentacja procesu planowania cytuje wlasne przyklady ilustracyjne)
-# nie przenosi sie na wzorce tozsamosciowe.
+# The scope is DELIBERATELY WIDER than `test_guard_is_clean_over_tracked_tree`
+# (the structural layer), which skips `.planning/`: the planning directory is
+# tracked by git and travels to the public repository (D-20), so an employer
+# address in a planning note is exactly as public as one in a source file. The
+# exemption justified for the fingerprint of normative language (the
+# documentation of the planning process quotes its own illustrative examples)
+# does not carry over to the identity patterns.
 
 
 def _all_tracked_text_paths_including_planning() -> list[str]:
@@ -657,14 +665,14 @@ def test_every_identity_address_match_in_tracked_tree_is_declared_or_exempted():
 
 def test_load_identity_local_literals_reads_existing_file(tmp_path):
     local_file = tmp_path / "lok.txt"
-    local_file.write_text("# komentarz\n\nWYMYSLONA-NAZWA\n", encoding="utf-8")
-    assert guard.load_identity_local_literals(local_file) == ("WYMYSLONA-NAZWA",)
+    local_file.write_text("# a comment\n\nINVENTED-NAME\n", encoding="utf-8")
+    assert guard.load_identity_local_literals(local_file) == ("INVENTED-NAME",)
 
 
 def test_load_identity_local_literals_missing_file_warns_and_returns_empty(
     tmp_path, capsys
 ):
-    missing = tmp_path / "nie-ma.txt"
+    missing = tmp_path / "missing.txt"
     assert guard.load_identity_local_literals(missing) == ()
     captured = capsys.readouterr()
     assert captured.err != ""
@@ -672,8 +680,8 @@ def test_load_identity_local_literals_missing_file_warns_and_returns_empty(
 
 
 def test_load_identity_local_literals_existing_empty_file_is_silent(tmp_path, capsys):
-    empty_file = tmp_path / "pusty.txt"
-    empty_file.write_text("# same komentarze\n\n", encoding="utf-8")
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_text("# comments only\n\n", encoding="utf-8")
     assert guard.load_identity_local_literals(empty_file) == ()
     captured = capsys.readouterr()
     assert captured.err == ""
@@ -681,31 +689,35 @@ def test_load_identity_local_literals_existing_empty_file_is_silent(tmp_path, ca
 
 def test_identity_layer_flags_local_literal_when_present():
     violations = guard.scan_text_identity(
-        "linia z WYMYSLONA-NAZWA w srodku", "x.md", local_literals=("wymyslona-nazwa",)
+        "a line with INVENTED-NAME in the middle",
+        "x.md",
+        local_literals=("invented-name",),
     )
     assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_LOCAL_LITERAL]
 
 
 def test_identity_layer_local_literal_matches_after_diacritics_and_case_fold():
     violations = guard.scan_text_identity(
-        "URZADZENIE-TESTOWE w podglosnej sieci",
+        "TEST-DEVICE-77 on an overheard network",
         "x.md",
-        local_literals=("urzadzenie-testowe",),
+        local_literals=("test-device-77",),
     )
     assert [v.rule_id for v in violations] == [guard.RULE_IDENTITY_LOCAL_LITERAL]
 
 
 def test_identity_layer_local_literal_reason_never_carries_the_literal():
     violations = guard.scan_text_identity(
-        "linia z WYMYSLONA-NAZWA w srodku", "x.md", local_literals=("wymyslona-nazwa",)
+        "a line with INVENTED-NAME in the middle",
+        "x.md",
+        local_literals=("invented-name",),
     )
     assert len(violations) == 1
-    assert "WYMYSLONA" not in violations[0].reason
-    assert "wymyslona" not in violations[0].reason.lower()
+    assert "INVENTED" not in violations[0].reason
+    assert "invented" not in violations[0].reason.lower()
 
 
 def test_identity_layer_absent_local_literals_yield_no_local_literal_violation():
-    assert guard.scan_text_identity("dowolny tekst", "x.md") == []
+    assert guard.scan_text_identity("any text", "x.md") == []
 
 
 def test_cli_help_mentions_identity_local_file_flag(capsys):
@@ -716,16 +728,16 @@ def test_cli_help_mentions_identity_local_file_flag(capsys):
     assert "--identity-local-file" in captured.out
 
 
-# --- Warstwa tekstowa zadeklarowanych plikow binarnych (05-03/3) ------------
+# --- The text layer of the declared binary files (05-03/3) -----------------
 #
-# Sam skrypt bramki czyta wylacznie tresc tekstowa (importuje WYLACZNIE
-# biblioteke standardowa), wiec plikow binarnych nie obejmuje i obejmowac nie
-# bedzie - dolozenie czytnika PDF do niego zlamaloby izolacje zaleznosciowa,
-# ktora jest warunkiem dzialania haka pre-commit bez synchronizacji
-# srodowiska. Ten test w pakiecie MOZE to zrobic, bo pakiet ma zaleznosci
-# deweloperskie (pypdf) - to jest podzial, nie luka. Deklaracje plikow
-# binarnych IMPORTUJEMY z bramki oznaczenia odrzuconego, nie tworzymy drugiej
-# listy (jedno zrodlo prawdy, wzorem D-19).
+# The gate script itself reads text content only (it imports the standard
+# library ONLY), so it does not cover binary files and will not - adding a PDF
+# reader to it would break the dependency isolation that is the condition for
+# the pre-commit hook to work without syncing an environment. This test in the
+# suite CAN do it, because the suite has development dependencies (pypdf) -
+# that is a division of labour, not a gap. The binary file declarations are
+# IMPORTED from the rejected designation gate rather than kept as a second
+# list (one source of truth, following D-19).
 
 
 def test_declared_binary_files_text_layer_carries_no_undeclared_identity_match():
@@ -740,14 +752,14 @@ def test_declared_binary_files_text_layer_carries_no_undeclared_identity_match()
     undeclared: list[str] = []
     for relative_path, strategy in BINARY_SCAN_TARGETS.items():
         target = REPO_ROOT / relative_path
-        assert target.is_file(), f"Zadeklarowany plik nie istnieje: {relative_path}"
+        assert target.is_file(), f"The declared file does not exist: {relative_path}"
 
         if strategy == "pdf-text":
             reader = pypdf.PdfReader(str(target))
             text = "\n".join(page.extract_text() or "" for page in reader.pages)
         elif strategy == "raw-bytes":
             text = target.read_bytes().decode("latin-1")
-        else:  # pragma: no cover - zamkniety zbior strategii
+        else:  # pragma: no cover - a closed set of strategies
             raise AssertionError(f"Nieznana strategia: {strategy}")
 
         for violation in guard.scan_text_identity(
@@ -777,15 +789,15 @@ def test_guard_is_clean_over_tracked_tree(monkeypatch):
 
     text_paths: list[str] = []
     for rel_path in all_paths:
-        # `.planning/` to badania i notatki planistyczne autora, nie tresc
-        # projektu, ktora ta bramka ma chronic. Zawiera m.in.
-        # `01-RESEARCH.md`, ktory cytuje - jako przyklad ilustracyjny we
-        # wlasnym Pattern 2 - dokladnie ten sam wymyslony ksztalt zdania
-        # klauzula+modalnosc, co ten plik testowy. To nie jest tresc
-        # normatywna ani realny wyciek, tylko dokumentacja procesu
-        # planowania, wiec zostaje poza zakresem tego testu regresyjnego
-        # (ktory pilnuje falszywych alarmow na WLASNEJ DOKUMENTACJI
-        # PROJEKTU, nie na wewnetrznych notatkach planistycznych).
+        # `.planning/` holds the author's research and planning notes, not the
+        # project content this gate is meant to protect. It contains, among
+        # other things, `01-RESEARCH.md`, which quotes - as an illustrative
+        # example in its own Pattern 2 - exactly the same invented
+        # clause-plus-modal sentence shape as this test file. That is neither
+        # normative content nor a real leak, only documentation of the planning
+        # process, so it stays out of the scope of this regression test (which
+        # guards against false alarms over the PROJECT'S OWN DOCUMENTATION, not
+        # over internal planning notes).
         if rel_path.startswith(".planning/"):
             continue
         full_path = REPO_ROOT / rel_path

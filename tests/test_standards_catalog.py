@@ -1,16 +1,16 @@
-"""Bramka katalogu norm: parafraza, brak tekstu doslownego, wpis prowizoryczny
-(STD-01, STD-02).
+"""Gate for the standards catalogue: the paraphrase, the absence of verbatim
+text, the provisional entry (STD-01, STD-02).
 
-Zaden test w tym pliku nie zawiera fragmentu tekstu normy - testy badaja
-ksztalt i pola, nigdy tresc. Linia naruszajaca, potrzebna do dowiedzenia,
-ze `scan_text_structural` w ogole ma zeby, jest SKLEJONA w czasie dzialania
-z osobnych zmiennych (numer klauzuli, termin modalny wzięty z
-`guard.NORMATIVE_MODAL_TERMS`, dopelnienie dlugosci) - zaden pojedynczy
-wiersz ZRODLA tego pliku nie niesie jednoczesnie kropkowanego numeru i
-modalnosci normatywnej, wiec bramka poufnosci nie zapala sie na SAMYM
-PLIKU TESTOWYM i nie trzeba dopisywac go do `.confidentiality-allow`
-(ten plik ostrzega, ze wpis na cala sciezke zdejmuje warstwe strukturalna
-z CALEGO pliku, takze z tresci dopisanej pozniej).
+No test in this file contains a fragment of the text of a standard - the tests
+examine shape and fields, never content. The violating line needed to prove
+that `scan_text_structural` has teeth at all is ASSEMBLED at run time from
+separate variables (the clause number, a modal term taken from
+`guard.NORMATIVE_MODAL_TERMS`, padding for the length) - no single line of
+this file's SOURCE carries both a dotted number and a normative modal term at
+once, so the confidentiality gate does not trip on THE TEST FILE ITSELF and
+there is no need to add it to `.confidentiality-allow` (that file warns that a
+whole-path entry lifts the structural layer from the WHOLE file, including
+content added later).
 """
 
 from __future__ import annotations
@@ -48,15 +48,13 @@ FIXTURE_RELATIVE = "tests/fixtures/pcap/modbus_write_single_register.pcap"
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "pcap"
 GENERATED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-POLISH_DIACRITICS = "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"
-
 DEFAULT_ENTRY: dict = {
     "standard": "TEST-STANDARD",
     "edition": "2020",
     "clause": "T 1.1",
-    "clause_title": "Tytul testowy",
+    "clause_title": "Test clause title",
     "clause_title_source": "own",
-    "paraphrase": "Testowa parafraza, nigdy cytat normy.",
+    "paraphrase": "A test paraphrase, never a quote of a standard.",
     "verified": False,
     "verification_note": "Uwaga testowa, wpis prowizoryczny.",
 }
@@ -68,9 +66,9 @@ def _write_catalog(
     overrides: dict | None = None,
     remove_fields: list[str] | None = None,
 ) -> Path:
-    """Zapisuje jeden `catalog.yaml` z jednym wpisem pod `catalog_root`.
-    Wydzielona wspolna logika, zeby przypadek brakujacego i pustego pola
-    wolal ta sama funkcje pomocnicza, wzorzec `tests/test_fixture_manifest.py`."""
+    """Writes one `catalog.yaml` with one entry under `catalog_root`. The
+    shared logic is extracted so that the missing-field and empty-field cases
+    call the same helper, the `tests/test_fixture_manifest.py` pattern."""
     entry = dict(DEFAULT_ENTRY)
     if overrides:
         entry.update(overrides)
@@ -87,7 +85,8 @@ def _write_catalog(
     return catalog_path
 
 
-# --- Warstwa strukturalna bramki poufnosci wolana na tresci katalogu -------
+# --- The structural layer of the confidentiality gate, called over the ----
+# --- content of the catalogue ---------------------------------------------
 
 
 def test_scan_text_structural_returns_empty_list_for_catalog_content():
@@ -96,8 +95,8 @@ def test_scan_text_structural_returns_empty_list_for_catalog_content():
 
 
 def test_scan_text_structural_flags_composed_clause_and_modal_line():
-    # Sklejone z osobnych zmiennych - patrz docstring modulu. Zaden z tych
-    # przypisan nie niesie jednoczesnie numeru i modalnosci na jednej linii.
+    # Assembled from separate variables - see the module docstring. Not one of
+    # these assignments carries a number and a modal term on the same line.
     clause_prefix = "12"
     clause_suffix = "3.4"
     clause_number = f"{clause_prefix}.{clause_suffix}"
@@ -111,7 +110,7 @@ def test_scan_text_structural_flags_composed_clause_and_modal_line():
     assert violations[0].rule_id == guard.RULE_STRUCTURAL_CLAUSE_MODAL
 
 
-# --- Ksztalt wpisu w prawdziwym katalogu ------------------------------------
+# --- The shape of an entry in the real catalogue ---------------------------
 
 
 def test_catalog_entries_have_required_nonempty_fields():
@@ -138,7 +137,8 @@ def test_catalog_edition_and_clause_are_strings_not_numbers():
         assert isinstance(entry["clause"], str)
 
 
-# --- Kontrakt schematu na katalogu tymczasowym: pole brakujace i puste -----
+# --- The schema contract over a temporary catalogue: a missing field and ---
+# --- an empty one ---------------------------------------------------------
 
 
 def test_load_catalog_rejects_missing_required_field(tmp_path):
@@ -159,8 +159,8 @@ def test_load_catalog_rejects_empty_paraphrase(tmp_path):
 def test_load_catalog_rejects_empty_string_field_same_as_missing(tmp_path):
     for field in mapper.REQUIRED_CATALOG_FIELDS:
         if field == "verified":
-            # verified=False jest legalna, jedyna poprawna wartosc wpisu
-            # prowizorycznego - nie moze byc traktowane jak brak pola.
+            # verified=False is legitimate, the only valid value of a
+            # provisional entry - it must not be treated as a missing field.
             continue
         sub = tmp_path / f"empty_{field}"
         _write_catalog(sub, overrides={field: ""})
@@ -175,17 +175,18 @@ def test_load_catalog_accepts_verified_false_without_raising(tmp_path):
     assert catalog[("TEST-STANDARD", "T 1.1")]["verified"] is False
 
 
-# --- Grupa nowa: bramka typu pola katalogu (STD-03, STD-05, G-04-2) --------
+# --- The new group: the gate on catalogue field types (STD-03, STD-05, -----
+# --- G-04-2) --------------------------------------------------------------
 #
-# Zamyka luke UAT G-04-2: wpis z polem `verified` zapisanym jako napis albo
-# liczba wczytywal sie bez bledu, a `resolve` zamienial kazdy niepusty napis
-# w `True` przez `bool(...)`. Testy nizej dowodza, ze bramka siedzi w warstwie
-# WCZYTUJACEJ, nie tylko w tym pakiecie testow.
+# It closes the UAT gap G-04-2: an entry whose `verified` field was written as
+# a string or a number loaded without an error, and `resolve` turned every
+# non-empty string into `True` through `bool(...)`. The tests below prove the
+# gate sits in the LOADING layer, not only in this test suite.
 
 
 def test_load_catalog_rejects_verified_as_string(tmp_path):
     sub = tmp_path / "verified_string"
-    _write_catalog(sub, overrides={"verified": "prawda"})
+    _write_catalog(sub, overrides={"verified": "true"})
     with pytest.raises(mapper.StandardsError):
         mapper.load_catalog(catalog_root=sub)
 
@@ -198,8 +199,8 @@ def test_load_catalog_rejects_verified_as_int(tmp_path):
 
 
 def test_load_catalog_accepts_verified_true_without_raising(tmp_path):
-    # clause_title_source musi byc "copy" tutaj - regula miedzypolowa
-    # z G-04-3c odrzuca podniesione `verified` przy prowieniencji `wlasny`.
+    # clause_title_source has to be "copy" here - the cross-field rule of
+    # G-04-3c rejects a raised `verified` with the `own` provenance.
     sub = tmp_path / "verified_true"
     _write_catalog(
         sub, overrides={"verified": True, "clause_title_source": "copy"}
@@ -273,22 +274,22 @@ def test_type_error_komunikat_niesie_wszystkie_pola_naraz(tmp_path):
     assert "verified" in message
 
 
-# --- Grupa nowa: prowieniencja tytulu punktu (STD-03, G-04-3c) -------------
+# --- The new group: the provenance of a clause title (STD-03, G-04-3c) ----
 #
-# Zamyka luke UAT G-04-3c: katalog nie niosl w danych roznicy miedzy tytulem
-# potwierdzonym wobec egzemplarza a opisem wlasnym, wiec oba renderowaly sie
-# w tym samym ksztalcie.
+# It closes the UAT gap G-04-3c: the catalogue carried no difference in its
+# data between a title confirmed against a copy of the standard and a
+# description of our own, so both rendered in the same shape.
 
 
 def test_load_catalog_rejects_clause_title_source_outside_closed_set(tmp_path):
     sub = tmp_path / "clause_title_source_bad_value"
-    _write_catalog(sub, overrides={"clause_title_source": "zmyslony"})
+    _write_catalog(sub, overrides={"clause_title_source": "made-up"})
 
     with pytest.raises(mapper.StandardsError) as excinfo:
         mapper.load_catalog(catalog_root=sub)
 
     message = str(excinfo.value)
-    assert "zmyslony" in message
+    assert "made-up" in message
     assert "copy" in message
     assert "own" in message
 
@@ -345,17 +346,17 @@ def test_resolve_passes_verified_value_without_conversion():
     assert ref.verified is entry["verified"]
 
 
-# Wpis probny o zlym typie pola weryfikacji, wpisany do PRAWDZIWEGO drzewa
-# pakietu - wzorzec `probe_catalog_and_check` z grupy siodmej nizej w tym
-# pliku. Zaden check nie odwoluje sie do tej pary, wiec sam fakt obecnosci
-# pliku w drzewie katalogu norm wystarcza, by zlamac `load_catalog()` na
-# KAZDYM wywolaniu (skan jest rekurencyjny nad calym `CATALOG_ROOT`).
+# A probe entry with the wrong type in its verification field, written into
+# the REAL package tree - the `probe_catalog_and_check` pattern of group seven
+# below in this file. No check references that pair, so the mere presence of
+# the file in the standards catalogue tree is enough to break `load_catalog()`
+# on EVERY call (the scan is recursive over the whole `CATALOG_ROOT`).
 BAD_TYPE_PROBE_DIR_NAME = "probe_bad_type_catalog"
 BAD_TYPE_PROBE_DIR = STANDARDS_ROOT / BAD_TYPE_PROBE_DIR_NAME
 
 
 def _write_bad_type_probe_catalog() -> None:
-    _write_catalog(BAD_TYPE_PROBE_DIR, overrides={"verified": "prawda"})
+    _write_catalog(BAD_TYPE_PROBE_DIR, overrides={"verified": "true"})
 
 
 def _remove_bad_type_probe_catalog() -> None:
@@ -366,8 +367,8 @@ def _remove_bad_type_probe_catalog() -> None:
 @pytest.fixture
 def bad_type_probe_catalog():
     assert not BAD_TYPE_PROBE_DIR.exists(), (
-        f"{BAD_TYPE_PROBE_DIR} juz istnieje - poprzedni przebieg testu nie "
-        "posprzatal po sobie."
+        f"{BAD_TYPE_PROBE_DIR} already exists - an earlier test run did not "
+        "clean up after itself."
     )
     _write_bad_type_probe_catalog()
     try:
@@ -402,7 +403,7 @@ def test_untouched_catalog_report_carries_provisional_status_for_every_reference
     fixture = FIXTURE_DIR / "modbus_write_single_register.pcap"
     result = analyze(fixture, out_dir=tmp_path, generated_at=GENERATED_AT)
 
-    assert result.analysis["findings"], "Fixture bazowy nie dal ani jednego findingu."
+    assert result.analysis["findings"], "The base fixture yielded not a single finding."
     total_refs = sum(len(f["standard_refs"]) for f in result.analysis["findings"])
     assert total_refs > 0
 
@@ -412,10 +413,11 @@ def test_untouched_catalog_report_carries_provisional_status_for_every_reference
     assert provisional_marker_count == total_refs
 
 
-# --- Encoding: polskie znaki z parafrazy przechodza bez escapowania --------
+# --- Encoding: the artifact carries no escape sequence and does carry a ---
+# --- paraphrase from the catalogue ----------------------------------------
 
 
-def test_analysis_json_carries_polish_diacritics_without_escaping(tmp_path):
+def test_analysis_json_carries_no_escape_and_a_catalogue_paraphrase(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
@@ -443,24 +445,25 @@ def test_analysis_json_carries_polish_diacritics_without_escaping(tmp_path):
     )
 
 
-# --- Funkcje pomocnicze wspolne dla grup 4 i 5 -------------------------------
+# --- Helpers shared by groups 4 and 5 --------------------------------------
 
 
 def analyzable_fixtures() -> list[Path]:
-    """Kazdy fixture z katalogu, ktory konczy analize bez wyjatku. Wzorzec
-    kopiowany z `tests/test_report_forbidden_phrases.py::_analyzable_fixtures`
-    - lista budowana GLOBEM, nie recznym wyliczeniem nazw, zeby nowy fixture
-    wchodzil pod te bramke bez zmiany tego pliku."""
+    """Every fixture of the directory whose analysis finishes without an
+    exception. The pattern is copied from
+    `tests/test_report_forbidden_phrases.py::_analyzable_fixtures` - the list is
+    built by GLOB rather than by naming the files by hand, so that a new
+    fixture falls under this gate without a change to this file."""
     return sorted(FIXTURE_DIR.glob("*.pcap")) + sorted(FIXTURE_DIR.glob("*.pcapng"))
 
 
 def check_specs() -> list[dict]:
-    """Surowe slowniki odczytane z kazdego pliku YAML pod katalogiem
-    checkow, w tej samej kolejnosci posortowanej co `engine.discover_checks`.
-    Potrzebne osobno od odkrywania checkow: `CheckSpec.spec` niesie surowy
-    slownik, ale ta bramka porownuje takze pole edycji kazdego powolania z
-    katalogiem, co jest wygodniejsze na surowym slowniku niz na rekordzie
-    `CheckSpec`."""
+    """The raw dictionaries read from every YAML file under the checks
+    directory, in the same sorted order as `engine.discover_checks`. Needed
+    separately from check discovery: `CheckSpec.spec` carries the raw
+    dictionary, but this gate also compares the edition field of every citation
+    against the catalogue, which is more convenient over a raw dictionary than
+    over a `CheckSpec` record."""
     return [
         yaml.safe_load(p.read_text(encoding="utf-8"))
         for p in sorted(engine.CHECKS_ROOT.rglob("*.yaml"))
@@ -471,13 +474,14 @@ def _analyze_or_skip(fixture: Path, out_dir: Path):
     try:
         return analyze(fixture, out_dir=out_dir, generated_at=GENERATED_AT)
     except (CaptureTruncatedError, CaptureFormatError):
-        pytest.skip(f"fixture {fixture.name} nie produkuje artefaktow (brama D-01)")
+        pytest.skip(f"fixture {fixture.name} produces no artifacts (the D-01 gate)")
 
 
 def _dedupe_pairs(standards: list[dict]) -> list[tuple[str, str]]:
-    """Usuwa powtorzone pary (standard, clause), zachowujac PIERWSZE
-    wystapienie - lustro `engine._dedupe_standards`, ale zwraca same pary
-    do porownania z kolejnoscia powolan findingu, nie slowniki pelne."""
+    """Removes repeated (standard, clause) pairs, keeping the FIRST occurrence
+    - a mirror of `engine._dedupe_standards`, but returning the pairs alone for
+    comparison with the citation order of a finding, not the full
+    dictionaries."""
     seen: set[tuple[str, str]] = set()
     ordered: list[tuple[str, str]] = []
     for entry in standards:
@@ -489,8 +493,8 @@ def _dedupe_pairs(standards: list[dict]) -> list[tuple[str, str]]:
     return ordered
 
 
-# --- Grupa czwarta: kontrakt STD-03/STD-05 nad KAZDYM findingiem KAZDEGO ----
-# --- analizowalnego fixture'u -----------------------------------------------
+# --- Group four: the STD-03/STD-05 contract over EVERY finding of EVERY ---
+# --- analyzable fixture ---------------------------------------------------
 
 
 @pytest.mark.parametrize("fixture", analyzable_fixtures(), ids=lambda p: p.name)
@@ -498,8 +502,8 @@ def test_every_finding_has_nonempty_standard_refs(fixture, tmp_path):
     result = _analyze_or_skip(fixture, tmp_path)
     for finding in result.analysis["findings"]:
         assert finding["standard_refs"], (
-            f"Finding {finding['check_id']} w {fixture.name} nie niesie ani "
-            "jednego powolania."
+            f"Finding {finding['check_id']} in {fixture.name} carries not a "
+            "single citation."
         )
 
 
@@ -509,8 +513,8 @@ def test_every_finding_has_iec_62443_3_3_reference(fixture, tmp_path):
     for finding in result.analysis["findings"]:
         standards = {ref["standard"] for ref in finding["standard_refs"]}
         assert "IEC-62443-3-3" in standards, (
-            f"Finding {finding['check_id']} w {fixture.name} nie niesie "
-            f"powolania na IEC-62443-3-3: {standards}"
+            f"Finding {finding['check_id']} in {fixture.name} carries no "
+            f"IEC-62443-3-3 citation: {standards}"
         )
 
 
@@ -519,7 +523,7 @@ def test_every_reference_has_nonempty_edition_clause_and_title(fixture, tmp_path
     result = _analyze_or_skip(fixture, tmp_path)
     for finding in result.analysis["findings"]:
         for ref in finding["standard_refs"]:
-            assert ref["edition"], f"Powolanie findingu {finding['check_id']} bez edycji."
+            assert ref["edition"], f"A citation of finding {finding['check_id']} has no edition."
             assert ref["clause"], f"Powolanie findingu {finding['check_id']} bez punktu."
             assert ref["clause_title"], (
                 f"Powolanie findingu {finding['check_id']} bez tytulu punktu."
@@ -554,12 +558,12 @@ def test_reference_order_is_identical_across_two_runs(tmp_path):
 
 
 def test_reference_count_boundary_never_zero_across_all_fixtures(tmp_path):
-    """Sonda krawedziowa: zbior liczb powolan wystepujacych w findingach
-    wszystkich analizowalnych fixture'ow zawiera co najmniej wartosc jeden
-    i nie zawiera zera. Po planie 04-05 ten sam test zobaczy takze wartosc
-    dwa i przejdzie bez zmiany, bo warunkiem jest brak zera, a nie
-    konkretna liczba - nie przypinac tego testu do liczby, ktora zmieni sie
-    w nastepnym planie."""
+    """An edge probe: the set of citation counts occurring in the findings of
+    every analyzable fixture contains at least the value one and does not
+    contain zero. Since plan 04-05 that same test also sees the value two and
+    passes unchanged, because the condition is the absence of zero rather than
+    a particular number - do not pin this test to a number that changes in the
+    next plan."""
     counts: set[int] = set()
     for i, fixture in enumerate(analyzable_fixtures()):
         try:
@@ -570,15 +574,16 @@ def test_reference_count_boundary_never_zero_across_all_fixtures(tmp_path):
             counts.add(len(finding["standard_refs"]))
 
     assert 0 not in counts
-    assert counts, "Zaden fixture nie dal ani jednego findingu."
+    assert counts, "No fixture yielded a single finding."
 
 
-# --- Grupa piata: kontrakt nad plikami checkow i nad katalogiem norm -------
+# --- Group five: the contract over the check files and over the ------------
+# --- standards catalogue --------------------------------------------------
 
 
 def test_every_check_file_has_nonempty_standards_list():
     for spec in check_specs():
-        assert spec.get("standards"), f"Check {spec.get('id')} bez listy powolan."
+        assert spec.get("standards"), f"Check {spec.get('id')} has no citation list."
 
 
 def test_every_check_reference_resolves_against_catalog():
@@ -587,8 +592,9 @@ def test_every_check_reference_resolves_against_catalog():
     )
     for spec in check_specs():
         for ref in spec["standards"]:
-            # Brak wyjatku jest cala tresc tego testu - `resolve` podnosi
-            # `StandardsError`, gdy para (standard, clause) nie jest w katalogu.
+            # The absence of an exception is the whole content of this test -
+            # `resolve` raises `StandardsError` when the (standard, clause) pair
+            # is not in the catalogue.
             mapper.resolve(ref["standard"], ref["clause"], zone_model=zone_model)
 
 
@@ -598,30 +604,30 @@ def test_check_reference_edition_matches_catalog_edition():
         for ref in spec["standards"]:
             catalog_entry = catalog[(ref["standard"], ref["clause"])]
             assert ref["edition"] == catalog_entry["edition"], (
-                f"Check {spec['id']}: edycja {ref['edition']!r} w pliku checka "
-                f"rozjezdza sie z edycja katalogu {catalog_entry['edition']!r} "
-                f"dla {ref['standard']} {ref['clause']}."
+                f"Check {spec['id']}: the edition {ref['edition']!r} in the check "
+                f"file drifts from the catalogue edition "
+                f"{catalog_entry['edition']!r} for {ref['standard']} {ref['clause']}."
             )
 
 
-# --- Checki probne na katalogu tymczasowym: schemat pusty/brakujacy i -------
-# --- deduplikacja/kolejnosc w findingu ---------------------------------------
+# --- Probe checks over a temporary catalogue: an empty or missing schema ---
+# --- and the deduplication and order of citations in a finding ------------
 
 CHECK_SPEC_DEFAULTS: dict = {
     "id": "probe-std-check",
-    "title": "Check probny bramki STD-03",
+    "title": "Probe check of the STD-03 gate",
     "applies_to": {"protocol": "modbus-tcp"},
     "severity": "high",
-    "rationale": "Wlasna testowa przyczyna, nigdy cytat normy.",
+    "rationale": "Our own test rationale, never a quote of a standard.",
     "standards": [{"standard": "IEC-62443-3-3", "edition": "2013", "clause": "SR 1.1"}],
     "evaluator": "probe:evaluate",
-    "remediation": "Testowe zalecenie, nieuzywane poza tym testem.",
+    "remediation": "A test remediation, used nowhere but in this test.",
 }
 
-# Evaluator zwracajacy dokladnie jeden finding z pierwszego zdarzenia -
-# uzyty przez testy deduplikacji/kolejnosci powolan, ktorym nie zalezy na
-# logice checka, tylko na tym, ze finding w ogole powstal. Wzorzec
-# `tests/test_check_engine.py::EVALUATOR_ONE_FINDING_SOURCE`.
+# An evaluator returning exactly one finding from the first event - used by
+# the citation deduplication and ordering tests, which do not care about
+# the logic of a check, only that a finding came into being at all. The
+# `tests/test_check_engine.py::EVALUATOR_ONE_FINDING_SOURCE` pattern.
 PROBE_EVALUATOR_SOURCE = textwrap.dedent(
     """
     from __future__ import annotations
@@ -650,11 +656,11 @@ def _write_probe_check(
     spec_overrides: dict | None = None,
     remove_fields: list[str] | None = None,
 ) -> Path:
-    """Zapisuje jeden check probny (YAML plus siostrzany evaluator) pod
-    `checks_dir/subdir`. Wzorzec `tests/test_check_engine.py::_write_check`,
-    zapisany tutaj wprost zamiast importowany miedzy plikami testowymi -
-    import modulu testowego z innego pliku testowego jest krucha zaleznoscia
-    od kolejnosci zbierania testow przez pytest."""
+    """Writes one probe check (the YAML plus its sibling evaluator) under
+    `checks_dir/subdir`. The `tests/test_check_engine.py::_write_check`
+    pattern, written out here rather than imported between test files - an
+    import of one test module from another is a fragile dependency on the order
+    in which pytest collects tests."""
     target_dir = checks_dir / subdir
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -730,17 +736,17 @@ def test_two_distinct_clause_entries_stay_separate_in_finding(tmp_path):
     assert [entry["clause"] for entry in findings[0]["standards"]] == ["SR 4.1", "SR 1.1"]
 
 
-# --- Grupa szosta: kontrakt zduplikowanej pary i przypadkow brzegowych -----
-# --- wczytywania miedzy dwoma plikami katalogu ------------------------------
+# --- Group six: the duplicate pair contract and the loading edge cases ----
+# --- across two catalogue files -------------------------------------------
 
 
 def _write_catalog_pair(
     root: Path, *, first: dict, second: dict
 ) -> tuple[Path, Path]:
-    """Zapisuje DWA pliki `catalog.yaml`, kazdy w OSOBNYM podkatalogu jednego
-    katalogu tymczasowego, zeby rekurencyjny skan `load_catalog` znalazl oba.
-    Zwraca obie sciezki, w kolejnosci alfabetycznej podkatalogow (`a`, `b`),
-    czyli w tej samej kolejnosci, w ktorej `sorted(rglob(...))` je odczyta."""
+    """Writes TWO `catalog.yaml` files, each in a SEPARATE subdirectory of one
+    temporary directory, so that the recursive scan of `load_catalog` finds
+    both. Returns both paths, in the alphabetical order of the subdirectories
+    (`a`, `b`), that is in the same order `sorted(rglob(...))` reads them."""
     path_a = _write_catalog(root / "a", overrides=first)
     path_b = _write_catalog(root / "b", overrides=second)
     return path_a, path_b
@@ -789,10 +795,10 @@ def test_load_catalog_on_completely_empty_file_returns_empty_mapping(tmp_path):
     assert mapper.load_catalog(catalog_root=tmp_path) == {}
 
 
-# Wpis z pustym polem edycji: przypadek juz pokryty przez
-# `test_load_catalog_rejects_empty_string_field_same_as_missing`, ktory
-# iteruje po WSZYSTKICH `REQUIRED_CATALOG_FIELDS` (edition wliczajac) - nie
-# dublowany tutaj.
+# An entry with an empty edition field: a case already covered by
+# `test_load_catalog_rejects_empty_string_field_same_as_missing`, which
+# iterates over ALL of `REQUIRED_CATALOG_FIELDS` (edition included) - not
+# duplicated here.
 
 
 def test_load_catalog_scan_order_is_identical_across_two_scans(tmp_path):
@@ -808,15 +814,16 @@ def test_load_catalog_scan_order_is_identical_across_two_scans(tmp_path):
     assert first_scan == second_scan
 
 
-# --- Grupa siodma: bramka zerowej zmiany kodu (kryterium 4 fazy) -----------
+# --- Group seven: the zero-code-change gate (criterion 4 of the phase) ----
 #
-# Wzorcem jest `tests/test_check_engine.py::test_new_check_discovered_without_engine_change`,
-# linia po linii: plik probny wpisany do PRAWDZIWEGO katalogu norm
-# (`src/wayside/standards/`), nie do `tmp_path` - dokladnie to dowodzi
-# kryterium 4 fazy (druga norma wchodzi jako plik danych, bez zmiany zadnego
-# pliku `.py` pod katalogiem pakietu). Nazwa podkatalogu probnego jest STALA,
-# nie losowa - nieudany wczesniejszy przebieg zostawilby slad zmieniajacy
-# wynik innych testow (ten sam powod co w `test_check_engine.py`).
+# The model is `tests/test_check_engine.py::test_new_check_discovered_without_engine_change`,
+# line for line: a probe file written into the REAL standards catalogue
+# (`src/wayside/standards/`), not into `tmp_path` - that is exactly what proves
+# criterion 4 of the phase (a second standard enters as a data file, without a
+# change to any `.py` file under the package directory). The name of the probe
+# subdirectory is CONSTANT, not random - a failed earlier run would leave a
+# trace changing the result of other tests (the same reason as in
+# `test_check_engine.py`).
 
 PACKAGE_ROOT = REPO_ROOT / "src" / "wayside"
 PROBE_CATALOG_DIR_NAME = "probe_extensibility_catalog"
@@ -827,31 +834,32 @@ PROBE_CATALOG_ENTRY: dict = {
     "standard": PROBE_STANDARD,
     "edition": "9999",
     "clause": PROBE_CLAUSE,
-    "clause_title": "Tytul probny bramki rozszerzalnosci katalogu norm",
+    "clause_title": "Probe clause title of the standards catalogue extensibility gate",
     "clause_title_source": "own",
-    "paraphrase": "Testowa parafraza bramki rozszerzalnosci katalogu norm, nigdy cytat normy.",
+    "paraphrase": "A test paraphrase of the standards catalogue extensibility gate, never a quote of a standard.",
     "verified": False,
-    "verification_note": "Wpis probny, uzywany wylacznie przez test bramki rozszerzalnosci.",
+    "verification_note": "A probe entry, used only by the extensibility gate test.",
 }
 
-# Check probny dopisujemy do listy powolan JEDNEGO prawdziwego checka -
-# bez tego probna para nie ma jak wejsc do findingu. `modbus-unauthenticated-write`
-# pasuje, bo fixture bazowy Modbusa daje dokladnie jeden finding tego checka.
+# The probe check is appended to the citation list of ONE real check -
+# without that the probe pair has no way into a finding.
+# `modbus-unauthenticated-write` fits, because the base Modbus fixture yields
+# exactly one finding of that check.
 PROBE_TARGET_CHECK_YAML = (
     REPO_ROOT / "src" / "wayside" / "checks" / "modbus" / "unauthenticated_write.yaml"
 )
-# Bajty, nie tekst: `Path.write_text` na Windows tlumaczy `\n` na `\r\n` przy
-# zapisie (domyslne `newline=None`), wiec przywrocenie przez tekst zmienia
-# koncowki linii pliku sledzonego przez git z LF na CRLF - pozorna, ale
-# realna modyfikacja widoczna w `git status`. Restore idzie WYLACZNIE przez
-# bajty, zeby byc bit-identyczny z oryginalem niezaleznie od platformy.
+# Bytes, not text: on Windows `Path.write_text` translates `\n` into `\r\n` on
+# write (the default `newline=None`), so restoring through text changes the
+# line endings of a git-tracked file from LF to CRLF - an apparent but real
+# modification visible in `git status`. The restore goes through BYTES ONLY, so
+# as to be bit identical to the original regardless of the platform.
 _PROBE_TARGET_ORIGINAL_BYTES = PROBE_TARGET_CHECK_YAML.read_bytes()
 _PROBE_TARGET_ORIGINAL_TEXT = _PROBE_TARGET_ORIGINAL_BYTES.decode("utf-8")
 
 
 def _package_python_files() -> list[Path]:
-    """Kazdy plik o rozszerzeniu `.py` pod katalogiem pakietu, rekurencyjnie,
-    z pominieciem katalogow ze skompilowanymi plikami cache."""
+    """Every file with the `.py` extension under the package directory,
+    recursively, skipping the directories of compiled cache files."""
     return sorted(p for p in PACKAGE_ROOT.rglob("*.py") if "__pycache__" not in p.parts)
 
 
@@ -897,8 +905,8 @@ def _cleanup_probe_catalog_and_check_after_module():
 @pytest.fixture
 def probe_catalog_and_check():
     assert not PROBE_CATALOG_DIR.exists(), (
-        f"{PROBE_CATALOG_DIR} juz istnieje - poprzedni przebieg testu nie "
-        "posprzatal po sobie."
+        f"{PROBE_CATALOG_DIR} already exists - an earlier test run did not "
+        "clean up after itself."
     )
     _write_probe_catalog_and_check()
     try:
@@ -937,7 +945,7 @@ def test_new_catalog_file_discovered_without_package_code_change(probe_catalog_a
         set(checksums_before.keys()) ^ set(checksums_after.keys())
     )
     assert not changed and not added_or_removed, (
-        f"Zmienione pliki: {changed}; dodane/usuniete pliki: {added_or_removed}"
+        f"Changed files: {changed}; added or removed files: {added_or_removed}"
     )
 
     analysis = json.loads((tmp_path / "analysis.json").read_text(encoding="utf-8"))
@@ -947,24 +955,25 @@ def test_new_catalog_file_discovered_without_package_code_change(probe_catalog_a
         for ref in finding["standard_refs"]
         if ref["standard"] == PROBE_STANDARD and ref["clause"] == PROBE_CLAUSE
     ]
-    assert probe_refs, "probna para powolania nie pojawila sie w analysis.json"
+    assert probe_refs, "the probe citation pair did not appear in analysis.json"
 
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
-    assert PROBE_STANDARD in report_text, "raport.md nie wymienia probnej sygnatury"
+    assert PROBE_STANDARD in report_text, "report.md does not mention the probe designation"
 
 
 def test_probe_catalog_and_check_leave_no_trace_after_cleanup(tmp_path):
-    """Bez tego testu bramka dowodzilaby, ze plik danych wchodzi, a nie ze
-    wychodzi bez sladu - a to drugie jest warunkiem, zeby pozostale testy
-    pakietu (w tym `test_reference_count_boundary_never_zero_across_all_fixtures`)
-    nadal liczyly to, co licza. Wola po tym, jak `probe_catalog_and_check`
-    (function-scoped) juz posprzatal w bloku `finally` po poprzednim tescie -
-    pytest uruchamia testy tego pliku w kolejnosci zapisu."""
+    """Without this test the gate would prove that a data file enters, not that
+    it leaves without a trace - and the latter is the condition for the rest of
+    the suite (`test_reference_count_boundary_never_zero_across_all_fixtures`
+    included) to keep counting what it counts. It runs after the
+    function-scoped `probe_catalog_and_check` has already cleaned up in its
+    `finally` block following the previous test - pytest runs the tests of this
+    file in the order they are written."""
     fixture = FIXTURE_DIR / "modbus_write_single_register.pcap"
 
     assert not PROBE_CATALOG_DIR.exists(), (
-        "katalog probny wciaz istnieje - kolejnosc testow w tym module jest "
-        "zlamana."
+        "the probe catalogue still exists - the order of the tests in this "
+        "module is broken."
     )
     assert PROBE_TARGET_CHECK_YAML.read_bytes() == _PROBE_TARGET_ORIGINAL_BYTES
 
@@ -991,10 +1000,10 @@ def test_probe_catalog_and_check_leave_no_trace_after_cleanup(tmp_path):
 
 
 def test_no_int_or_float_conversion_anywhere_in_standards_layer():
-    """Krawedz precision: zaden plik `.py` pod katalogiem warstwy normatywnej
-    nie wola konwersji do liczby calkowitej ani zmiennoprzecinkowej - na
-    sciezce powolania nie ma ani jednej takiej konwersji, co jest tu
-    SPRAWDZANE nad drzewem skladni, nie zalozone."""
+    """The precision edge case: no `.py` file under the directory of the
+    normative layer calls a conversion to an integer or to a floating point
+    number - there is not one such conversion on the citation path, which is
+    CHECKED here over the syntax tree rather than assumed."""
     bad: list[tuple[str, str]] = []
     for py_file in STANDARDS_ROOT.rglob("*.py"):
         tree = ast.parse(py_file.read_text(encoding="utf-8"))

@@ -121,7 +121,7 @@ def find_scapy_all_imports(root: Path) -> list[Path]:
 def _format_violation_message(hits: list[tuple[Path, int, str]]) -> str:
     lines = "\n".join(f"  {path}:{line}: wzorzec '{pattern}'" for path, line, pattern in hits)
     return (
-        "Zewnetrzny dekoder pakietow wykryty w zakresie objetym bramka LOCK-01:\n"
+        "An external packet decoder detected within the scope of the LOCK-01 gate:\n"
         f"{lines}\n"
         f"Decyzja i droga jej rewizji: {DECISION_DOC}"
     )
@@ -167,7 +167,7 @@ def test_violation_message_references_decision_doc():
     assert DECISION_DOC in message
 
 
-# --- Bramka na prawdziwym drzewie repozytorium --------------------------------
+# --- The gate over the real repository tree --------------------------------
 
 
 def test_scan_scope_is_clean_of_external_dissector_patterns():

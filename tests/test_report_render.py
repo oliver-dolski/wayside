@@ -213,9 +213,9 @@ def test_finding_block_carries_session_parties_line_before_evidence_line():
 
 
 def test_five_findings_of_same_check_have_five_distinct_session_parties_lines():
-    """Piec findingow tego samego checka w jednym przebiegu maja piec
-    roznych linii uczestnikow sesji, gdy sesje sa rozne (blok <behavior>
-    zadania 1 planu 04-09)."""
+    """Five findings of the same check in one run carry five different session
+    parties lines when the sessions differ (the <behavior> block of task 1 of
+    plan 04-09)."""
     findings = [
         _finding(
             evidence={
@@ -308,7 +308,7 @@ def test_own_provenance_finding_has_no_line_with_both_clause_and_title():
     assert "Title of our own description" in findings_body
 
 
-# --- Sekcja metodyki niesie tresc kazdego kryterium rubryki ----------------
+# --- The methodology section carries the text of every rubric criterion ---
 
 
 def test_methodology_section_carries_every_rubric_criterion():

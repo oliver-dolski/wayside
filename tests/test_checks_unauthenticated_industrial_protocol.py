@@ -115,7 +115,7 @@ def test_evaluate_eleven_events_one_session_one_write_yields_exactly_one_finding
     assert findings[0]["evidence"] == {"packet_number": 1, "session_id": 0}
 
 
-# --- evaluate: zdarzenia wylacznie odczytu takze daja finding (brak filtra)
+# --- evaluate: read-only events yield a finding too (no filter) ------------
 
 
 def test_evaluate_events_all_read_kind_still_yields_finding():

@@ -325,7 +325,7 @@ def _git_check_attr(attribute: str, path: str) -> str:
         text=True,
         check=True,
     )
-    # Format wyjscia: "sciezka: atrybut: wartosc"
+    # The output format: "path: attribute: value"
     return result.stdout.strip().rsplit(":", 1)[-1].strip()
 
 

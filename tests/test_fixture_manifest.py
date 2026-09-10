@@ -64,7 +64,7 @@ def test_every_fixture_file_has_manifest_entry():
 def test_every_manifest_entry_points_to_existing_file():
     manifest = load_manifest(FIXTURE_DIR)
     orphaned = orphaned_manifest_entries(FIXTURE_DIR, manifest)
-    assert not orphaned, f"Wpis manifestu bez odpowiadajacego pliku: {orphaned}"
+    assert not orphaned, f"A manifest entry with no corresponding file: {orphaned}"
 
 
 # --- Ksztalt kazdego wpisu ----------------------------------------------------
@@ -83,7 +83,7 @@ def test_synthetic_entries_have_generator_pointing_to_existing_script():
         if entry["source"] != "synthetic":
             continue
         generator = entry.get("generator")
-        assert generator, f"Wpis syntetyczny bez pola 'generator': {entry['path']}"
+        assert generator, f"A synthetic entry with no 'generator' field: {entry['path']}"
         script_path = generator.split("::", 1)[0]
         assert (REPO_ROOT / script_path).exists(), (
             f"The generator script does not exist: {script_path} (entry {entry['path']})"
@@ -100,7 +100,7 @@ def test_non_synthetic_entries_require_url_and_license():
         if entry["source"] == "synthetic":
             continue
         assert entry.get("url"), f"Non-synthetic entry without a 'url' field: {entry['path']}"
-        assert entry.get("license"), f"Wpis niesyntetyczny bez pola 'license': {entry['path']}"
+        assert entry.get("license"), f"A non-synthetic entry with no 'license' field: {entry['path']}"
 
 
 # --- Zgodnosc sum kontrolnych --------------------------------------------------

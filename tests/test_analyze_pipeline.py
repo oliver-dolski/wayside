@@ -249,7 +249,7 @@ def test_write_fixture_pcapng_produces_same_finding_as_classic_pcap(tmp_path):
     assert check_ids == {"modbus-unauthenticated-write", "unauthenticated-industrial-protocol"}
 
 
-# --- Format nierozpoznany i sciezka nieistniejaca ---
+# --- An unrecognized format and a nonexistent path ---
 
 
 def test_unrecognized_magic_exits_with_unsupported_format_code(tmp_path):

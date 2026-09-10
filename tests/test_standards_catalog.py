@@ -56,7 +56,7 @@ DEFAULT_ENTRY: dict = {
     "clause_title_source": "own",
     "paraphrase": "A test paraphrase, never a quote of a standard.",
     "verified": False,
-    "verification_note": "Uwaga testowa, wpis prowizoryczny.",
+    "verification_note": "A test note, a provisional entry.",
 }
 
 
@@ -890,9 +890,10 @@ def _restore_probe_catalog_and_check() -> None:
 
 @pytest.fixture(autouse=True, scope="module")
 def _cleanup_probe_catalog_and_check_after_module():
-    """Sprzata oba slady (katalog probny, tresc pliku checka) takze wtedy,
-    gdy blad wystapil przed przekazaniem sterowania do testu - wzorzec
-    `tests/test_check_engine.py::_cleanup_probe_check_dir_after_module`."""
+    """Cleans up both traces (the probe catalogue, the content of the check
+    file) even when an error occurred before control was handed to the test -
+    the `tests/test_check_engine.py::_cleanup_probe_check_dir_after_module`
+    pattern."""
     yield
     if PROBE_CATALOG_DIR.exists():
         shutil.rmtree(PROBE_CATALOG_DIR)

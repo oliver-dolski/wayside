@@ -165,8 +165,33 @@ def analyze(
         typer.echo(f"Zapisano: {pdf_path}")
 
 
+def _force_utf8_output() -> None:
+    """Wymusza UTF-8 na wyjsciu procesu.
+
+    Python ustawia `sys.stderr.errors` na `backslashreplace`, wiec na maszynie,
+    ktorej kodowanie domyslne nie niesie polskich znakow (cp1252 na
+    anglojezycznym Windows, a takze na runnerze CI), polska litera w ostrzezeniu
+    narzedzia wychodzi jako `\\u0142` zamiast znaku. Ostrzezenie, ktorego
+    uzytkownik nie przeczyta, nie jest ostrzezeniem - a `README` obiecuje
+    dzialanie na Windows 11 bez zadnego dodatkowego kroku konfiguracyjnego.
+
+    Ten sam blad zostal juz raz naprawiony po stronie odczytu w
+    `tests/test_history_audit.py::_run_git`; tutaj jest naprawiony po stronie
+    zapisu, czyli u zrodla.
+
+    `reconfigure` istnieje wylacznie na `TextIOWrapper`, wiec strumien
+    podmieniony na inny obiekt (przechwycenie wyjscia w tescie) jest pomijany
+    bez bledu.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
+
+
 def run() -> None:
     """Wejscie procesu: `python -m wayside.cli`."""
+    _force_utf8_output()
     app()
 
 

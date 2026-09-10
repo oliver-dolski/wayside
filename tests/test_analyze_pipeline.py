@@ -11,6 +11,7 @@ rozjazd CI vs lokalnie), katalog wyjsciowy w `tmp_path`.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -46,7 +47,12 @@ def _run_analyze_path(fixture_relative: str, out_dir: Path) -> subprocess.Comple
         ],
         cwd=REPO_ROOT,
         capture_output=True,
-        text=True,
+        # Jawne UTF-8 zamiast `text=True`: narzedzie wymusza UTF-8 na wlasnym
+        # wyjsciu (`cli._force_utf8_output`), wiec odczyt w kodowaniu domyslnym
+        # maszyny przekłamywalby polskie znaki w komunikatach. Ten sam idiom, co
+        # `tests/test_history_audit.py::_run_git`.
+        encoding="utf-8",
+        errors="replace",
     )
 
 
@@ -431,6 +437,50 @@ def test_unrecognized_magic_still_exits_with_unsupported_format_code_after_corru
 
     result = _run_analyze_path(str(bad_file), out_dir)
     assert result.returncode == 4, result.stdout + result.stderr
+
+
+# --- Kodowanie wyjscia: bramka naprawy defektu ujawnionego przez pierwszy
+# prawdziwy przebieg CI na maszynie bez polskiego kodowania ----------------
+
+
+def test_cli_emits_diacritics_as_characters_under_foreign_environment_encoding(
+    tmp_path,
+):
+    """Ostrzezenie narzedzia niesie polska litere jako ZNAK, nie jako sekwencje
+    ucieczki, takze gdy kodowanie srodowiska jej nie obejmuje.
+
+    Python ustawia `sys.stderr.errors` na `backslashreplace`, wiec na maszynie
+    z kodowaniem bez polskich znakow (cp1252 na anglojezycznym Windows, a takze
+    runner CI) litera `l` z kreska wychodzila jako literalne `\u0142`.
+    Ostrzezenie, ktorego uzytkownik nie przeczyta, nie jest ostrzezeniem, a
+    README obiecuje dzialanie na Windows 11 bez dodatkowej konfiguracji.
+
+    Ten test jest bramka `cli._force_utf8_output`: bez niej defekt wraca po
+    cichu i widac go dopiero na cudzej maszynie. `PYTHONIOENCODING=cp1252`
+    odtwarza dokladnie warunek, w ktorym pakiet byl czerwony na CI, a zielony
+    lokalnie.
+    """
+    env = dict(os.environ, PYTHONIOENCODING="cp1252")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "wayside.cli",
+            "analyze",
+            FIXTURE_SNAPLEN_TRUNCATED,
+            "--out-dir",
+            str(tmp_path),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "fałszow" in result.stderr
+    assert r"\u0142" not in result.stderr
 
 
 # --- INGEST-03: ostrzezenie o ramkach ucietych przez snaplen (plan 03-03, Task 1) ---

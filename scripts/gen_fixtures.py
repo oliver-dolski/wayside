@@ -1,22 +1,23 @@
-"""Deterministyczny generator syntetycznych zrzutow pcap Modbus/TCP.
+"""Deterministic generator of synthetic Modbus/TCP pcap captures.
 
-Uzycie:
-    uv run python scripts/gen_fixtures.py            # regeneruje fixture'y w miejscu
-    uv run python scripts/gen_fixtures.py --check    # regeneruje do katalogu tymczasowego
-                                                       # i porownuje sume sha256 z plikami
-                                                       # w repozytorium
+Usage:
+    uv run python scripts/gen_fixtures.py            # regenerates the fixtures in place
+    uv run python scripts/gen_fixtures.py --check    # regenerates into a temporary
+                                                       # directory and compares the sha256
+                                                       # sum against the repository files
 
-Adresacja pochodzi wylacznie z zakresu dokumentacyjnego RFC 5737 (192.0.2.0/24).
-Adresy MAC sa lokalnie administrowane i wymyslone, nie naleza do zadnego realnego
-urzadzenia. Znaczniki czasu sa stale (`BASE_TIMESTAMP + i * 0.01`), nigdy
-zegar systemowy (funkcja `time` z modulu `time`) - patrz Pitfall 5
-w 01-RESEARCH.md. `wrpcap()` domyslnie zapisuje
-klasyczny format pcap (nie pcapng), wiec plik nie ma miejsca na metadane maszyny.
+The addressing comes solely from the RFC 5737 documentation range
+(192.0.2.0/24). The MAC addresses are locally administered and invented, they
+belong to no real device. The timestamps are constants
+(`BASE_TIMESTAMP + i * 0.01`), never the system clock (the `time` function of
+the `time` module) - see Pitfall 5 in 01-RESEARCH.md. `wrpcap()` writes the
+classic pcap format by default (not pcapng), so the file has no room for
+machine metadata.
 
-Kazdy generator jest funkcja `gen_*(output_dir: Path) -> Path` odwzorowana w
-`GENERATORS` razem z docelowa nazwa pliku - `_check()` i `main()` iteruja po
-tej krotce, wiec dodanie nowego fixture'a nie wymaga zmiany ani jednej z tych
-dwoch funkcji.
+Every generator is a `gen_*(output_dir: Path) -> Path` function mapped in
+`GENERATORS` together with its target file name - `_check()` and `main()`
+iterate over that tuple, so adding a new fixture requires no change to either
+of those two functions.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ from scapy.layers.l2 import Ether  # noqa: E402
 from scapy.packet import Raw  # noqa: E402
 from scapy.utils import wrpcap  # noqa: E402
 
-# Adresacja dokumentacyjna, RFC 5737.
+# Documentation addressing, RFC 5737.
 CLIENT_MAC = "02:00:00:00:00:01"
 SERVER_MAC = "02:00:00:00:00:02"
 CLIENT_IP = "192.0.2.10"
@@ -54,45 +55,46 @@ MODBUS_PORT = 502
 MODBUS_NON_STANDARD_PORT = 10502
 BASE_TIMESTAMP = 1700000000.0
 
-# Port docelowy fixture'u Modbus RTU tunelowanego po TCP (plan 03-04),
-# zgodnie z blokiem <interfaces> planu - liczbowo taki sam jak
-# MODBUS_NON_STANDARD_PORT, ale to dwa osobne pliki fixture o zupelnie
-# roznym ladunku (naglowek MBAP kontra surowa ramka RTU bez naglowka), wiec
-# kolizja portu miedzy nimi nie ma znaczenia.
+# Destination port of the Modbus RTU over TCP tunnel fixture (plan 03-04),
+# following the plan's <interfaces> block - numerically the same as
+# MODBUS_NON_STANDARD_PORT, but these are two separate fixture files with
+# entirely different payloads (an MBAP header versus a raw RTU frame with no
+# header), so the port collision between them does not matter.
 RTU_TUNNEL_PORT = 10502
 
-# Porty trzech protokolow jawnotekstowych (plan 04-02, Task 1).
+# Ports of the three cleartext protocols (plan 04-02, Task 1).
 TELNET_PORT = 23
 FTP_CONTROL_PORT = 21
-# Port HTTP niestandardowy: rozpoznanie w tym projekcie idzie po zawartosci
-# ladunku, nigdy po numerze portu (PROTO-01) - port 8080 zamiast 80 jest tym
-# samym dowodem, ktory `gen_modbus_non_standard_port` niesie od Fazy 2
-# (zalozenie Z-49).
+# A non-standard HTTP port: recognition in this project goes by the content
+# of the payload, never by the port number (PROTO-01) - port 8080 instead of
+# 80 is the same proof `gen_modbus_non_standard_port` has carried since
+# Phase 2 (assumption Z-49).
 HTTP_PORT = 8080
 
-# Porty zrodlowe klienta trzech sesji jawnotekstowych, z zakresu
-# efemerycznego - stale, nie literaly powtorzone w trzech miejscach.
+# Client source ports of the three cleartext sessions, from the ephemeral
+# range - constants, not literals repeated in three places.
 TELNET_CLIENT_PORT = 49600
 FTP_CLIENT_PORT = 49601
 HTTP_CLIENT_PORT = 49602
 
-# Wartosci jawnie testowe fixture'u jawnotekstowego (zalozenie Z-50): nazwa
-# uzytkownika i haslo w kanale kontrolnym FTP nie naleza do zadnego konta,
-# opisane jako testowe we wpisie manifestu. `tests/test_dissectors_cleartext.py`
-# importuje te same stale zamiast powielac ich wartosc.
+# Openly test values of the cleartext fixture (assumption Z-50): the user
+# name and password in the FTP control channel belong to no account and are
+# described as test values in the manifest entry.
+# `tests/test_dissectors_cleartext.py` imports these same constants instead of
+# duplicating their value.
 FTP_TEST_USERNAME = "testuser"
 FTP_TEST_PASSWORD = "testpass123"
 HTTP_TEST_PATH = "/status.json"
 
-# Adres poczatkowy i wartosc rejestru trzymajacego zwracana przez kazda z
-# trzech odpowiedzi odczytu fixture'u sesji zlozonej wylacznie z odczytow
-# (plan 04-04, Task 1). Wartosc stala, nigdy losowa ani wyliczana - inaczej
-# determinizm bajtowy generatora bylby zlamany.
+# The start address and the holding register value returned by each of the
+# three read responses of the read-only session fixture (plan 04-04, Task 1).
+# A constant value, never random nor computed - otherwise the byte determinism
+# of the generator would be broken.
 MODBUS_READ_ONLY_START_ADDR = 0x0000
 MODBUS_READ_ONLY_REGISTER_VALUE = 0x00AA
 
-# Nagłówek globalny klasycznego pcapa, mikrosekundowy, little-endian
-# (zgodne z `PCAP_MAGICS` w `wayside.pcap` po Task 2 tego planu).
+# Global header of a classic pcap, microsecond resolution, little-endian
+# (consistent with `PCAP_MAGICS` in `wayside.pcap` after Task 2 of this plan).
 PCAP_CLASSIC_MAGIC_LE = 0xA1B2C3D4
 
 FIXTURE_DIR = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "pcap"
@@ -102,17 +104,17 @@ _PCAPNG_IDB_TYPE = 0x00000001
 _PCAPNG_EPB_TYPE = 0x00000006
 _PCAPNG_BYTE_ORDER_MAGIC_LE = 0x1A2B3C4D
 
-# Snaplen dla fixture'u uciecia ramek: czternascie bajtow warstwy Ethernet
-# plus dwadziescia bajtow naglowka IP plus dwadziescia bajtow naglowka TCP
-# daje pelne naglowki i pusty ladunek - to jest rozstrzygniecie (zalozenie
-# Z-07 w 03-02-PLAN.md), nie liczba przypadkowa. Snaplen mniejszy zostawilby
-# scapy niekompletny naglowek TCP i zamienil test uciecia w test odpornosci
-# dysektora na smiec.
+# Snaplen for the frame truncation fixture: fourteen bytes of the Ethernet
+# layer plus twenty bytes of the IP header plus twenty bytes of the TCP header
+# yields complete headers and an empty payload - that is a decision
+# (assumption Z-07 in 03-02-PLAN.md), not an arbitrary number. A smaller
+# snaplen would leave scapy an incomplete TCP header and turn the truncation
+# test into a test of the dissector's resilience to garbage.
 SNAPLEN_TRUNCATION_LEN = 54
 
-# Brama Modbus z wieloma Unit ID (Faza 3) - trzeci adres, rozny od adresu
-# serwera bazowego, zeby test bramy nie przechodzil przypadkiem na danych
-# innego testu (zalozenie Z-10).
+# A Modbus gateway with multiple Unit IDs (Phase 3) - a third address,
+# different from the address of the base server, so that the gateway test does
+# not pass by accident on the data of another test (assumption Z-10).
 GATEWAY_IP = "192.0.2.30"
 GATEWAY_MAC = "02:00:00:00:00:03"
 
@@ -139,10 +141,10 @@ __all__ = [
 
 
 def gen_modbus_write_single_register(output_dir: Path) -> Path:
-    """Generuje jedna wymiane Modbus/TCP (zadanie i odpowiedz 0x06) do pliku pcap.
+    """Generates one Modbus/TCP exchange (a 0x06 request and response) into a pcap file.
 
-    Zwraca sciezke do wygenerowanego pliku. Dwa kolejne wywolania produkuja
-    bajtowo identyczny plik (stale adresy, stale znaczniki czasu).
+    Returns the path of the generated file. Two consecutive calls produce a
+    byte identical file (constant addresses, constant timestamps).
     """
     request = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
@@ -170,11 +172,12 @@ def gen_modbus_write_single_register(output_dir: Path) -> Path:
 
 
 def gen_modbus_non_standard_port(output_dir: Path) -> Path:
-    """Ta sama wymiana zapisu 0x06 co fixture bazowy, ale serwer nasluchuje
-    na `MODBUS_NON_STANDARD_PORT` zamiast `MODBUS_PORT`.
+    """The same 0x06 write exchange as the base fixture, but the server listens
+    on `MODBUS_NON_STANDARD_PORT` instead of `MODBUS_PORT`.
 
-    Dowod dla PROTO-01: rozpoznanie protokolu idzie po ksztalcie naglowka
-    MBAP, niezaleznie od numeru portu. Fixture konsumowany przez plan 02-04.
+    Proof for PROTO-01: protocol recognition goes by the shape of the MBAP
+    header, independently of the port number. The fixture is consumed by plan
+    02-04.
     """
     request = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
@@ -202,21 +205,21 @@ def gen_modbus_non_standard_port(output_dir: Path) -> Path:
 
 
 def gen_modbus_malformed_mbap(output_dir: Path) -> Path:
-    """Dwie ramki, kazda lamiaca inny warunek walidacji MBAP z
+    """Two frames, each breaking a different MBAP validation condition of
     `wayside.protocols.modbus_tcp.validate_mbap`.
 
-    scapy nie pozwala zbudowac niepoprawnego naglowka MBAP przez zwykle
-    pola konstruktora `ModbusADURequest` - trzeba zbudowac poprawny pakiet,
-    wyciagnac jego ladunek TCP jako surowe bajty, podmienic konkretne bajty
-    i zlozyc pakiet z powrotem z warstwa `Raw` nad TCP.
+    scapy does not let one build an invalid MBAP header through the ordinary
+    constructor fields of `ModbusADURequest` - one has to build a valid
+    packet, take its TCP payload as raw bytes, substitute specific bytes and
+    reassemble the packet with a `Raw` layer over TCP.
 
-    Ramka pierwsza (transId=1): identyfikator protokolu w bajtach 2:4
-    ladunku ustawiony na wartosc niezerowa (`0x0001`) - lamie warunek
+    First frame (transId=1): the protocol identifier in bytes 2:4 of the
+    payload set to a non-zero value (`0x0001`) - it breaks the condition
     `protocol_id == 0`.
 
-    Ramka druga (transId=2): pole dlugosci w bajtach 4:6 ladunku ustawione
-    na wartosc niespojna z faktyczna liczba pozostalych bajtow - lamie
-    warunek `length_field == len(raw) - 6`.
+    Second frame (transId=2): the length field in bytes 4:6 of the payload set
+    to a value inconsistent with the actual number of remaining bytes - it
+    breaks the condition `length_field == len(raw) - 6`.
     """
     valid_request_1 = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
@@ -226,7 +229,7 @@ def gen_modbus_malformed_mbap(output_dir: Path) -> Path:
         / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
     )
     raw_1 = bytearray(bytes(valid_request_1[TCP].payload))
-    raw_1[2:4] = struct.pack(">H", 1)  # protoId niezerowy - lamie warunek protoId==0
+    raw_1[2:4] = struct.pack(">H", 1)  # non-zero protoId - breaks the protoId==0 condition
     frame_bad_proto_id = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
         / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
@@ -242,7 +245,7 @@ def gen_modbus_malformed_mbap(output_dir: Path) -> Path:
         / ModbusPDU06WriteSingleRegisterRequest(registerAddr=0x0001, registerValue=0x002A)
     )
     raw_2 = bytearray(bytes(valid_request_2[TCP].payload))
-    raw_2[4:6] = struct.pack(">H", 999)  # dlugosc niespojna z faktycznymi bajtami
+    raw_2[4:6] = struct.pack(">H", 999)  # length inconsistent with the actual bytes
     frame_bad_length = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
         / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
@@ -261,15 +264,15 @@ def gen_modbus_malformed_mbap(output_dir: Path) -> Path:
 
 
 def gen_truncated_mid_record(output_dir: Path) -> Path:
-    """Plik pcap poprawny do naglowka, obciety w srodku ostatniego rekordu.
+    """A pcap file valid down to the header, cut off in the middle of the last record.
 
-    Zrodlem tresci jest ten sam zapis co fixture bazowy - zbudowany przez
-    `gen_modbus_write_single_register` do katalogu tymczasowego, zeby
-    zrodlo bajtow bylo jedno. Magic globalny pozostaje poprawny, wiec
-    `rdpcap` nie podnosi wyjatku na tym pliku (Pitfall 3, 02-RESEARCH.md):
-    to jest dokladnie ten ksztalt wejscia, na ktorym Faza 1 dawala cicha
-    zielona odpowiedz. `wayside.pcap.audit_capture_structure` (Task 2 tego
-    planu) ma wykryc to obciecie strukturalnie, nie po liczbie pakietow.
+    The source of the content is the same write as the base fixture - built by
+    `gen_modbus_write_single_register` into a temporary directory, so that
+    there is a single source of bytes. The global magic stays valid, so
+    `rdpcap` raises no exception on this file (Pitfall 3, 02-RESEARCH.md):
+    this is exactly the shape of input on which Phase 1 gave a silent green
+    answer. `wayside.pcap.audit_capture_structure` (Task 2 of this plan) is
+    meant to detect this truncation structurally, not by the packet count.
     """
     with tempfile.TemporaryDirectory() as tmp:
         full_path = gen_modbus_write_single_register(Path(tmp))
@@ -282,24 +285,24 @@ def gen_truncated_mid_record(output_dir: Path) -> Path:
 
 
 def gen_empty_valid_header(output_dir: Path) -> Path:
-    """Plik zawierajacy WYLACZNIE dwudziestoczterobajtowy naglowek globalny
-    klasycznego pcapa, zero rekordow.
+    """A file containing the twenty-four byte global header of a classic pcap
+    ONLY, zero records.
 
-    Nie polega na `wrpcap` z pusta lista pakietow: pisarz scapy zapisuje
-    naglowek dopiero przy pierwszym pakiecie, wiec wynikiem bylby plik
-    zerowej dlugosci - inny przypadek testowy niz zamierzony. Ten plik jest
-    strukturalnie poprawny i legalnie pusty (D-01): `read_capture` na nim
-    zwraca zero pakietow bez podnoszenia wyjatku.
+    It does not rely on `wrpcap` with an empty packet list: the scapy writer
+    writes the header only at the first packet, so the result would be a file
+    of zero length - a different test case than intended. This file is
+    structurally valid and legitimately empty (D-01): `read_capture` on it
+    returns zero packets without raising.
     """
     header = struct.pack(
         "<IHHiIII",
         PCAP_CLASSIC_MAGIC_LE,
-        2,  # wersja glowna
-        4,  # wersja podrzedna
-        0,  # strefa czasowa
-        0,  # dokladnosc znacznikow czasu
+        2,  # major version
+        4,  # minor version
+        0,  # time zone
+        0,  # timestamp accuracy
         262144,  # snaplen
-        1,  # typ warstwy lacza: Ethernet
+        1,  # link layer type: Ethernet
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "empty_valid_header.pcap"
@@ -308,36 +311,36 @@ def gen_empty_valid_header(output_dir: Path) -> Path:
 
 
 def _pcapng_section_header_block() -> bytes:
-    """Section Header Block minimalny (28 bajtow, bez opcji), little-endian."""
+    """A minimal Section Header Block (28 bytes, no options), little-endian."""
     total_length = 28
     return struct.pack(
         "<IIIHHqI",
         _PCAPNG_SHB_TYPE,
         total_length,
         _PCAPNG_BYTE_ORDER_MAGIC_LE,
-        1,  # wersja glowna
-        0,  # wersja podrzedna
-        -1,  # dlugosc sekcji nieznana
+        1,  # major version
+        0,  # minor version
+        -1,  # section length unknown
         total_length,
     )
 
 
 def _pcapng_interface_description_block() -> bytes:
-    """Interface Description Block minimalny (20 bajtow, bez opcji)."""
+    """A minimal Interface Description Block (20 bytes, no options)."""
     total_length = 20
     return struct.pack(
         "<IIHHII",
         _PCAPNG_IDB_TYPE,
         total_length,
-        1,  # typ warstwy lacza: Ethernet (LINKTYPE_ETHERNET)
-        0,  # zarezerwowane
+        1,  # link layer type: Ethernet (LINKTYPE_ETHERNET)
+        0,  # reserved
         65535,  # snaplen
         total_length,
     )
 
 
 def _pcapng_enhanced_packet_block(data: bytes, timestamp_s: float) -> bytes:
-    """Enhanced Packet Block: dlugosc = 32 + dane dopelnione do wielokrotnosci 4."""
+    """Enhanced Packet Block: length = 32 + data padded to a multiple of 4."""
     pad_len = (-len(data)) % 4
     padded_data = data + b"\x00" * pad_len
     total_length = 32 + len(padded_data)
@@ -350,24 +353,25 @@ def _pcapng_enhanced_packet_block(data: bytes, timestamp_s: float) -> bytes:
         "<IIIIIII",
         _PCAPNG_EPB_TYPE,
         total_length,
-        0,  # identyfikator interfejsu
+        0,  # interface identifier
         timestamp_high,
         timestamp_low,
-        len(data),  # dlugosc przechwycona
-        len(data),  # dlugosc oryginalna
+        len(data),  # captured length
+        len(data),  # original length
     )
     return header + padded_data + struct.pack("<I", total_length)
 
 
 def gen_modbus_write_pcapng(output_dir: Path) -> Path:
-    """Ta sama wymiana zapisu 0x06 co fixture klasyczny, zapisana jako
-    pcapng zamiast klasycznego pcapa.
+    """The same 0x06 write exchange as the classic fixture, written as pcapng
+    instead of a classic pcap.
 
-    Bajty sa budowane jawnie przez `struct.pack` w porzadku little-endian,
-    zgodnym z bajtem porzadku Section Header Block - `scapy` nie jest
-    uzywane do zapisu formatu pcapng (droga niegwarantowana w tej wersji),
-    ale bajty kazdego pakietu (`bytes(pkt)`) pochodza z tych samych
-    obiektow scapy co fixture klasyczny (D-04): zrodlo tresci jest jedno.
+    The bytes are built explicitly by `struct.pack` in little-endian order,
+    consistent with the byte-order magic of the Section Header Block - `scapy`
+    is not used to write the pcapng format (a route not guaranteed in this
+    version), but the bytes of every packet (`bytes(pkt)`) come from the same
+    scapy objects as the classic fixture (D-04): there is a single source of
+    content.
     """
     request = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
@@ -396,12 +400,12 @@ def gen_modbus_write_pcapng(output_dir: Path) -> Path:
 
 
 def gen_truncated_mid_block(output_dir: Path) -> Path:
-    """Bajty poprawnego pcapng, zapisane bez ostatnich dziesieciu bajtow,
-    tak zeby plik konczyl sie w srodku ostatniego Enhanced Packet Block.
+    """The bytes of a valid pcapng, written without the last ten bytes, so that
+    the file ends in the middle of the last Enhanced Packet Block.
 
-    Odpowiednik `gen_truncated_mid_record` dla formatu pcapng - dowod, ze
-    audyt strukturalny (Task 2 tego planu) wykrywa obciecie takze w tym
-    formacie, nie tylko w klasycznym pcapie.
+    The counterpart of `gen_truncated_mid_record` for the pcapng format -
+    proof that the structural audit (Task 2 of this plan) detects the
+    truncation in that format too, not only in a classic pcap.
     """
     with tempfile.TemporaryDirectory() as tmp:
         full_path = gen_modbus_write_pcapng(Path(tmp))
@@ -413,26 +417,26 @@ def gen_truncated_mid_block(output_dir: Path) -> Path:
     return output_path
 
 
-# --- Faza 3: fixture'y budowane struktura bajtowa (Task 1, 03-02-PLAN.md) ---
+# --- Phase 3: fixtures built from byte structure (Task 1, 03-02-PLAN.md) ---
 
 
 def gen_snaplen_truncated_frames(output_dir: Path) -> Path:
-    """Dwa rekordy uciete przez snaplen rowny `SNAPLEN_TRUNCATION_LEN`.
+    """Two records cut off by a snaplen equal to `SNAPLEN_TRUNCATION_LEN`.
 
-    Ta sama wymiana zapisu 0x06 co fixture bazowy, zbudowana bajtowo zamiast
-    przez `wrpcap`: pisarz scapy zapisuje pelna ramke i nie potrafi
-    wyprodukowac rekordu, w ktorym dlugosc przechwycona jest mniejsza od
-    dlugosci oryginalnej. Naglowek globalny niesie snaplen rowny
-    `SNAPLEN_TRUNCATION_LEN` zamiast domyslnego; kazdy rekord niesie dlugosc
-    przechwycona rowna dlugosci ucietej ramki i dlugosc oryginalna rowna
-    pelnej dlugosci ramki przed obcieciem.
+    The same 0x06 write exchange as the base fixture, built byte by byte
+    instead of through `wrpcap`: the scapy writer writes the complete frame
+    and cannot produce a record in which the captured length is smaller than
+    the original length. The global header carries a snaplen equal to
+    `SNAPLEN_TRUNCATION_LEN` instead of the default one; every record carries
+    a captured length equal to the length of the truncated frame and an
+    original length equal to the full length of the frame before truncation.
 
-    Uciecie przez snaplen jest przypadkiem LEGALNYM - rozpoznawanym w
-    `wayside.pcap._audit_pcap_classic` po warunku dlugosc przechwycona
-    mniejsza od oryginalnej - a nie tym samym co korupcja pola dlugosci,
-    rozpoznawana po warunku dlugosc przechwycona wieksza od snaplenu
-    (patrz `gen_corrupted_record_length` nizej). `audit_capture_structure`
-    na tym pliku nie podnosi wyjatku (INGEST-03).
+    Truncation by snaplen is a LEGITIMATE case - recognized in
+    `wayside.pcap._audit_pcap_classic` by the condition captured length
+    smaller than original length - and not the same thing as a corrupted
+    length field, recognized by the condition captured length greater than the
+    snaplen (see `gen_corrupted_record_length` below).
+    `audit_capture_structure` raises no exception on this file (INGEST-03).
     """
     request = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
@@ -452,18 +456,18 @@ def gen_snaplen_truncated_frames(output_dir: Path) -> Path:
     global_header = struct.pack(
         "<IHHiIII",
         PCAP_CLASSIC_MAGIC_LE,
-        2,  # wersja glowna
-        4,  # wersja podrzedna
-        0,  # strefa czasowa
-        0,  # dokladnosc znacznikow czasu
+        2,  # major version
+        4,  # minor version
+        0,  # time zone
+        0,  # timestamp accuracy
         SNAPLEN_TRUNCATION_LEN,  # snaplen
-        1,  # typ warstwy lacza: Ethernet
+        1,  # link layer type: Ethernet
     )
 
     records = bytearray()
     for i, pkt in enumerate([request, response]):
-        # Znacznik czasu wyprowadzony z BASE_TIMESTAMP, nigdy z zegara
-        # systemowego - dokladnie jak reszta generatorow tego pliku.
+        # The timestamp derived from BASE_TIMESTAMP, never from the system
+        # clock - exactly like the rest of the generators in this file.
         timestamp = BASE_TIMESTAMP + i * 0.01
         ts_sec = int(timestamp)
         ts_usec = round((timestamp - ts_sec) * 1_000_000)
@@ -482,30 +486,31 @@ def gen_snaplen_truncated_frames(output_dir: Path) -> Path:
 
 
 def gen_corrupted_record_length(output_dir: Path) -> Path:
-    """Plik uszkodzony strukturalnie przy pelnej, spojnej dlugosci pliku -
-    rozny od pliku obcietego.
+    """A file corrupted structurally at a full, consistent file length -
+    different from a truncated file.
 
-    Zbudowany z tych samych bajtow co fixture bazowy
-    (`gen_modbus_write_single_register`, zapisany do katalogu tymczasowego
-    tak jak robi to `gen_truncated_mid_record`), z jedna zmiana W MIEJSCU:
-    pole dlugosci przechwyconej w naglowku PIERWSZEGO rekordu jest
-    podmienione na wartosc 300000, wieksza od snaplenu z naglowka globalnego.
-    Naglowek globalny ma dwadziescia cztery bajty, naglowek rekordu
-    szesnascie, wiec pole dlugosci przechwyconej pierwszego rekordu lezy na
-    przesunieciu od 32 do 36 bajtow od poczatku pliku (uklad potwierdzony
-    odczytem `wayside.pcap._audit_pcap_classic`). Dlugosc zapisanego pliku
-    pozostaje identyczna z dlugoscia pliku zrodlowego - to jest cala tresc
-    tego fixture'a: struktura jest niespojna, ale plik NIE jest obciety.
+    Built from the same bytes as the base fixture
+    (`gen_modbus_write_single_register`, written into a temporary directory
+    the way `gen_truncated_mid_record` does it), with one change IN PLACE: the
+    captured length field in the header of the FIRST record is substituted
+    with the value 300000, greater than the snaplen from the global header.
+    The global header is twenty-four bytes, the record header sixteen, so the
+    captured length field of the first record lies at an offset of 32 to 36
+    bytes from the start of the file (a layout confirmed by reading
+    `wayside.pcap._audit_pcap_classic`). The length of the written file stays
+    identical to the length of the source file - that is the entire content of
+    this fixture: the structure is inconsistent, but the file is NOT
+    truncated.
 
-    Ten plik wymusza wejscie w blok kontroli zakresu `incl_len > snaplen`
-    w `wayside.pcap`, ktory istnieje od Fazy 2, ale do tej pory nie byl
-    wywolywany przez zaden fixture ani test (INGEST-05).
+    This file forces entry into the `incl_len > snaplen` range check block in
+    `wayside.pcap`, which has existed since Phase 2 but until now was called
+    by no fixture and no test (INGEST-05).
     """
     with tempfile.TemporaryDirectory() as tmp:
         full_path = gen_modbus_write_single_register(Path(tmp))
         full_bytes = bytearray(full_path.read_bytes())
 
-    global_header_len = 24  # magic+wersje+strefa+dokladnosc+snaplen+network
+    global_header_len = 24  # magic+versions+zone+accuracy+snaplen+network
     incl_len_offset = global_header_len + 8  # ts_sec(4) + ts_usec(4)
     full_bytes[incl_len_offset : incl_len_offset + 4] = struct.pack("<I", 300000)
 
@@ -515,21 +520,21 @@ def gen_corrupted_record_length(output_dir: Path) -> Path:
     return output_path
 
 
-# --- Faza 3: fixture'y budowane przez scapy (Task 2, 03-02-PLAN.md) --------
+# --- Phase 3: fixtures built by scapy (Task 2, 03-02-PLAN.md) --------------
 
 
 def gen_modbus_poll_cycle_short_window(output_dir: Path) -> Path:
-    """Cztery pakiety, dwa zadania Modbus odlegle o piec sekund w oknie
-    zrzutu krotszym niz dziesiec sekund.
+    """Four packets, two Modbus requests five seconds apart in a capture window
+    shorter than ten seconds.
 
-    Zadanie pierwsze w chwili `BASE_TIMESTAMP`, odpowiedz pierwsza w chwili
-    `BASE_TIMESTAMP + 0.01`, zadanie drugie w chwili `BASE_TIMESTAMP + 5.0`,
-    odpowiedz druga w chwili `BASE_TIMESTAMP + 5.01`. Najdluzszy odstep
-    miedzy zadaniami wynosi piec sekund, okno zrzutu 5.01 sekundy - okno
-    jest wiec krotsze niz dwa pelne odstepy i krotsze niz trzy pelne odstepy,
-    wiec ten plik wywoluje warunek ostrzezenia niezaleznie od tego, ktory
-    mnoznik progu z zakresu od dwoch do trzech zostanie wybrany w planie
-    03-03 (zalozenie Z-08).
+    The first request at `BASE_TIMESTAMP`, the first response at
+    `BASE_TIMESTAMP + 0.01`, the second request at `BASE_TIMESTAMP + 5.0`, the
+    second response at `BASE_TIMESTAMP + 5.01`. The longest interval between
+    requests is five seconds, the capture window 5.01 seconds - the window is
+    therefore shorter than two full intervals and shorter than three full
+    intervals, so this file trips the warning condition regardless of which
+    threshold multiplier from the range of two to three is chosen in plan
+    03-03 (assumption Z-08).
     """
     packets = []
     for i, (offset, trans_id) in enumerate([(0.0, 1), (5.0, 2)]):
@@ -558,16 +563,16 @@ def gen_modbus_poll_cycle_short_window(output_dir: Path) -> Path:
 
 
 def gen_modbus_poll_cycle_full_window(output_dir: Path) -> Path:
-    """Dwanascie pakietow, szesc zadan Modbus odleglych o jedna sekunde,
-    w oknie zrzutu obejmujacym wiele powtorzen cyklu odpytywania.
+    """Twelve packets, six Modbus requests one second apart, in a capture window
+    covering many repetitions of the polling cycle.
 
-    Szesc zadan w chwilach `BASE_TIMESTAMP + n` dla n od zera do pieciu,
-    kazda odpowiedz w chwili zadania powiekszonej o `0.01`. Najdluzszy
-    odstep miedzy zadaniami wynosi jedna sekunde, okno zrzutu 5.01 sekundy,
-    wiec okno obejmuje piec pelnych odstepow - ten plik NIE wywoluje
-    warunku ostrzezenia dla zadnego mnoznika progu z zakresu od dwoch do
-    pieciu, czyli jest przypadkiem negatywnym odpornym na wynik checkpointu
-    z planu 03-03.
+    Six requests at `BASE_TIMESTAMP + n` for n from zero to five, every
+    response at the time of its request plus `0.01`. The longest interval
+    between requests is one second, the capture window 5.01 seconds, so the
+    window covers five full intervals - this file does NOT trip the warning
+    condition for any threshold multiplier from the range of two to five, that
+    is, it is a negative case robust against the outcome of the checkpoint of
+    plan 03-03.
     """
     packets = []
     for n in range(6):
@@ -597,17 +602,17 @@ def gen_modbus_poll_cycle_full_window(output_dir: Path) -> Path:
 
 
 def gen_modbus_gateway_multi_unit_id(output_dir: Path) -> Path:
-    """Szesc pakietow, trzy wymiany Modbus do jednego adresu serwera z trzema
-    roznymi wartosciami Unit ID - brama wystawiajaca trzy adresy logiczne.
+    """Six packets, three Modbus exchanges to one server address with three
+    different Unit ID values - a gateway exposing three logical addresses.
 
-    Sesja miedzy `CLIENT_IP`/`CLIENT_MAC` i `GATEWAY_IP`/`GATEWAY_MAC`. Trzy
-    zadania z `unitId` rownym kolejno 1, 2 i 3, kazde z rosnacym `transId`,
-    trzy odpowiedzi o tych samych wartosciach `unitId`/`transId`.
+    A session between `CLIENT_IP`/`CLIENT_MAC` and `GATEWAY_IP`/`GATEWAY_MAC`.
+    Three requests with `unitId` equal to 1, 2 and 3 in turn, each with a
+    rising `transId`, three responses with the same `unitId`/`transId` values.
 
-    Ten plik reprezentuje jeden host sieciowy wystawiajacy trzy adresy
-    logiczne za soba, NIE trzy hosty - to jest dokladnie ten ksztalt danych,
-    na ktorym naiwny inwentarz produkuje trzy wpisy zamiast jednego z
-    podadresami (ASSET-05).
+    This file represents one network host exposing three logical addresses
+    behind it, NOT three hosts - that is exactly the shape of data on which a
+    naive inventory produces three entries instead of one with sub-addresses
+    (ASSET-05).
     """
     packets = []
     for i, unit_id in enumerate([1, 2, 3]):
@@ -637,20 +642,20 @@ def gen_modbus_gateway_multi_unit_id(output_dir: Path) -> Path:
 
 
 def gen_modbus_tcp_handshake(output_dir: Path) -> Path:
-    """Piec pakietow: uzgodnienie trojetapowe TCP jawnie przed wymiana
-    Modbus, jedyny pasywny dowod strony inicjujacej sesje.
+    """Five packets: a three-way TCP handshake explicitly before the Modbus
+    exchange, the only passive proof of which side initiated the session.
 
-    Kolejnosc: pakiet z `TCP(flags="S")` od klienta do serwera; pakiet z
-    `TCP(flags="SA")` od serwera do klienta; pakiet z `TCP(flags="A")` od
-    klienta do serwera; zadanie Modbus z `flags="PA"` od klienta; odpowiedz
-    Modbus z `flags="PA"` od serwera. Trzy pierwsze pakiety nie niosa zadnej
-    warstwy ponad TCP, wiec ich ladunek jest pusty - `decode_segments`
-    dzisiaj odrzuca kazdy segment bez ladunku, wiec te trzy pakiety sa
-    niewidoczne dla reszty potoku, ale pakiet z flaga SYN bez flagi ACK
-    pozostaje jedynym pasywnym dowodem inicjatora (FLOW-02). Fixture'y z
-    Fazy 2 nie zawieraja uzgodnienia polaczenia w ogole, wiec az do tego
-    pliku projekt nie ma materialu na przypadek pozytywny FLOW-02
-    (zalozenie Z-09).
+    The order: a packet with `TCP(flags="S")` from the client to the server; a
+    packet with `TCP(flags="SA")` from the server to the client; a packet with
+    `TCP(flags="A")` from the client to the server; a Modbus request with
+    `flags="PA"` from the client; a Modbus response with `flags="PA"` from the
+    server. The first three packets carry no layer above TCP, so their payload
+    is empty - `decode_segments` today rejects every segment without a
+    payload, so those three packets are invisible to the rest of the pipeline,
+    but a packet with the SYN flag and without the ACK flag remains the only
+    passive proof of the initiator (FLOW-02). The Phase 2 fixtures contain no
+    connection handshake at all, so until this file the project has no
+    material for the positive FLOW-02 case (assumption Z-09).
     """
     syn = Ether(src=CLIENT_MAC, dst=SERVER_MAC) / IP(
         src=CLIENT_IP, dst=SERVER_IP, id=1
@@ -686,23 +691,24 @@ def gen_modbus_tcp_handshake(output_dir: Path) -> Path:
     return output_path
 
 
-# --- Faza 3: fixture Modbus RTU tunelowany po TCP (plan 03-04, Task 2) -----
+# --- Phase 3: the Modbus RTU over TCP tunnel fixture (plan 03-04, Task 2) --
 
 
 def _rtu_crc16(data: bytes) -> int:
-    """Implementacja LOKALNA sumy kontrolnej CRC16/Modbus, NIEZALEZNA od
-    `wayside.protocols.modbus_rtu_tunnel.modbus_crc16` (zalozenie Z-16).
+    """A LOCAL implementation of the CRC16/Modbus checksum, INDEPENDENT of
+    `wayside.protocols.modbus_rtu_tunnel.modbus_crc16` (assumption Z-16).
 
-    Import z `wayside` wciagnalby do tego skryptu caly graf importow warstwy
-    odczytu (scapy.layers.*, izolacja cache) razem z jej wlasnymi efektami
-    ubocznymi importu, ktore ten skrypt dzis wykonuje inaczej. Poza tym dwie
-    niezalezne implementacje, ktore musza sie zgodzic na kazdym wektorze
-    testowym `tests/test_modbus_rtu_tunnel.py`, sa mocniejszym dowodem
-    poprawnosci niz jedna wspolna, ktorej blad zgodzilby sie sam ze soba.
-    Parametry algorytmu (rejestr poczatkowy `0xFFFF`, wielomian odwrocony
-    `0xA001`) pochodza z tego samego zrodla co w module produkcyjnym -
-    "MODBUS over Serial Line Specification and Implementation Guide V1.02",
-    rozdzial 6.2.2, patrz docstring `wayside/protocols/modbus_rtu_tunnel.py`.
+    An import from `wayside` would pull the whole import graph of the reading
+    layer (scapy.layers.*, cache isolation) into this script, together with
+    its own import side effects, which this script performs differently today.
+    Besides, two independent implementations that have to agree on every test
+    vector of `tests/test_modbus_rtu_tunnel.py` are stronger proof of
+    correctness than one shared implementation, whose bug would agree with
+    itself. The parameters of the algorithm (initial register `0xFFFF`,
+    reversed polynomial `0xA001`) come from the same source as in the
+    production module - "MODBUS over Serial Line Specification and
+    Implementation Guide V1.02", section 6.2.2, see the docstring of
+    `wayside/protocols/modbus_rtu_tunnel.py`.
     """
     crc = 0xFFFF
     for byte in data:
@@ -716,20 +722,20 @@ def _rtu_crc16(data: bytes) -> int:
 
 
 def gen_modbus_rtu_over_tcp(output_dir: Path) -> Path:
-    """Konwerter szeregowo-sieciowy, ktory przekazuje surowa ramke Modbus RTU
-    z magistrali wprost do gniazda TCP, bez rekonstrukcji naglowka MBAP.
+    """A serial-to-network converter that passes a raw Modbus RTU frame from
+    the bus straight into a TCP socket, without reconstructing an MBAP header.
 
-    Dwa pakiety w jednej sesji TCP: zadanie klienta i odpowiedz serwera, oba
-    o identycznym osmiobajtowym ladunku - Write Single Register dla tego
-    kodu funkcji odsyla ta sama tresc bez zmian. Cialo ramki: bajt adresu
-    `0x01`, bajt kodu funkcji `0x06`, adres rejestru `0x0001` i wartosc
-    rejestru `0x002A` w porzadku bajtu starszego jako pierwszego (cztery
-    bajty), suma kontrolna `_rtu_crc16` nad tymi szescioma bajtami, zapisana
-    w porzadku bajtu mlodszego jako pierwszego. Port docelowy jest
-    niestandardowy (`RTU_TUNNEL_PORT`) celowo: rozpoznanie w tym projekcie
-    nie zalezy od numeru portu (PROTO-01, Faza 2), a numer inny niz 502
-    zdejmuje pokuse napisania testu, ktory przechodzi z powodu portu, nie
-    z powodu ksztaltu ramki.
+    Two packets in one TCP session: a client request and a server response,
+    both with an identical eight-byte payload - Write Single Register echoes
+    the same content back unchanged for this function code. The frame body:
+    the address byte `0x01`, the function code byte `0x06`, the register
+    address `0x0001` and the register value `0x002A` in most significant byte
+    first order (four bytes), the `_rtu_crc16` checksum over those six bytes,
+    written in least significant byte first order. The destination port is
+    non-standard (`RTU_TUNNEL_PORT`) on purpose: recognition in this project
+    does not depend on the port number (PROTO-01, Phase 2), and a number other
+    than 502 removes the temptation to write a test that passes because of the
+    port rather than because of the shape of the frame.
     """
     body = struct.pack(">BBHH", 0x01, 0x06, 0x0001, 0x002A)
     frame = body + struct.pack("<H", _rtu_crc16(body))
@@ -757,29 +763,30 @@ def gen_modbus_rtu_over_tcp(output_dir: Path) -> Path:
     return output_path
 
 
-# --- Faza 4: fixture jawnotekstowy Telnet/FTP/HTTP (plan 04-02, Task 1) ----
+# --- Phase 4: the Telnet/FTP/HTTP cleartext fixture (plan 04-02, Task 1) ---
 
 
 def gen_cleartext_telnet_ftp_http(output_dir: Path) -> Path:
-    """Trzy sesje TCP jawnotekstowe: Telnet, kanal kontrolny FTP, HTTP na
-    porcie niestandardowym (CHECK-03, material dowodowy kryterium 1 fazy).
+    """Three cleartext TCP sessions: Telnet, the FTP control channel, HTTP on a
+    non-standard port (CHECK-03, the evidence for criterion 1 of the phase).
 
-    Kazda sesja niesie ruch rozpoznawalny po ksztalcie pierwszych bajtow
-    ladunku, nigdy po numerze portu ani po pelnym dekodowaniu protokolu -
-    HTTP nasluchuje na `HTTP_PORT` niestandardowym wlasnie po to, zeby
-    rozpoznanie po zawartosci bylo jedynym wytlumaczeniem wyniku (PROTO-01
-    jako wzorzec, zalozenie Z-49). Nazwa uzytkownika i haslo w kanale
-    kontrolnym FTP sa jawnie wymyslone i testowe (zalozenie Z-50) -
-    `tests/test_dissectors_cleartext.py` importuje te same stale zamiast
-    powielac ich wartosc, zeby sprawdzic ich nieobecnosc w artefaktach.
+    Every session carries traffic recognizable by the shape of the first bytes
+    of the payload, never by the port number nor by a full decoding of the
+    protocol - HTTP listens on a non-standard `HTTP_PORT` precisely so that
+    recognition by content is the only explanation of the result (PROTO-01 as
+    the pattern, assumption Z-49). The user name and password in the FTP
+    control channel are openly invented test values (assumption Z-50) -
+    `tests/test_dissectors_cleartext.py` imports these same constants instead
+    of duplicating their value, in order to check for their absence in the
+    artifacts.
     """
-    # Sesja Telneta, dwa pakiety: kazdy niesie trzybajtowa sekwencje
-    # negocjacji opcji. Bajt 0: IAC (0xFF, interpretacja polecenia jako
-    # polecenie, nie jako dane). Bajt 1: polecenie negocjacji (klient: WILL
-    # / 0xFB, serwer: DO / 0xFD - odpowiedz na inne polecenie, tak jak
-    # prawdziwa negocjacja Telneta). Bajt 2: numer opcji (0x01 = echo) -
-    # wartosc dowolna, dissector jej nie sprawdza (rozstrzygniecie, nie
-    # pominiecie).
+    # The Telnet session, two packets: each carries a three-byte option
+    # negotiation sequence. Byte 0: IAC (0xFF, interpret the command as a
+    # command rather than as data). Byte 1: the negotiation command (client:
+    # WILL / 0xFB, server: DO / 0xFD - an answer with a different command,
+    # the way a real Telnet negotiation goes). Byte 2: the option number
+    # (0x01 = echo) - an arbitrary value, the dissector does not check it (a
+    # decision, not an oversight).
     telnet_client = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
         / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
@@ -793,9 +800,10 @@ def gen_cleartext_telnet_ftp_http(output_dir: Path) -> Path:
         / Raw(load=bytes([0xFF, 0xFD, 0x01]))
     )
 
-    # Sesja FTP, kanal kontrolny, trzy pakiety: odpowiedz powitalna serwera
-    # (kod liczbowy 220, spacja, wlasny wymyslony tekst), potem polecenie
-    # klienta z nazwa uzytkownika, potem polecenie klienta z haslem.
+    # The FTP session, control channel, three packets: the server welcome
+    # response (the numeric code 220, a space, our own invented text), then
+    # the client command carrying the user name, then the client command
+    # carrying the password.
     ftp_welcome = (
         Ether(src=SERVER_MAC, dst=CLIENT_MAC)
         / IP(src=SERVER_IP, dst=CLIENT_IP, id=1)
@@ -815,9 +823,9 @@ def gen_cleartext_telnet_ftp_http(output_dir: Path) -> Path:
         / Raw(load=f"PASS {FTP_TEST_PASSWORD}\r\n".encode("ascii"))
     )
 
-    # Sesja HTTP, dwa pakiety: linia zadania (metoda, sciezka, wersja) z
-    # naglowkiem nazwy hosta, potem linia statusu odpowiedzi z naglowkiem
-    # typu tresci i krotkim cialem.
+    # The HTTP session, two packets: the request line (method, path,
+    # version) with the host name header, then the response status line with
+    # the content type header and a short body.
     http_request = (
         Ether(src=CLIENT_MAC, dst=SERVER_MAC)
         / IP(src=CLIENT_IP, dst=SERVER_IP, id=1)
@@ -859,26 +867,26 @@ def gen_cleartext_telnet_ftp_http(output_dir: Path) -> Path:
     return output_path
 
 
-# --- Faza 4: fixture sesji Modbusa zlozonej wylacznie z odczytow (plan 04-04, Task 1) ---
+# --- Phase 4: the read-only Modbus session fixture (plan 04-04, Task 1) ----
 
 
 def gen_modbus_read_only_session(output_dir: Path) -> Path:
-    """Jedna sesja Modbus/TCP, trzy wymiany zadanie-odpowiedz, wszystkie
-    zadania kodu funkcji odczytu rejestrow trzymajacych (0x03).
+    """One Modbus/TCP session, three request-response exchanges, every request
+    carrying the read holding registers function code (0x03).
 
-    Przypadek rozdzielajacy CHECK-05 od CHECK-04 (zalozenie Z-62,
-    04-RESEARCH.md Pitfall 9): fixture daje finding za uzycie protokolu
-    przemyslowego bez mechanizmu uwierzytelnienia i NIE daje findingu za
-    zapis do sterownika, bo nie zawiera ani jednej operacji zapisu - check
-    zaimplementowany jako filtr na findingu za zapis rozjechalby sie
-    dokladnie tutaj.
+    The case that separates CHECK-05 from CHECK-04 (assumption Z-62,
+    04-RESEARCH.md Pitfall 9): the fixture yields a finding for the use of an
+    industrial protocol without an authentication mechanism and does NOT yield
+    a finding for a write to a controller, because it contains not one write
+    operation - a check implemented as a filter over the write finding would
+    come apart exactly here.
 
-    Identyfikator transakcji rosnie z kazda wymiana (1, 2, 3), identyfikator
-    jednostki jest staly. Odstep miedzy kolejnymi zadaniami jest krotki
-    (0.02 s), tak zeby okno zrzutu (0.05 s) bylo dluzsze niz podwojony
-    zmierzony odstep miedzy zadaniami (0.04 s) - inaczej fixture zapaliby
-    ostrzezenie o oknie zrzutu za krotkim wobec zmierzonego cyklu
-    odpytywania, co byloby zaklaceniem niezwiazanym z CHECK-05.
+    The transaction identifier rises with every exchange (1, 2, 3), the unit
+    identifier is constant. The interval between consecutive requests is short
+    (0.02 s), so that the capture window (0.05 s) is longer than twice the
+    measured interval between requests (0.04 s) - otherwise the fixture would
+    trip the warning about a capture window too short against the measured
+    polling cycle, which would be noise unrelated to CHECK-05.
     """
     packets = []
     for i in range(3):
@@ -941,7 +949,7 @@ def _check() -> int:
     for name, generator in GENERATORS:
         repo_file = FIXTURE_DIR / name
         if not repo_file.exists():
-            print(f"Brak pliku fixture w repozytorium: {repo_file}", file=sys.stderr)
+            print(f"No fixture file in the repository: {repo_file}", file=sys.stderr)
             ok = False
             continue
 
@@ -951,8 +959,8 @@ def _check() -> int:
             generated_hash = _sha256(generated)
             if repo_hash != generated_hash:
                 print(
-                    f"Rozjazd sumy sha256 dla {name}: "
-                    f"repo={repo_hash} wygenerowano={generated_hash}",
+                    f"sha256 sum mismatch for {name}: "
+                    f"repo={repo_hash} generated={generated_hash}",
                     file=sys.stderr,
                 )
                 ok = False
@@ -965,7 +973,7 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Regeneruj do katalogu tymczasowego i porownaj sume sha256 z repozytorium.",
+        help="Regenerate into a temporary directory and compare the sha256 sum against the repository.",
     )
     args = parser.parse_args()
 
@@ -974,7 +982,7 @@ def main() -> int:
 
     for name, generator in GENERATORS:
         output_path = generator(FIXTURE_DIR)
-        print(f"Wygenerowano: {output_path}")
+        print(f"Generated: {output_path}")
     return 0
 
 

@@ -1,14 +1,15 @@
-"""Bramka maszynowa INGEST-02 na poziomie audytu strukturalnego: snaplen
-odczytany z naglowka klasycznego pcapa i z bloku Interface Description Block
-pcapnga (plan 03-01, Task 3), obok testu integracyjnego w
+"""Machine gate INGEST-02 at the level of the structural audit: the snaplen
+read from the header of a classic pcap and from the Interface Description
+Block of a pcapng (plan 03-01, Task 3), alongside the integration test in
 `tests/test_analyze_pipeline.py`.
 
-`audit_capture_structure` wolane bezposrednio, bez subprocessu i bez CLI -
-funkcja czysta nad plikiem. Pliki pcapng o niestandardowej liczbie blokow
-IDB sa budowane w tym pliku przez `struct.pack`, kopiujac uklad z
-`scripts/gen_fixtures.py`, i zapisywane WYLACZNIE do `tmp_path` - katalog
-`tests/fixtures/pcap/` jest pilnowany przez `tests/test_fixture_manifest.py`
-i plik bez wpisu w manifescie odrzuca caly pakiet.
+`audit_capture_structure` is called directly, without a subprocess and without
+the CLI - a pure function over a file. The pcapng files with a non-standard
+number of IDB blocks are built in this file by `struct.pack`, copying the
+layout from `scripts/gen_fixtures.py`, and written ONLY into `tmp_path` - the
+`tests/fixtures/pcap/` directory is guarded by
+`tests/test_fixture_manifest.py` and a file without a manifest entry fails the
+whole suite.
 """
 
 from __future__ import annotations
@@ -27,8 +28,8 @@ FIXTURE_EMPTY_HEADER = FIXTURE_DIR / "empty_valid_header.pcap"
 FIXTURE_TRUNCATED_RECORD = FIXTURE_DIR / "truncated_mid_record.pcap"
 FIXTURE_TRUNCATED_BLOCK = FIXTURE_DIR / "truncated_mid_block.pcapng"
 
-# Uklad bajtowy identyczny ze `scripts/gen_fixtures.py` - little-endian,
-# ten sam porzadek pol w kazdym bloku.
+# The byte layout is identical to `scripts/gen_fixtures.py` - little-endian,
+# the same field order in every block.
 _PCAPNG_SHB_TYPE = 0x0A0D0D0A
 _PCAPNG_IDB_TYPE = 0x00000001
 _PCAPNG_EPB_TYPE = 0x00000006
@@ -88,7 +89,7 @@ def _pcapng_bytes(idb_snaplens: list[int], *, include_epb: bool = True) -> bytes
     return b"".join(blocks)
 
 
-# --- Kontrakt wymaganie-na-test: nazwa z 03-VALIDATION.md, bez zmiany -------
+# --- The requirement-to-test contract: the name from 03-VALIDATION.md, unchanged ---
 
 
 def test_snaplen_reported_from_global_header():
@@ -102,7 +103,7 @@ def test_snaplen_reported_from_global_header():
     assert structure.snaplen_note is None
 
 
-# --- Klasyczny pcap: zrzut pusty niesie snaplen z naglowka globalnego ------
+# --- Classic pcap: an empty capture carries the snaplen of the global header ---
 
 
 def test_empty_valid_header_reports_snaplen_and_is_structurally_empty():
@@ -112,7 +113,7 @@ def test_empty_valid_header_reports_snaplen_and_is_structurally_empty():
     assert structure.is_structurally_empty is True
 
 
-# --- pcapng: fixture bazowy niesie snaplen z jedynego bloku IDB ------------
+# --- pcapng: the base fixture carries the snaplen of its single IDB block --
 
 
 def test_pcapng_fixture_reports_snaplen_from_single_interface_description_block():
@@ -122,7 +123,7 @@ def test_pcapng_fixture_reports_snaplen_from_single_interface_description_block(
     assert structure.snaplen_note is None
 
 
-# --- pcapng zbudowany w tescie: wiele blokow IDB, rozny snaplen -----------
+# --- pcapng built in the test: many IDB blocks, differing snaplen ---------
 
 
 def test_pcapng_with_two_idb_blocks_of_different_snaplen_gives_none_and_note(tmp_path):
@@ -133,10 +134,10 @@ def test_pcapng_with_two_idb_blocks_of_different_snaplen_gives_none_and_note(tmp
 
     assert structure.snaplen is None
     assert structure.snaplen_note
-    assert "2" in structure.snaplen_note  # liczba roznych wartosci snaplenu
+    assert "2" in structure.snaplen_note  # the number of distinct snaplen values
 
 
-# --- pcapng zbudowany w tescie: wiele blokow IDB, ten sam snaplen ---------
+# --- pcapng built in the test: many IDB blocks, the same snaplen ----------
 
 
 def test_pcapng_with_two_idb_blocks_of_same_snaplen_gives_that_value_and_no_note(tmp_path):
@@ -149,7 +150,7 @@ def test_pcapng_with_two_idb_blocks_of_same_snaplen_gives_that_value_and_no_note
     assert structure.snaplen_note is None
 
 
-# --- pcapng zbudowany w tescie: brak bloku IDB w ogole --------------------
+# --- pcapng built in the test: no IDB block at all ------------------------
 
 
 def test_pcapng_without_any_idb_block_gives_none_and_note(tmp_path):
@@ -162,13 +163,13 @@ def test_pcapng_without_any_idb_block_gives_none_and_note(tmp_path):
     assert structure.snaplen_note
 
 
-# --- Regresja: sciezki bledu z Fazy 2 nietkniete nowa galezia IDB ---------
+# --- Regression: the Phase 2 error paths untouched by the new IDB branch --
 
 
 def test_truncated_mid_record_pcap_still_raises_truncated_with_offset_in_message():
     try:
         audit_capture_structure(FIXTURE_TRUNCATED_RECORD)
-        raise AssertionError("CaptureTruncatedError nie zostal podniesiony")
+        raise AssertionError("CaptureTruncatedError was not raised")
     except CaptureTruncatedError as exc:
         message = str(exc)
         assert "bytes" in message
@@ -177,21 +178,21 @@ def test_truncated_mid_record_pcap_still_raises_truncated_with_offset_in_message
 def test_truncated_mid_block_pcapng_still_raises_truncated():
     try:
         audit_capture_structure(FIXTURE_TRUNCATED_BLOCK)
-        raise AssertionError("CaptureTruncatedError nie zostal podniesiony")
+        raise AssertionError("CaptureTruncatedError was not raised")
     except CaptureTruncatedError:
         pass
 
 
-# --- Regresja: blok IDB za krotki na pole snaplen konczy sie obcieciem ----
+# --- Regression: an IDB block too short for the snaplen field ends as truncation ---
 
 
 def test_idb_block_shorter_than_snaplen_field_raises_truncated_without_block_content(
     tmp_path,
 ):
-    # Blok o dlugosci 16 bajtow: przechodzi ogolna kontrole zakresu bloku
-    # (>=12, wielokrotnosc czterech, trailing length zgodny), ale jest
-    # krotszy niz dwadziescia bajtow potrzebnych na pole snaplen na
-    # przesunieciu od 12 do 16 - galaz IDB ma wlasna kontrole PRZED odczytem.
+    # A block of length 16 bytes: it passes the general block range check
+    # (>=12, a multiple of four, a matching trailing length), but it is shorter
+    # than the twenty bytes needed for the snaplen field at the offset from 12
+    # to 16 - the IDB branch has its own check BEFORE the read.
     total_length = 16
     short_idb = (
         struct.pack("<II", _PCAPNG_IDB_TYPE, total_length)
@@ -203,12 +204,12 @@ def test_idb_block_shorter_than_snaplen_field_raises_truncated_without_block_con
 
     try:
         audit_capture_structure(path)
-        raise AssertionError("CaptureTruncatedError nie zostal podniesiony")
+        raise AssertionError("CaptureTruncatedError was not raised")
     except CaptureTruncatedError as exc:
         assert "snaplen" in str(exc)
 
 
-# --- Faza 3: uciecie przez snaplen i korupcja strukturalna (plan 03-03, Task 1) ---
+# --- Phase 3: snaplen truncation and structural corruption (plan 03-03, Task 1) ---
 
 FIXTURE_SNAPLEN_TRUNCATED = FIXTURE_DIR / "snaplen_truncated_frames.pcap"
 FIXTURE_CORRUPTED_RECORD_LENGTH = FIXTURE_DIR / "corrupted_record_length.pcap"
@@ -237,20 +238,20 @@ def test_capture_corrupt_error_is_subclass_of_capture_truncated_error():
 
 
 def test_corrupted_record_length_not_truncation():
-    # Bramka sprawdza dwie rzeczy naraz: bez drugiej polowy test przechodzi
-    # takze wtedy, gdy obie sciezki bledu zlaly sie w jedna (Z-11).
+    # The gate checks two things at once: without the second half the test
+    # passes even when both error paths have collapsed into one (Z-11).
     try:
         audit_capture_structure(FIXTURE_CORRUPTED_RECORD_LENGTH)
-        raise AssertionError("CaptureCorruptError nie zostal podniesiony")
+        raise AssertionError("CaptureCorruptError was not raised")
     except CaptureCorruptError:
         pass
 
     try:
         audit_capture_structure(FIXTURE_TRUNCATED_RECORD)
-        raise AssertionError("CaptureTruncatedError nie zostal podniesiony")
+        raise AssertionError("CaptureTruncatedError was not raised")
     except CaptureCorruptError:
         raise AssertionError(
-            "Zrzut obciety zostal bledniej sklasyfikowany jako uszkodzony strukturalnie"
+            "A truncated capture was misclassified as structurally corrupted"
         )
     except CaptureTruncatedError:
         pass

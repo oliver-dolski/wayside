@@ -1,15 +1,16 @@
-"""Bramka maszynowa ASSET-03: pole inwentarza bez znacznika pochodzenia jest
-odrzucane maszynowo (plan 03-01, Task 2).
+"""Machine gate ASSET-03: an inventory field without a provenance marker is
+rejected mechanically (plan 03-01, Task 2).
 
-Dane testowe jako stale modulowe, nie literaly rozsiane po asercjach - ten
-sam styl co `VERDICT_WORDS` w `tests/test_report_render.py`. Kazdy test
-odrzucenia sprawdza dwie rzeczy naraz: typ wyjatku ORAZ obecnosc sciezki
-naruszajacego pola w komunikacie - sam typ wyjatku bez sciezki nie daje sie
-uzyc do naprawy przy dziesieciu polach hosta.
+The test data lives in module constants rather than literals scattered across
+the assertions - the same style as `VERDICT_WORDS` in
+`tests/test_report_render.py`. Every rejection test checks two things at once:
+the exception type AND the presence of the path of the offending field in the
+message - the exception type alone, without the path, cannot be used to fix
+anything when a host carries ten fields.
 
-Ten plik jest w calosci jednostkowy: bez subprocessu i bez pliku pcap -
-`assert_provenance_complete` i `iter_observed_fields` sa czyste funkcje nad
-struktura juz zserializowana do slownikow i list.
+This file is entirely a unit test: no subprocess and no pcap file -
+`assert_provenance_complete` and `iter_observed_fields` are pure functions over
+a structure already serialized into dictionaries and lists.
 """
 
 from __future__ import annotations
@@ -31,10 +32,9 @@ VALID_ASSETS: list[dict] = [
     },
 ]
 
-# Slownik `analysis` w ksztalcie odziedziczonym z Fazy 2, bez zadnego pola
-# opakowanego w nosnik prowieniencji - dokladnie taki, jaki bramka NIE MA
-# przepuszczac, gdyby ktos rozszerzyl jej zakres poza sekcje `assets`
-# (zalozenie Z-02).
+# An `analysis` dictionary in the shape inherited from Phase 2, with no field
+# wrapped in a provenance carrier - exactly what the gate MUST NOT let through
+# if somebody widened its scope beyond the `assets` section (assumption Z-02).
 ANALYSIS_FROM_PHASE_2: dict = {
     "capture": {"filename": "x.pcap", "packet_count": 2},
     "conversations": [
@@ -46,7 +46,7 @@ ANALYSIS_FROM_PHASE_2: dict = {
 }
 
 
-# --- Przepuszczanie poprawnych ksztaltow -------------------------------------
+# --- Letting valid shapes through ------------------------------------------
 
 
 def test_gate_passes_list_of_valid_fields():
@@ -63,32 +63,32 @@ def test_gate_passes_empty_list_and_empty_dict():
     assert_provenance_complete({}, path="assets")
 
 
-# --- Odrzucenie: konstrukcja ObservedField -----------------------------------
+# --- Rejection: constructing an ObservedField ------------------------------
 
 
 def test_observed_field_rejects_unknown_provenance():
     with pytest.raises(ValueError):
-        ObservedField(value=1, provenance="wymyslone")
+        ObservedField(value=1, provenance="made-up")
 
 
-# --- Odrzucenie: surowa wartosc zamiast pola, sciezka w komunikacie ---------
+# --- Rejection: a raw value instead of a field, the path in the message ----
 
 
 def test_gate_reports_path_of_field_without_marker():
-    node = [{"ip": {"value": "a", "provenance": "observed"}, "mac": "surowa-wartosc"}]
+    node = [{"ip": {"value": "a", "provenance": "observed"}, "mac": "raw-value"}]
     with pytest.raises(ProvenanceError) as excinfo:
         assert_provenance_complete(node, path="assets")
     assert "mac" in str(excinfo.value)
 
 
 def test_gate_rejects_raw_scalar_nested_inside_list():
-    node = [{"tags": ["surowa-wartosc-w-liscie"]}]
+    node = [{"tags": ["raw-value-inside-a-list"]}]
     with pytest.raises(ProvenanceError) as excinfo:
         assert_provenance_complete(node, path="assets")
     assert "tags" in str(excinfo.value)
 
 
-# --- Odrzucenie: znacznik spoza PROVENANCE_PATTERN --------------------------
+# --- Rejection: a marker outside PROVENANCE_PATTERN ------------------------
 
 
 def test_gate_rejects_field_with_provenance_outside_pattern():
@@ -103,7 +103,7 @@ def test_gate_rejects_inferred_without_method():
         assert_provenance_complete(node, path="assets")
 
 
-# --- Fabryka inferred(): metoda malymi literami przechodzi, WIELKIMI nie ---
+# --- The inferred() factory: a lower-case method passes, an UPPER-CASE one does not ---
 
 
 def test_inferred_factory_accepts_lowercase_method_names():
@@ -116,12 +116,13 @@ def test_inferred_factory_rejects_uppercase_method_name():
         inferred("Acme", "OUI")
 
 
-# --- iter_observed_fields: brak podwojnego liczenia -------------------------
+# --- iter_observed_fields: no double counting ------------------------------
 
 
 def test_iter_observed_fields_does_not_descend_into_recognized_field_value():
-    # `value` tego pola jest SAM slownikiem o ksztalcie {"value","provenance"} -
-    # generator ma oddac zewnetrzny slownik raz i NIE zejsc w jego "value".
+    # The `value` of this field is ITSELF a dictionary of the shape
+    # {"value","provenance"} - the generator is meant to yield the outer
+    # dictionary once and NOT descend into its "value".
     nested_field = {
         "value": {"value": "deep", "provenance": "observed"},
         "provenance": "observed",
@@ -135,7 +136,7 @@ def test_iter_observed_fields_does_not_descend_into_recognized_field_value():
     assert results[0][1] is nested_field
 
 
-# --- Kontrakt zakresu bramki (zalozenie Z-02): sekcja assets, NIE cale drzewo ---
+# --- The gate's scope contract (assumption Z-02): the assets section, NOT the whole tree ---
 
 
 def test_gate_on_assets_section_passes_but_on_full_phase_2_analysis_raises():

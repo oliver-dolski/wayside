@@ -1,13 +1,14 @@
-"""Bramka maszynowa ASSET-01: `build_assets` scala hosty po adresie IP,
-przypisuje adres MAC wedlug zalozenia Z-03, zachowuje kolejnosc pierwszego
-zaobserwowania i zwraca liste pusta na zrzucie bez segmentow (plan 03-01,
-Task 2).
+"""Machine gate ASSET-01: `build_assets` merges hosts by IP address, assigns
+the MAC address following assumption Z-03, keeps the order of first
+observation and returns an empty list for a capture without segments (plan
+03-01, Task 2).
 
-`decode.Segment` budowany bezposrednio w tym pliku, bez pliku pcap i bez
-subprocessu - `build_assets` jest czysta funkcja nad lista segmentow. Zaden
-adres tutaj nie pochodzi z zadnej rzeczywistej sieci: adresy IP z zakresu
-dokumentacyjnego RFC 5737 (192.0.2.0/24), adresy MAC lokalnie administrowane
-(prefiks `02:`) - dokladnie jak `scripts/gen_fixtures.py`.
+`decode.Segment` is built directly in this file, without a pcap file and
+without a subprocess - `build_assets` is a pure function over a list of
+segments. No address here comes from any real network: the IP addresses come
+from the RFC 5737 documentation range (192.0.2.0/24), the MAC addresses are
+locally administered (the `02:` prefix) - exactly as in
+`scripts/gen_fixtures.py`.
 """
 
 from __future__ import annotations
@@ -116,7 +117,7 @@ def test_mac_present_when_ether_layer_observed():
     assert assets[1]["mac"] == {"value": SERVER_MAC, "provenance": "observed"}
 
 
-# --- adjacency: dwa kierunki tej samej pary daja dwa wpisy, nie cztery ------
+# --- adjacency: two directions of the same pair give two entries, not four --
 
 
 def test_adjacency_two_opposite_direction_segments_give_two_hosts_not_four():
@@ -381,12 +382,12 @@ def test_ordering_is_first_seen_order_and_deterministic_across_repeated_calls():
     assert first_run == [THIRD_IP, CLIENT_IP, SERVER_IP]
 
 
-# --- Unit ID jako podadres i wykrycie prawdopodobnej bramy (plan 03-06, Task 1) ---
+# --- Unit ID as a sub-address and detection of a likely gateway (plan 03-06, Task 1) ---
 #
-# Zdarzenia budowane slownikiem, w ksztalcie `analysis["protocol_events"]`, czyli
-# wyniku `dataclasses.asdict` na `ModbusEvent`. Funkcja pomocnicza z wartosciami
-# domyslnymi, zeby test rozniacy sie jedna wartoscia roznil sie jednym argumentem,
-# a nie calym literalem.
+# The events are built as dictionaries, in the shape of
+# `analysis["protocol_events"]`, that is the result of `dataclasses.asdict` on a
+# `ModbusEvent`. A helper with default values, so that a test differing by one
+# value differs by one argument rather than by a whole literal.
 
 
 def _event(
@@ -452,12 +453,12 @@ def test_build_assets_with_only_response_events_gives_not_derivable_unit_ids():
 
 
 def test_build_assets_with_request_event_missing_unit_id_field_does_not_raise():
-    """Zdarzenie protokolu jawnotekstowego (Faza 4, PROTO-05) niesie pole
-    `direction` ale nie niesie pola `unit_id` - `unit_id` jest specyficzny
-    dla Modbusa. `build_assets` nie moze podnosic `KeyError` na takim
-    zdarzeniu, bo `analysis["protocol_events"]` po Fazie 4 miesza zdarzenia
-    wielu protokolow (regresja odkryta przy `wayside analyze` na fixture
-    jawnotekstowym, plan 04-02)."""
+    """A cleartext protocol event (Phase 4, PROTO-05) carries a `direction`
+    field but no `unit_id` field - `unit_id` is specific to Modbus.
+    `build_assets` must not raise `KeyError` on such an event, because after
+    Phase 4 `analysis["protocol_events"]` mixes events of many protocols (a
+    regression discovered while running `wayside analyze` over the cleartext
+    fixture, plan 04-02)."""
     cleartext_event = {
         "packet_number": 1,
         "session_id": 0,
@@ -525,9 +526,9 @@ def test_single_unit_id_gives_gateway_none_never_false():
     assets = build_assets(segments=_client_server_segments(), events=events)
     server = next(entry for entry in assets if entry["ip"]["value"] == SERVER_IP)
 
-    # Asercja na `is None`, nie na sama falszywosc: `False` i `None` sa w
-    # Pythonie oba falszywe, wiec `assert not value` przepuscilaby dokladnie
-    # ten blad, ktoremu zalozenie Z-25 zapobiega.
+    # An assertion on `is None`, not on falsiness alone: in Python `False` and
+    # `None` are both falsy, so `assert not value` would let through exactly
+    # the bug assumption Z-25 prevents.
     assert server["gateway"]["value"] is None
     assert server["gateway"]["provenance"] == "not-derivable-passively"
 
@@ -620,9 +621,10 @@ def test_address_without_any_modbus_event_has_role_undetermined_as_string():
     assets = build_assets(segments=_client_server_segments(), events=[])
     client = next(entry for entry in assets if entry["ip"]["value"] == CLIENT_IP)
 
-    # ASSET-07: wartoscia pola jest LANCUCH `not determined`, nie `None` i nie brak
-    # klucza. Rola not determined jest widocznym wpisem, nie pustym wierszem - to
-    # jedyne pole inwentarza, w ktorym brak wiedzy ma wartosc inna niz `null`.
+    # ASSET-07: the value of the field is the STRING `undetermined`, not `None`
+    # and not a missing key. An undetermined role is a visible entry rather than
+    # an empty row - this is the only inventory field where the absence of
+    # knowledge carries a value other than `null`.
     assert client["role"]["value"] == "undetermined"
     assert client["role"]["value"] is not None
     assert client["role"]["provenance"] == "not-derivable-passively"
@@ -716,14 +718,14 @@ def test_assert_provenance_complete_passes_with_role_fields():
     assert_provenance_complete(assets, path="assets")
 
 
-# --- Bramka na etykiete organizacyjna (plan 03-06, Task 3) -------------------
+# --- The gate on organisational labels (plan 03-06, Task 3) -----------------
 #
-# Bramka dziala w dwoch warstwach. Pierwsza pilnuje samego zbioru etykiet
-# (test_no_forbidden_organisational_label_occurs_in_any_role_label wyzej),
-# druga - warstwy renderowania, ktora mogla by etykiete rozwinac o wlasny
-# komentarz. Obie czytaja `FORBIDDEN_ROLE_LABELS` z modulu produkcyjnego:
-# lista przepisana w tescie rozjedzie sie z produkcyjna przy pierwszym
-# dopisanym wpisie.
+# The gate works in two layers. The first guards the label set itself
+# (test_no_forbidden_organisational_label_occurs_in_any_role_label above), the
+# second the rendering layer, which could expand a label with a comment of its
+# own. Both read `FORBIDDEN_ROLE_LABELS` from the production module: a list
+# retyped in the test would drift from the production one at the first entry
+# added.
 
 
 def _host_entry(*, ip: str, role: str) -> dict:

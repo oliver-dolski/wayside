@@ -1,20 +1,21 @@
-"""Bramka maszynowa FLOW-01 i FLOW-02: strona inicjujaca sesje z pakietu
-uzgodnienia polaczenia oraz macierz komunikacji ze zrodlem, celem, kierunkiem,
-protokolem i wolumenem (plan 03-07).
+"""Machine gate FLOW-01 and FLOW-02: the side that initiated a session, taken
+from the connection handshake packet, and the communication matrix with its
+source, target, direction, protocol and volume (plan 03-07).
 
-Pakiety syntetyczne budowane w tym pliku przez scapy, bez przejscia przez dysk -
-`find_session_initiators` przyjmuje liste pakietow, wiec test nie potrzebuje pliku.
-Adresacja z zakresu dokumentacyjnego RFC 5737 (192.0.2.0/24), adresy warstwy
-drugiej lokalnie administrowane (prefiks `02:`), dokladnie jak
-`scripts/gen_fixtures.py`. Zaden adres nie pochodzi z zadnej rzeczywistej sieci.
+The synthetic packets are built in this file by scapy, without a trip through
+disk - `find_session_initiators` takes a list of packets, so the test needs no
+file. The addressing comes from the RFC 5737 documentation range
+(192.0.2.0/24), the layer two addresses are locally administered (the `02:`
+prefix), exactly as in `scripts/gen_fixtures.py`. No address comes from any
+real network.
 
-`test_initiator_from_syn_when_present` jest czescia kontraktu wymaganie na test
-z `03-VALIDATION.md`, nazwa nie ulega zmianie.
+`test_initiator_from_syn_when_present` is part of the requirement-to-test
+contract of `03-VALIDATION.md`, its name does not change.
 """
 
 from __future__ import annotations
 
-import wayside.pcap  # noqa: F401  - izolacja cache scapy PRZED importem warstw
+import wayside.pcap  # noqa: F401  - scapy cache isolation BEFORE importing the layers
 
 from scapy.layers.inet import IP, TCP  # noqa: E402
 from scapy.layers.l2 import Ether  # noqa: E402
@@ -139,9 +140,9 @@ def test_two_syn_packets_for_one_session_take_the_first_in_file_order():
 
 
 def test_syn_for_endpoint_pair_absent_from_segments_creates_no_entry():
-    """Sesja bez ani jednego segmentu z ladunkiem nie wystepuje w zadnej innej
-    sekcji modelu (zalozenie Z-31), wiec nie dostaje tu wpisu - inaczej klucze
-    slownika rozjechalyby sie z numeracja `decode_segments`."""
+    """A session without a single segment carrying a payload appears in no other
+    section of the model (assumption Z-31), so it gets no entry here - otherwise
+    the dictionary keys would drift from the numbering of `decode_segments`."""
     stray_syn = _packet(
         flags="S",
         src_ip="192.0.2.99", src_port=40000,
@@ -178,8 +179,8 @@ def test_handshake_fixture_gives_client_endpoint_as_initiator():
 
 
 def test_fixture_without_handshake_gives_empty_mapping():
-    """Polowa, bez ktorej funkcja zwracajaca zawsze pierwszego nadawce
-    przeszlaby test pozytywny."""
+    """The half without which a function always returning the first sender
+    would pass the positive test."""
     packets = read_capture(FIXTURE_NO_HANDSHAKE)
     segments = decode_segments(packets)
 
@@ -272,9 +273,9 @@ def test_session_with_only_low_confidence_event_gets_protocol_rtu_tunnel():
 
 
 def test_session_with_made_up_protocol_id_gets_label_from_data():
-    """Dowod, ze etykieta idzie z danych: identyfikator wymyslony, nieobecny
-    nigdzie w kodzie pod `src/wayside/`, wciaz staje sie etykieta wiersza
-    bez zadnej zmiany w `flow.py` (PROTO-05)."""
+    """Proof that the label comes from the data: an invented identifier, present
+    nowhere in the code under `src/wayside/`, still becomes the label of the row
+    without any change to `flow.py` (PROTO-05)."""
     packets = [_data()]
     segments = decode_segments(packets)
 
@@ -291,9 +292,9 @@ def test_session_with_made_up_protocol_id_gets_label_from_data():
 
 
 def test_session_with_two_high_confidence_protocols_gets_composite_label():
-    """Zalozenie Z-43: dwa protokoly o pewnosci wysokiej w tej samej sesji
-    daja etykiete zlozona, posortowane identyfikatory rozdzielone znakiem
-    plus - nigdy wybor jednego z nich."""
+    """Assumption Z-43: two high-confidence protocols in the same session yield
+    a composite label, the sorted identifiers separated by a plus sign - never
+    a pick of one of them."""
     packets = [_data()]
     segments = decode_segments(packets)
     session_id = segments[0].session_id
@@ -314,8 +315,8 @@ def test_session_with_two_high_confidence_protocols_gets_composite_label():
 
 
 def test_session_present_on_both_lists_gets_label_from_high_confidence_only():
-    """Sesja obecna na obu listach dostaje etykiete z pola `protocol`
-    zdarzenia o pewnosci wysokiej, bez czlonu z listy pewnosci niskiej."""
+    """A session present on both lists gets its label from the `protocol` field
+    of the high-confidence event, without a part from the low-confidence list."""
     packets = [_data()]
     segments = decode_segments(packets)
     session_id = segments[0].session_id
@@ -334,9 +335,9 @@ def test_session_present_on_both_lists_gets_label_from_high_confidence_only():
 
 
 def test_modbus_event_wins_over_low_confidence_event_for_the_same_session():
-    """Kolejnosc rozstrzygania jest nieprzemienna: sesja rozpoznana po naglowku
-    MBAP jest Modbusem po TCP, nawet gdy niesie w tle segment przypadkiem
-    dopasowany suma kontrolna."""
+    """The order of resolution is not commutative: a session recognized by its
+    MBAP header is Modbus over TCP, even when it carries in the background a
+    segment that happened to match by checksum."""
     packets = [_data()]
     segments = decode_segments(packets)
     session_id = segments[0].session_id
@@ -431,8 +432,9 @@ def test_direction_value_joins_source_and_target():
 
 
 def test_volume_counts_all_packets_of_the_session_not_only_payload_bytes():
-    """Zalozenie Z-33: wolumen obejmuje pakiety uzgodnienia polaczenia
-    i potwierdzenia, wiec jest wiekszy od sumy dlugosci samych ladunkow."""
+    """Assumption Z-33: the volume covers the connection handshake and
+    acknowledgement packets, so it is greater than the sum of the payload
+    lengths alone."""
     packets = read_capture(FIXTURE_HANDSHAKE)
     segments = decode_segments(packets)
 
@@ -448,8 +450,9 @@ def test_volume_counts_all_packets_of_the_session_not_only_payload_bytes():
 
 
 def test_matrix_packet_count_differs_from_conversations_packet_count():
-    """Jedyna obserwowalna konsekwencja zalozenia Z-33: macierz liczy WSZYSTKIE
-    pakiety sesji, a `conversations` same segmenty z ladunkiem."""
+    """The only observable consequence of assumption Z-33: the matrix counts ALL
+    packets of a session, while `conversations` counts the payload-carrying
+    segments alone."""
     packets = read_capture(FIXTURE_HANDSHAKE)
     segments = decode_segments(packets)
 

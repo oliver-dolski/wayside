@@ -1,15 +1,15 @@
-"""Test FOUND-04: `standards/.local` nigdy nie trafil do historii repozytorium.
+"""Test FOUND-04: `standards/.local` never entered the repository history.
 
-Dwa niezalezne sprawdzenia: `git log --all` (co juz jest w historii commitow)
-i `git ls-files` (co jest w indeksie - lapie stan, ktorego log jeszcze nie
-widzi, np. plik dodany do indeksu, ale jeszcze nie scommitowany).
+Two independent checks: `git log --all` (what is already in the commit
+history) and `git ls-files` (what is in the index - it catches a state the log
+cannot see yet, say a file added to the index but not committed).
 
-Jesli ktorekolwiek z tych sprawdzen kiedykolwiek zwroci wynik: to NIE jest
-sytuacja do naprawienia kolejnym commitem, bo tresc juz jest w historii.
-Wymagane jest przepisanie historii przez `git filter-repo` PRZED jakimkolwiek
-publicznym pushem. Jesli publiczny push juz sie odbyl, przepisanie historii
-NIE cofa faktu, ze tresc mogla zostac zescrapowana albo zmirrorowana -
-patrz komunikat asercji nizej i Pattern 3 w 01-RESEARCH.md.
+If either of these checks ever returns a result: that is NOT a situation to be
+fixed by another commit, because the content is already in the history.
+Rewriting the history with `git filter-repo` is required BEFORE any public
+push. If a public push has already happened, rewriting the history does NOT
+undo the fact that the content may have been scraped or mirrored - see the
+assertion message below and Pattern 3 in 01-RESEARCH.md.
 """
 
 from __future__ import annotations
@@ -20,12 +20,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 REMEDIATION_MESSAGE = (
-    "standards/.local w historii gita. To NIE jest sytuacja do naprawienia "
-    "kolejnym commitem - tresc juz jest w historii. Wymagane jest "
-    "przepisanie historii przez `git filter-repo` PRZED jakimkolwiek "
-    "publicznym pushem. Jesli publiczny push juz sie odbyl, przepisanie "
-    "historii nie cofa faktu, ze tresc mogla zostac zescrapowana albo "
-    "zmirrorowana."
+    "standards/.local is in the git history. This is NOT a situation to be "
+    "fixed by another commit - the content is already in the history. "
+    "Rewriting the history with `git filter-repo` is required BEFORE any "
+    "public push. If a public push has already happened, rewriting the "
+    "history does not undo the fact that the content may have been scraped "
+    "or mirrored."
 )
 
 
@@ -46,8 +46,8 @@ def test_standards_local_never_appears_in_commit_history():
 
 
 def test_standards_local_not_present_in_current_index():
-    # `git log` widzi wylacznie to, co juz zostalo scommitowane - plik
-    # dodany do indeksu (np. przez `git add -f`), ale jeszcze nie
-    # scommitowany, nie pojawi sie tam wcale. `git ls-files` lapie ten stan.
+    # `git log` sees only what has already been committed - a file added to
+    # the index (say through `git add -f`) but not yet committed does not show
+    # up there at all. `git ls-files` catches that state.
     output = _run_git(["ls-files", "--", "standards/.local"])
     assert output == "", REMEDIATION_MESSAGE

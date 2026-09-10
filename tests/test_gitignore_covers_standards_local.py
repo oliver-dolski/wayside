@@ -1,17 +1,17 @@
-"""Test FOUND-04 / 05-03: `standards/.local` i `.confidentiality-identity.local`
-sa ignorowane zachowaniowo.
+"""Test FOUND-04 / 05-03: `standards/.local` and `.confidentiality-identity.local`
+are ignored behaviourally.
 
-Sprawdza ZACHOWANIE gita (`git check-ignore`), nie tresc pliku `.gitignore`.
-Test czytajacy `.gitignore` szuka linii tekstu i przechodzilby takze wtedy,
-gdy inna regula nizej ten wpis odwraca (`!standards/.local/`) - `git
-check-ignore` jest jedynym zrodlem prawdy, ktore uwzglednia CALY lancuch
-regul, nie tylko jedna linie.
+It checks the BEHAVIOUR of git (`git check-ignore`), not the content of the
+`.gitignore` file. A test reading `.gitignore` looks for a line of text and
+would pass even when another rule further down reverses that entry
+(`!standards/.local/`) - `git check-ignore` is the only source of truth that
+takes the WHOLE chain of rules into account, not just one line.
 
-Dwa pilnowane pliki: `standards/.local` (korpus norm, warstwa 1) i
-`.confidentiality-identity.local` (literaly lokalne warstwy 3, plan 05-03).
-Kazdy ma sonde pozytywna (sciezka jest ignorowana) i negatywna (sasiedni
-plik/katalog publiczny NIE jest ignorowany) - regula zbyt szeroka zdjelaby
-z pola widzenia gita cos, co ma byc widoczne.
+Two guarded files: `standards/.local` (the corpus of standards, layer 1) and
+`.confidentiality-identity.local` (the local literals of layer 3, plan 05-03).
+Each has a positive probe (the path is ignored) and a negative one (a
+neighbouring public file or directory is NOT ignored) - a rule that is too
+wide would take something meant to be visible out of git's sight.
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ def test_standards_local_probe_path_is_ignored():
 
 
 def test_public_standards_probe_path_is_not_ignored():
-    # Regula nie moze byc zbyt szeroka - sasiedni katalog publiczny musi
-    # zostac widoczny dla gita.
-    assert _check_ignore("standards/publiczny.md") == 1
+    # The rule must not be too wide - a neighbouring public directory has to
+    # stay visible to git.
+    assert _check_ignore("standards/public.md") == 1
 
 
 def test_identity_local_literal_file_is_ignored():
@@ -47,7 +47,7 @@ def test_identity_local_literal_file_is_ignored():
 
 
 def test_neighboring_public_local_probe_path_is_not_ignored():
-    # Regula nie moze byc zbyt szeroka - sasiedni plik bez czlonu lokalnosci
-    # musi zostac widoczny dla gita, inaczej regula zdejmowalaby z pola
-    # widzenia cos, co ma byc widoczne.
+    # The rule must not be too wide - a neighbouring file without the locality
+    # part has to stay visible to git, otherwise the rule would take something
+    # meant to be visible out of sight.
     assert _check_ignore(".confidentiality-identity-public-probe") == 1

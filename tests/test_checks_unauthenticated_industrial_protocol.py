@@ -1,19 +1,19 @@
-"""Bramka findingu za uzycie protokolu przemyslowego bez mechanizmu
-uwierzytelnienia i rozdzielenia od findingu za zapis (CHECK-05).
+"""Gate for the finding about the use of an industrial protocol without an
+authentication mechanism, and for its separation from the write finding
+(CHECK-05).
 
-Wieksza czesc testow jest testem jednostkowym czystej funkcji `evaluate` nad
-modelem budowanym recznie w tym pliku, bez zadnego pliku pcap - evaluator z
-definicji widzi wylacznie `analysis["protocol_events"]`, nigdy pakietow
-(02-RESEARCH.md, Anti-Pattern 1). `_event()` jest wspolna funkcja pomocnicza
-budujaca jedno zdarzenie protokolu, wzorowana na
-`tests/test_checks_cleartext_protocol.py`.
+Most of the tests are unit tests of the pure `evaluate` function over a model
+built by hand in this file, without any pcap file - by definition the
+evaluator sees only `analysis["protocol_events"]`, never packets
+(02-RESEARCH.md, Anti-Pattern 1). `_event()` is the shared helper building one
+protocol event, modelled on `tests/test_checks_cleartext_protocol.py`.
 
-Grupa druga (integracyjna, w podprocesie) jest tu NAJWAZNIEJSZA dla
-Pitfall 9 z `04-RESEARCH.md`: przebieg na fixture zlozonym wylacznie z
-odczytow daje dokladnie jeden finding tego checka i ZERO findingow checka za
-zapis. To jest test, ktorego check zaimplementowany jako filtr na findingu
-za zapis NIE przechodzi - dowod, ze CHECK-05 jest wlasnym, niezaleznym
-warunkiem, nie deklaracja.
+The second group (integration, in a subprocess) is THE MOST IMPORTANT one here
+for Pitfall 9 of `04-RESEARCH.md`: a run over a fixture made up of reads alone
+yields exactly one finding of this check and ZERO findings of the write check.
+That is the test a check implemented as a filter over the write finding does
+NOT pass - proof that CHECK-05 is its own independent condition, not a
+declaration.
 """
 
 from __future__ import annotations
@@ -51,10 +51,10 @@ def _event(
     direction: str = "request",
     **overrides,
 ) -> dict:
-    """Buduje jedno zdarzenie protokolu w ksztalcie zwracanym przez
-    `run_dissectors` po wzbogaceniu z manifestu przez rejestr. Pola
-    nieistotne dla `evaluate` maja wartosci domyslne stale, zeby kazdy
-    przypadek testowy roznil sie tylko tym, co faktycznie bada."""
+    """Builds one protocol event in the shape returned by `run_dissectors`
+    after the registry enriched it from the manifest. Fields irrelevant to
+    `evaluate` carry constant defaults, so that every test case differs only
+    in what it actually examines."""
     base = {
         "packet_number": packet_number,
         "session_id": session_id,
@@ -160,7 +160,7 @@ def test_evaluate_returns_empty_list_for_protocol_outside_set():
     assert evaluate(analysis) == []
 
 
-# --- evaluate: dowod jest PIERWSZYM zdarzeniem sesji w kolejnosci wejscia ---
+# --- evaluate: the evidence is the FIRST event of the session in input order ---
 
 
 def test_evidence_is_first_event_of_session_in_input_order():
@@ -202,7 +202,7 @@ def test_unauthenticated_industrial_protocols_is_exactly_one_id():
     assert UNAUTHENTICATED_INDUSTRIAL_PROTOCOLS == frozenset({"modbus-tcp"})
 
 
-# --- Evaluator nie odczytuje pola 'kind' ani razu ---------------------------
+# --- The evaluator never reads the 'kind' field ----------------------------
 
 
 def test_evaluator_module_never_indexes_kind_field():
@@ -270,9 +270,10 @@ def _analyze(fixture_relative: str, out_dir: Path) -> dict:
 
 
 def test_read_only_fixture_yields_one_finding_this_check_and_zero_write_findings(tmp_path):
-    """Dowod Pitfall 9: fixture bez ani jednej operacji zapisu daje finding
-    tego checka i NIE daje findingu checka za zapis. Check zaimplementowany
-    jako filtr na findingu za zapis nie przechodzi tego testu."""
+    """Proof of Pitfall 9: a fixture without a single write operation yields a
+    finding of this check and does NOT yield a finding of the write check. A
+    check implemented as a filter over the write finding does not pass this
+    test."""
     analysis = _analyze(FIXTURE_READ_ONLY, tmp_path)
     findings = analysis["findings"]
 
@@ -302,9 +303,9 @@ def test_cleartext_fixture_yields_zero_findings_this_check(tmp_path):
 
 
 def test_rtu_over_tcp_fixture_yields_zero_findings_this_check(tmp_path):
-    """Zdarzenia o pewnosci niskiej (Modbus RTU tunelowany po TCP) stoja
-    poza `analysis["protocol_events"]` - trafiaja do `low_confidence_events`,
-    ktorej ten evaluator nie widzi w ogole."""
+    """Low-confidence events (Modbus RTU tunnelled over TCP) stand outside
+    `analysis["protocol_events"]` - they land in `low_confidence_events`,
+    which this evaluator does not see at all."""
     analysis = _analyze(FIXTURE_RTU_OVER_TCP, tmp_path)
     findings = [f for f in analysis["findings"] if f["check_id"] == CHECK_ID]
 
@@ -317,8 +318,8 @@ def test_finding_carries_standard_reference_and_configured_severity(tmp_path):
 
     assert finding["severity"] == "high"
     refs = finding["standard_refs"]
-    # Od planu 04-05 kazdy finding niesie DWA powolania: IEC-62443-3-3
-    # (pierwsze) i CLC/TS 50701 (drugie), w kolejnosci z pliku checka.
+    # Since plan 04-05 every finding carries TWO citations: IEC-62443-3-3
+    # (first) and CLC/TS 50701 (second), in the order given in the check file.
     assert len(refs) == 2
     assert refs[0]["standard"] == "IEC-62443-3-3"
     assert refs[0]["edition"]

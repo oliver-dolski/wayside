@@ -1,14 +1,14 @@
-"""Bramka findingu za protokol jawnotekstowy i grupowania po sesji plus
-protokole (CHECK-03).
+"""Gate for the cleartext protocol finding and for grouping by session plus
+protocol (CHECK-03).
 
-Wieksza czesc testow jest testem jednostkowym czystej funkcji `evaluate` nad
-modelem budowanym recznie w tym pliku, bez zadnego pliku pcap - evaluator z
-definicji widzi wylacznie `analysis["protocol_events"]`, nigdy pakietow
-(02-RESEARCH.md, Anti-Pattern 1). `_event()` jest wspolna funkcja pomocnicza
-budujaca jedno zdarzenie protokolu, wzorowana na `tests/test_checks_modbus.py`.
+Most of the tests are unit tests of the pure `evaluate` function over a model
+built by hand in this file, without any pcap file - by definition the
+evaluator sees only `analysis["protocol_events"]`, never packets
+(02-RESEARCH.md, Anti-Pattern 1). `_event()` is the shared helper building one
+protocol event, modelled on `tests/test_checks_modbus.py`.
 
-`test_cleartext_fixture_yields_three_findings` i pokrewne sa testami
-integracyjnymi w podprocesie, tak samo jak `tests/test_checks_modbus.py`.
+`test_cleartext_fixture_yields_exactly_three_findings` and its relatives are
+integration tests in a subprocess, exactly as in `tests/test_checks_modbus.py`.
 """
 
 from __future__ import annotations
@@ -40,10 +40,10 @@ def _event(
     direction: str = "request",
     **overrides,
 ) -> dict:
-    """Buduje jedno zdarzenie protokolu w ksztalcie zwracanym przez
-    `dissect()` po wzbogaceniu z manifestu przez rejestr. Pola nieistotne
-    dla `evaluate` maja wartosci domyslne stale, zeby kazdy przypadek
-    testowy roznil sie tylko tym, co faktycznie bada."""
+    """Builds one protocol event in the shape returned by `dissect()` after the
+    registry enriched it from the manifest. Fields irrelevant to `evaluate`
+    carry constant defaults, so that every test case differs only in what it
+    actually examines."""
     base = {
         "packet_number": packet_number,
         "session_id": session_id,
@@ -59,7 +59,7 @@ def _event(
     return base
 
 
-# --- evaluate: brak klucza zdarzen protokolu podnosi KeyError ---------------
+# --- evaluate: a missing protocol events key raises KeyError ---------------
 
 
 def test_evaluate_raises_keyerror_without_protocol_events_key():
@@ -67,14 +67,14 @@ def test_evaluate_raises_keyerror_without_protocol_events_key():
         evaluate({})
 
 
-# --- evaluate: lista pusta, bez wyjatku ------------------------------------
+# --- evaluate: an empty list, without raising ------------------------------
 
 
 def test_evaluate_returns_empty_list_for_no_events():
     assert evaluate({"protocol_events": []}) == []
 
 
-# --- evaluate: jedno zdarzenie protokolu jawnotekstowego daje jeden wynik --
+# --- evaluate: one cleartext protocol event yields one finding -------------
 
 
 def test_evaluate_returns_one_finding_for_one_cleartext_event():
@@ -86,7 +86,7 @@ def test_evaluate_returns_one_finding_for_one_cleartext_event():
     assert findings[0]["evidence"] == {"packet_number": 1, "session_id": 0}
 
 
-# --- evaluate: dziesiec zdarzen tej samej sesji i protokolu, jeden wynik ---
+# --- evaluate: ten events of the same session and protocol, one finding ----
 
 
 def test_evaluate_ten_events_same_session_same_protocol_yields_one_finding():
@@ -102,7 +102,7 @@ def test_evaluate_ten_events_same_session_same_protocol_yields_one_finding():
     assert findings[0]["evidence"] == {"packet_number": 1, "session_id": 0}
 
 
-# --- evaluate: dwa protokoly jawnotekstowe w jednej sesji, dwa wyniki ------
+# --- evaluate: two cleartext protocols in one session, two findings --------
 
 
 def test_evaluate_two_cleartext_protocols_same_session_yields_two_findings():
@@ -120,7 +120,7 @@ def test_evaluate_two_cleartext_protocols_same_session_yields_two_findings():
     assert evidences == {(1, 0), (2, 0)}
 
 
-# --- evaluate: zdarzenia poza lista protokolow jawnotekstowych, lista pusta
+# --- evaluate: events outside the cleartext protocol list, an empty list ---
 
 
 def test_evaluate_returns_empty_list_for_non_cleartext_protocol_events():
@@ -133,7 +133,7 @@ def test_evaluate_returns_empty_list_for_non_cleartext_protocol_events():
     assert evaluate(analysis) == []
 
 
-# --- evaluate: dowod jest PIERWSZYM zdarzeniem pary w kolejnosci wejscia ---
+# --- evaluate: the evidence is the FIRST event of the pair in input order --
 
 
 def test_evidence_is_first_event_of_pair_in_input_order():
@@ -150,7 +150,7 @@ def test_evidence_is_first_event_of_pair_in_input_order():
     assert findings[0]["evidence"] == {"packet_number": 5, "session_id": 0}
 
 
-# --- evaluate: wywolanie dwa razy daje identyczna liste w tej samej kolejnosci
+# --- evaluate: calling it twice yields an identical list in the same order -
 
 
 def test_evaluate_called_twice_returns_identical_ordered_list():
@@ -168,14 +168,14 @@ def test_evaluate_called_twice_returns_identical_ordered_list():
     assert first == second
 
 
-# --- CLEARTEXT_PROTOCOLS: zbior trzech identyfikatorow ----------------------
+# --- CLEARTEXT_PROTOCOLS: a set of three identifiers -----------------------
 
 
 def test_cleartext_protocols_is_exactly_three_ids():
     assert CLEARTEXT_PROTOCOLS == frozenset({"telnet", "ftp", "http"})
 
 
-# --- Zero importu scapy/decode/protocols ------------------------------------
+# --- Zero scapy/decode/protocols imports -----------------------------------
 
 
 def test_evaluator_module_imports_no_decoding_or_dissector_module():
@@ -201,7 +201,7 @@ def test_evaluator_module_imports_no_decoding_or_dissector_module():
     assert not bad, bad
 
 
-# --- Testy integracyjne: fixture jawnotekstowy i fixture bazowy Modbusa ----
+# --- Integration tests: the cleartext fixture and the base Modbus fixture --
 
 
 def _analyze(fixture_relative: str, out_dir: Path) -> tuple[dict, str]:
@@ -240,8 +240,8 @@ def test_cleartext_fixture_findings_carry_standard_reference_with_nonempty_editi
         assert finding["severity"] == "medium"
         assert finding["risk"] == risk.severity_to_risk("medium")
         refs = finding["standard_refs"]
-        # Od planu 04-05 kazdy finding niesie DWA powolania: IEC-62443-3-3
-        # (pierwsze) i CLC/TS 50701 (drugie), w kolejnosci z pliku checka.
+        # Since plan 04-05 every finding carries TWO citations: IEC-62443-3-3
+        # (first) and CLC/TS 50701 (second), in the order given in the check file.
         assert len(refs) == 2
         assert refs[0]["standard"] == "IEC-62443-3-3"
         assert refs[0]["clause"] == "SR 4.1"

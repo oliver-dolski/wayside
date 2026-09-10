@@ -1,10 +1,10 @@
-"""Test snapshotowy FOUND-02: pelne stdout komendy `inspect` przypiete do syrupy.
+"""Snapshot test FOUND-02: the full stdout of the `inspect` command pinned to syrupy.
 
-Fixture przekazywana jest jako sciezka wzgledna wobec korzenia repozytorium
-(nie bezwzgledna), bo bezwzgledna sciezka rozni sie miedzy maszyna autora
-a runnerem CI i snapshot rozjezdzalby sie bez zadnej zmiany w kodzie.
-Znaczniki czasu w wyjsciu pochodza ze stalych ustawionych przez
-`scripts/gen_fixtures.py`, wiec sa juz deterministyczne.
+The fixture is passed as a path relative to the repository root (not an
+absolute one), because an absolute path differs between the author's machine
+and the CI runner and the snapshot would drift with no change to the code at
+all. The timestamps in the output come from the constants set by
+`scripts/gen_fixtures.py`, so they are deterministic already.
 """
 
 from __future__ import annotations

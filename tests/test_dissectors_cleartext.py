@@ -1,13 +1,13 @@
-"""Bramka maszynowa trzech dissectorow jawnotekstowych (CHECK-03): rozpoznanie
-po zawartosci, odrzucenie ladunku za krotkiego bez podniesienia wyjatku,
-brak bajtow ladunku w zdarzeniu i w artefaktach koncowych.
+"""Machine gate for the three cleartext dissectors (CHECK-03): recognition by
+content, rejection of a payload too short without raising, absence of payload
+bytes in the event and in the final artifacts.
 
-Wzorzec identyczny jak w `tests/test_modbus_rtu_tunnel.py`: budowa surowych
-bajtow w tescie, funkcja pomocnicza budujaca `Segment`, przypadek negatywny
-na fixture'ach innego protokolu. Stale wymyslonej nazwy uzytkownika, hasla
-i sciezki zasobu sa importowane z `scripts/gen_fixtures.py`, nie powielane -
-test na ich nieobecnosc w artefaktach traci sens, jesli porownuje z kopia,
-ktora moglaby sama rozjechac sie z fixture'em.
+The pattern is identical to `tests/test_modbus_rtu_tunnel.py`: raw bytes
+built in the test, a helper building a `Segment`, a negative case over the
+fixtures of another protocol. The constants of the invented user name,
+password and resource path are imported from `scripts/gen_fixtures.py` rather
+than duplicated - a test for their absence in the artifacts loses its meaning
+if it compares against a copy that could itself drift from the fixture.
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ FIXTURE_MODBUS_WRITE = "tests/fixtures/pcap/modbus_write_single_register.pcap"
 FIXTURE_MODBUS_NON_STANDARD = "tests/fixtures/pcap/modbus_write_non_standard_port.pcap"
 FIXTURE_MODBUS_MALFORMED = "tests/fixtures/pcap/modbus_malformed_mbap.pcap"
 
-# Zbior kluczy dozwolonych zdarzenia dissectora surowego (przed
-# wstrzykinieciem pol protocol/confidence przez rejestr) - dokladnie te
-# pola z bloku <interfaces> planu 04-02.
+# The set of allowed keys of a raw dissector event (before the registry
+# injects the protocol/confidence fields) - exactly the fields from the
+# <interfaces> block of plan 04-02.
 ALLOWED_EVENT_FIELDS = {
     "packet_number",
     "session_id",
@@ -80,7 +80,7 @@ def _fixture_segments(fixture_relative: str) -> list[Segment]:
     return decode.decode_segments(packets)
 
 
-# --- Telnet: dlugosc PRZED indeksowaniem, sekwencja negocjacji -------------
+# --- Telnet: length BEFORE indexing, the negotiation sequence --------------
 
 
 def test_telnet_dissect_on_empty_and_short_payloads_returns_empty_list():
@@ -99,11 +99,11 @@ def test_telnet_dissect_on_three_byte_negotiation_returns_one_event():
 
 
 def test_telnet_dissect_on_non_negotiation_command_byte_returns_empty_list():
-    segment = _make_segment(bytes([0xFF, 0x01, 0x01]))  # 0x01 poza zbiorze polecen
+    segment = _make_segment(bytes([0xFF, 0x01, 0x01]))  # 0x01 outside the command set
     assert telnet_dissector.dissect([segment]) == []
 
 
-# --- FTP: czasownik polecenia, kod odpowiedzi, dlugosc minimalna ------------
+# --- FTP: the command verb, the reply code, the minimum length -------------
 
 
 def test_ftp_dissect_command_verb_followed_by_space_returns_command_basis():
@@ -135,7 +135,7 @@ def test_ftp_dissect_payload_shorter_than_minimum_returns_empty_list():
     assert ftp_dissector.dissect([segment]) == []
 
 
-# --- HTTP: linia zadania, linia statusu, brak tokenu wersji ----------------
+# --- HTTP: the request line, the status line, a missing version token ------
 
 
 def test_http_dissect_request_line_with_version_token_returns_request_basis():
@@ -165,7 +165,7 @@ def test_http_dissect_method_without_version_token_returns_empty_list():
     assert http_dissector.dissect([segment]) == []
 
 
-# --- Testy krzyzowe: kazdy dissector nowy na fixture'ach obcego protokolu --
+# --- Cross tests: every new dissector over fixtures of a foreign protocol --
 
 
 def test_new_dissectors_return_empty_list_on_modbus_fixtures():
@@ -186,7 +186,7 @@ def test_modbus_dissectors_return_empty_list_on_cleartext_fixture():
     assert modbus_rtu_tunnel_dissector.dissect(segments) == []
 
 
-# --- Kontrakt ksztaltu zdarzenia: zbior kluczy rowny polom dozwolonym ------
+# --- Event shape contract: the key set equals the allowed fields -----------
 
 
 def test_event_shape_matches_allowed_fields_for_all_three_dissectors():
@@ -199,22 +199,22 @@ def test_event_shape_matches_allowed_fields_for_all_three_dissectors():
             assert set(event) == ALLOWED_EVENT_FIELDS, (dissector.__name__, event)
 
 
-# --- Kierunek zdarzenia z reguly pierwszego nadawcy, nie z portu -----------
+# --- Event direction from the first sender rule, not from the port ---------
 
 
 def test_direction_follows_first_sender_rule_not_port_number():
     segments = _fixture_segments(FIXTURE_CLEARTEXT)
     telnet_events = telnet_dissector.dissect(segments)
 
-    # Pakiet 1 (klient, port zrodlowy efemeryczny) jest pierwszym nadawca w
-    # tej sesji, wiec jego zdarzenie ma kierunek "request" niezaleznie od
-    # tego, ze port docelowy (23) jest portem serwera.
+    # Packet 1 (the client, an ephemeral source port) is the first sender in
+    # this session, so its event carries the direction "request" regardless of
+    # the fact that the destination port (23) is a server port.
     first_by_packet = {event["packet_number"]: event["direction"] for event in telnet_events}
     assert first_by_packet[1] == "request"
     assert first_by_packet[2] == "response"
 
 
-# --- Integracja: rejestr rozpoznaje trzy protokoly na fixture jawnotekstowym
+# --- Integration: the registry recognizes three protocols on the fixture ---
 
 
 def test_registry_recognizes_three_protocols_on_cleartext_fixture():
@@ -229,7 +229,7 @@ def test_registry_recognizes_three_protocols_on_cleartext_fixture():
     assert low_confidence_events == []
 
 
-# --- Brak bajtow ladunku w analysis.json i w report.md ---------------------
+# --- No payload bytes in analysis.json and in report.md --------------------
 
 
 def test_analysis_and_report_carry_no_cleartext_payload_bytes(tmp_path):

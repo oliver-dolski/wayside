@@ -1,15 +1,16 @@
-"""Bramka findingu za zapis do sterownika i kontraktu dowodu (CHECK-04, CHECK-06).
+"""Gate for the write-to-controller finding and the evidence contract
+(CHECK-04, CHECK-06).
 
-Wieksza czesc testow jest testem jednostkowym czystej funkcji `evaluate`
-nad modelem budowanym recznie w tym pliku, bez zadnego pliku pcap - evaluator
-z definicji widzi wylacznie `analysis["protocol_events"]`, nigdy pakietow
-(02-RESEARCH.md, Anti-Pattern 1). `_event()` jest wspolna funkcja pomocnicza
-budujaca jedno zdarzenie protokolu, zeby kazdy przypadek roznil sie tylko
-lista zdarzen, a nie duplikowal ksztalt slownika.
+Most of the tests are unit tests of the pure `evaluate` function over a model
+built by hand in this file, without any pcap file - by definition the
+evaluator sees only `analysis["protocol_events"]`, never packets
+(02-RESEARCH.md, Anti-Pattern 1). `_event()` is the shared helper building one
+protocol event, so that every case differs only in its event list rather than
+duplicating the shape of the dictionary.
 
-`test_write_operation_finding` jest jedynym testem integracyjnym w tym pliku
-i uruchamia CLI w podprocesie, tak samo jak `tests/test_cli_output_snapshot.py`
-i `tests/test_analyze_pipeline.py`.
+`test_write_operation_finding` is the only integration test in this file and
+runs the CLI in a subprocess, exactly as `tests/test_cli_output_snapshot.py`
+and `tests/test_analyze_pipeline.py` do.
 """
 
 from __future__ import annotations
@@ -30,9 +31,9 @@ FIXTURE_RELATIVE = "tests/fixtures/pcap/modbus_write_single_register.pcap"
 
 
 def _event(*, packet_number: int, session_id: int, kind: str = "write", direction: str = "request", **overrides) -> dict:
-    """Buduje jedno zdarzenie protokolu w ksztalcie `dataclasses.asdict(ModbusEvent)`.
-    Pola nieistotne dla `evaluate` maja wartosci domyslne stale, zeby kazdy
-    przypadek testowy roznil sie tylko tym, co faktycznie bada."""
+    """Builds one protocol event in the shape of `dataclasses.asdict(ModbusEvent)`.
+    Fields irrelevant to `evaluate` carry constant defaults, so that every test
+    case differs only in what it actually examines."""
     base = {
         "packet_number": packet_number,
         "session_id": session_id,
@@ -49,7 +50,7 @@ def _event(*, packet_number: int, session_id: int, kind: str = "write", directio
     return base
 
 
-# --- evaluate: zdarzenie zapisu-zadania daje dokladnie jeden finding --------
+# --- evaluate: a write request event yields exactly one finding ------------
 
 
 def test_evaluate_returns_one_finding_for_write_request_event():
@@ -61,7 +62,7 @@ def test_evaluate_returns_one_finding_for_write_request_event():
     assert findings[0]["evidence"] == {"packet_number": 1, "session_id": 0}
 
 
-# --- evaluate: zdarzenie odczytu nie daje findingu ---------------------------
+# --- evaluate: a read event yields no finding ------------------------------
 
 
 def test_evaluate_returns_empty_list_for_read_event():
@@ -72,7 +73,7 @@ def test_evaluate_returns_empty_list_for_read_event():
     assert evaluate(analysis) == []
 
 
-# --- evaluate: zdarzenie zapisu w kierunku odpowiedzi nie daje findingu -----
+# --- evaluate: a write event in the response direction yields no finding ---
 
 
 def test_evaluate_returns_empty_list_for_write_response_direction():
@@ -83,14 +84,14 @@ def test_evaluate_returns_empty_list_for_write_response_direction():
     assert evaluate(analysis) == []
 
 
-# --- evaluate: lista zdarzen pusta, bez wyjatku ------------------------------
+# --- evaluate: an empty event list, without raising ------------------------
 
 
 def test_evaluate_returns_empty_list_for_no_events():
     assert evaluate({"protocol_events": []}) == []
 
 
-# --- evaluate: brak klucza zdarzen protokolu podnosi KeyError ---------------
+# --- evaluate: a missing protocol events key raises KeyError ---------------
 
 
 def test_evaluate_raises_keyerror_without_protocol_events_key():
@@ -98,7 +99,7 @@ def test_evaluate_raises_keyerror_without_protocol_events_key():
         evaluate({})
 
 
-# --- evaluate: dowod niepusty -------------------------------------------------
+# --- evaluate: the evidence is not empty -----------------------------------
 
 
 def test_evaluate_finding_evidence_fields_are_nonempty():
@@ -113,7 +114,7 @@ def test_evaluate_finding_evidence_fields_are_nonempty():
     assert evidence["session_id"] == 2
 
 
-# --- evaluate: dwa zdarzenia o tym samym numerze pakietu, dwa findingi ------
+# --- evaluate: two events with the same packet number, two findings --------
 
 
 def test_evaluate_two_events_with_same_packet_number_yield_two_findings():
@@ -131,7 +132,7 @@ def test_evaluate_two_events_with_same_packet_number_yield_two_findings():
     assert findings[1]["evidence"] == {"packet_number": 7, "session_id": 0}
 
 
-# --- run_checks: porzadek sortowania findingow -------------------------------
+# --- run_checks: the sort order of the findings ----------------------------
 
 
 def test_run_checks_orders_findings_by_check_id_session_id_packet_number():
@@ -158,7 +159,7 @@ def test_run_checks_orders_findings_by_check_id_session_id_packet_number():
     ]
 
 
-# --- Evidence: brak pola na surowe bajty ladunku, wlasnosc typu (T-2-06) ----
+# --- Evidence: no field for raw payload bytes, a property of the type (T-2-06) ---
 
 
 def test_evidence_rejects_raw_payload_keyword():
@@ -166,7 +167,7 @@ def test_evidence_rejects_raw_payload_keyword():
         Evidence(packet_number=1, session_id=0, payload=b"\x00\x01")
 
 
-# --- Test integracyjny: fixture z zapisem daje jeden finding -----------------
+# --- Integration test: the write fixture yields one finding ----------------
 
 
 def test_write_operation_finding(tmp_path):

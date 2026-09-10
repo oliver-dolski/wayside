@@ -1,10 +1,10 @@
-"""Bramka maszynowa INGEST-04: prog okna wobec zmierzonego odstepu odpytywania
-Modbus, przypadek pozytywny i negatywny.
+"""Machine gate INGEST-04: the window threshold against the measured Modbus
+polling interval, a positive and a negative case.
 
-W calosci jednostkowa, bez subprocessu i bez pliku pcap - zdarzenia sa
-budowane jako slowniki w tym samym ksztalcie co `analysis["protocol_events"]`,
-przez funkcje pomocnicza na gorze pliku, ten sam wzorzec zwiezlosci co
-`tests/test_risk_rubric.py` nad czysta funkcja.
+Entirely a unit test, without a subprocess and without a pcap file - the
+events are built as dictionaries in the same shape as
+`analysis["protocol_events"]`, by the helper at the top of the file, the same
+pattern of brevity as `tests/test_risk_rubric.py` over a pure function.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ from wayside.coverage import (
 
 
 def _event(*, session_id: int, timestamp: float, direction: str = "request") -> dict:
-    """Buduje jeden zdarzenie w ksztalcie `analysis["protocol_events"]`,
-    ograniczone do pol, ktore `measure_polling_cycles` faktycznie czyta."""
+    """Builds one event in the shape of `analysis["protocol_events"]`, limited
+    to the fields `measure_polling_cycles` actually reads."""
     return {
         "session_id": session_id,
         "timestamp": timestamp,
@@ -29,7 +29,7 @@ def _event(*, session_id: int, timestamp: float, direction: str = "request") -> 
     }
 
 
-# --- measure_polling_cycles: przypadki brzegowe pustego i jednoelementowego wejscia ---
+# --- measure_polling_cycles: the empty and single-element input edge cases ---
 
 
 def test_measure_polling_cycles_on_empty_list_returns_empty_list():
@@ -41,7 +41,7 @@ def test_measure_polling_cycles_on_single_request_returns_empty_list():
     assert measure_polling_cycles(events) == []
 
 
-# --- measure_polling_cycles: dwa zadania w jednej sesji ---
+# --- measure_polling_cycles: two requests in one session ---
 
 
 def test_measure_polling_cycles_on_two_requests_returns_one_entry_with_measured_gap():
@@ -69,7 +69,7 @@ def test_measure_polling_cycles_ignores_response_events():
 
 
 def test_measure_polling_cycles_returns_longest_gap_for_unequal_intervals():
-    # Odstepy: 1.0, 5.0, 2.0 - najdluzszy jest 5.0, nie ostatni ani sredni.
+    # Intervals: 1.0, 5.0, 2.0 - the longest is 5.0, neither the last nor the mean.
     events = [
         _event(session_id=0, timestamp=0.0),
         _event(session_id=0, timestamp=1.0),
@@ -99,7 +99,7 @@ def test_min_requests_for_cycle_is_two():
     assert MIN_REQUESTS_FOR_CYCLE == 2
 
 
-# --- coverage_warnings: prog ostry, obie liczby w tresci ---
+# --- coverage_warnings: a strict threshold, both numbers in the text ---
 
 
 def test_coverage_warnings_below_threshold_returns_one_warning_with_both_numbers():
@@ -117,15 +117,15 @@ def test_coverage_warnings_above_threshold_returns_empty_list():
 
 
 def test_coverage_warnings_exactly_at_threshold_returns_empty_list():
-    # Warunek jest OSTRY: okno rowne dokladnie mnoznik*odstep nie zapala
-    # ostrzezenia - rownosc nie jest "krotszy niz".
+    # The condition is STRICT: a window equal to exactly multiplier*interval
+    # trips no warning - equality is not "shorter than".
     cycles = [PollingCycle(session_id=0, measured_cycle_s=5.0, request_count=2)]
     window_at_threshold = POLL_CYCLE_WINDOW_MULTIPLIER * 5.0
     warnings = coverage_warnings(cycles=cycles, window_duration_s=window_at_threshold)
     assert warnings == []
 
 
-# --- coverage_warnings: przypadki brzegowe None i zero, bez wyjatku ---
+# --- coverage_warnings: the None and zero edge cases, without raising ---
 
 
 def test_coverage_warnings_with_window_none_returns_empty_list_and_no_exception():
@@ -142,7 +142,7 @@ def test_coverage_warnings_on_empty_cycles_returns_empty_list():
     assert coverage_warnings(cycles=[], window_duration_s=5.01) == []
 
 
-# --- build_coverage_section: forma sekcji analysis["coverage"] ---
+# --- build_coverage_section: the form of the analysis["coverage"] section ---
 
 
 def test_build_coverage_section_carries_threshold_and_cycles_as_dicts():
@@ -163,17 +163,17 @@ def test_build_coverage_section_with_window_none_carries_none_and_empty_cycles()
     assert section["polling_cycles"] == []
 
 
-# --- prog wiazany z fixture'ami z checkpointu w Task 2 (03-03-PLAN.md) ------
+# --- the threshold tied to the fixtures of the Task 2 checkpoint (03-03-PLAN.md) ---
 
 
 def test_threshold_fires_warning_on_short_window_fixture_numbers_and_not_on_full_window():
-    # `modbus_poll_cycle_short_window.pcap`: okno 5.01 s, odstep 5.0 s -
-    # zapala ostrzezenie dla mnoznika wybranego w checkpoincie (mnoznik-2).
+    # `modbus_poll_cycle_short_window.pcap`: a 5.01 s window, a 5.0 s interval -
+    # it trips the warning for the multiplier chosen at the checkpoint (2x).
     short_window_cycles = [PollingCycle(session_id=0, measured_cycle_s=5.0, request_count=2)]
     assert coverage_warnings(cycles=short_window_cycles, window_duration_s=5.01) != []
 
-    # `modbus_poll_cycle_full_window.pcap`: okno 5.01 s, odstep 1.0 s - nie
-    # zapala ostrzezenia. Ta polowa testu jest ta, bez ktorej warunek zawsze
-    # prawdziwy przeszedlby niezauwazony.
+    # `modbus_poll_cycle_full_window.pcap`: a 5.01 s window, a 1.0 s interval -
+    # it trips no warning. This half of the test is the one without which an
+    # always-true condition would go unnoticed.
     full_window_cycles = [PollingCycle(session_id=0, measured_cycle_s=1.0, request_count=6)]
     assert coverage_warnings(cycles=full_window_cycles, window_duration_s=5.01) == []

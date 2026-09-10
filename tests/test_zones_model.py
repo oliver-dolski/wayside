@@ -1,10 +1,10 @@
-"""Bramka STD-06: model strefy jest wypelniony przed powolaniem na wymaganie
-systemowe.
+"""Gate STD-06: the zone model is populated before a citation of a system
+requirement is made.
 
-`resolve` z modelem o pustej liscie stref podnosi `StandardsError`, a model
-wypelniony zwraca powolanie - to jest cale maszynowe znaczenie STD-06: model
-strefy istnieje wypelniony PRZED powolaniem, bo bez niego powolanie w ogole
-nie powstaje.
+`resolve` with a model carrying an empty zone list raises `StandardsError`,
+and a populated model returns a citation - that is the entire machine meaning
+of STD-06: the zone model exists populated BEFORE the citation, because
+without it the citation does not come into being at all.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from wayside.standards import mapper
 from wayside.zones import DEFAULT_CONDUIT_ID, DEFAULT_ZONE_ID, build_zone_model
 
 
-# --- build_zone_model: jedna strefa, jeden kanal, oba provisional -----------
+# --- build_zone_model: one zone, one conduit, both provisional --------------
 
 
 def test_build_zone_model_returns_exactly_one_zone_and_one_conduit():
@@ -72,7 +72,7 @@ def test_build_zone_model_on_no_observed_traffic_still_returns_provisional_place
     assert model["zones"][0]["provisional"] is True
 
 
-# --- resolve: model strefy wymagany PRZED powolaniem (STD-06) ---------------
+# --- resolve: the zone model required BEFORE the citation (STD-06) ---------
 
 
 def test_resolve_with_empty_zones_list_raises_standards_error():

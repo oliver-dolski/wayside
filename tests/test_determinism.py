@@ -1,21 +1,21 @@
-"""Bramka maszynowa REPORT-06/REPORT-04: determinizm miedzy-przebiegowy
+"""Machine gate REPORT-06/REPORT-04: cross-run determinism of
 `analysis.json` (plan 02-05).
 
-`test_analysis_json_byte_identical` jest nazwa z kontraktu wymaganie-na-test
-z `02-VALIDATION.md` - nie jest zmieniana. Kryterium 5 fazy i D-02 wymagaja
-wyjscia bajtowo identycznego w dwoch przebiegach, porownanego BEZ zadnej
-maski i bez pomijania zadnego pola - `Path.read_bytes()` i rownosc, nigdy
-normalizacja ani diff strukturalny.
+`test_analysis_json_byte_identical` is a name from the requirement-to-test
+contract of `02-VALIDATION.md` - it does not change. Criterion 5 of the phase
+and D-02 demand output that is byte identical across two runs, compared
+WITHOUT any mask and without skipping any field - `Path.read_bytes()` and
+equality, never normalization nor a structural diff.
 
-Trzy wymiary niedeterminizmu nazwane z gory przez badanie (02-RESEARCH.md,
-Pitfall 5) maja kazdy osobny test: ziarno hashowania procesu
-(`PYTHONHASHSEED`), katalog uruchomienia (`cwd`) i kolejnosc systemu plikow
-(posrednio - dwa przebiegi wystarczaja, gdy odkrywanie jest posortowane).
+The three dimensions of non-determinism named up front by the research
+(02-RESEARCH.md, Pitfall 5) each get their own test: the process hash seed
+(`PYTHONHASHSEED`), the working directory (`cwd`) and file system order
+(indirectly - two runs suffice once discovery is sorted).
 
-Nie zestawiamy przebiegu z plikiem zacommitowanym w repozytorium: `*
-text=auto` w `.gitattributes` przepuszcza pliki tekstowe przez normalizacje
-konca linii przy checkoucie, wiec takie porownanie zestawialoby dwie rzeczy,
-z ktorych jedna przeszla przez gita, a nie dwa swiezo wygenerowane artefakty.
+We do not compare a run against a file committed to the repository: `*
+text=auto` in `.gitattributes` puts text files through line ending
+normalization at checkout, so such a comparison would put two things side by
+side where one went through git, rather than two freshly generated artifacts.
 """
 
 from __future__ import annotations
@@ -54,38 +54,36 @@ FIXTURES: dict[str, Path] = {
     "empty": FIXTURE_EMPTY,
     "pcapng": FIXTURE_PCAPNG,
     "rtu_over_tcp": FIXTURE_RTU_OVER_TCP,
-    # Fixture bramy wchodzi tu jako pierwszy z fazy 3 nie dlatego, ze jest
-    # nowy, tylko dlatego, ze jako jedyny buduje zbior `unit_ids` - a zbior
-    # jest ta struktura, ktora rozjezdza sie miedzy przebiegami najlatwiej.
-    # Reszta fazy przechodzi przez te sama sciezke serializacji, wiec bez
-    # tych trzech pozycji bramka determinizmu pilnowala kodu z fazy 2.
+    # The gateway fixture enters here as the first one from phase 3 not
+    # because it is new, but because it is the only one that builds the
+    # `unit_ids` set - and a set is the structure that drifts between runs
+    # most easily. The rest of the phase goes through the same serialization
+    # path, so without these three entries the determinism gate was guarding
+    # phase 2 code.
     "gateway": FIXTURE_GATEWAY,
     "handshake": FIXTURE_HANDSHAKE,
     "snaplen": FIXTURE_SNAPLEN,
-    # Fixture jawnotekstowy (plan 04-02): trzy dissectory nowe w tej fazie
-    # przechodza przez te sama sciezke serializacji zdarzen protokolu co
-    # Modbus - bez tego wpisu bramka determinizmu pilnuje kodu z faz
-    # poprzednich, nie kodu Fazy 4 (luka W-2 z weryfikacji Fazy 3).
+    # The cleartext fixture (plan 04-02): the three dissectors new in this
+    # phase go through the same protocol event serialization path as Modbus -
+    # without this entry the determinism gate guards the code of earlier
+    # phases rather than the code of Phase 4 (gap W-2 of the Phase 3
+    # verification).
     "cleartext": FIXTURE_CLEARTEXT,
-    # Fixture sesji zlozonej wylacznie z odczytow (plan 04-04): przypadek
-    # rozdzielajacy CHECK-05 od CHECK-04, przechodzi przez ta sama sciezke
-    # serializacji zdarzen protokolu Modbus co fixture bazowy.
+    # The read-only session fixture (plan 04-04): the case that separates
+    # CHECK-05 from CHECK-04, going through the same Modbus protocol event
+    # serialization path as the base fixture.
     "read_only_session": FIXTURE_READ_ONLY_SESSION,
 }
 
-# Linia znacznika czasu wygenerowania raportu (D-02) - jedyna dopuszczalna
-# roznica miedzy dwoma przebiegami `report.md`.
+# The report generation timestamp line (D-02) - the only difference allowed
+# between two runs of `report.md`.
 _GENERATED_AT_LINE_PATTERN = re.compile(r"^Generated:.*$", flags=re.MULTILINE)
 
-# Sekwencja escape JSON dla znaku spoza ASCII (`\uXXXX`) - jej brak w
-# bajtach `analysis.json` dowodzi, ze `ensure_ascii=False` faktycznie
-# dziala, nie tylko jest ustawione w kodzie.
+# The JSON escape sequence for a character outside ASCII (`\uXXXX`) - its
+# absence from the bytes of `analysis.json` proves `ensure_ascii=False` really
+# works rather than merely being set in the code.
 _UNICODE_ESCAPE_PATTERN = re.compile(rb"\\u[0-9a-fA-F]{4}")
 
-# Kilka polskich znakow diakrytycznych z parafrazy katalogu norm
-# (`src/wayside/standards/iec62443-3-3/catalog.yaml`) - obecnosc w
-# odczytanym tekscie dowodzi, ze tresc naprawde przeszla przez potok, a
-# test kodowania nie jest pusty (D-02/STD-01, edge: encoding).
 # A probe carrying characters outside ASCII, in the shape the pipeline
 # actually meets them: vendor names from the IEEE OUI registry. It is a
 # constant of this test rather than a value read from a fixture, because
@@ -101,10 +99,10 @@ def _run_analyze(
     env_overrides: dict[str, str | None] | None = None,
     cwd: Path | None = None,
 ) -> tuple[Path, Path]:
-    """Uruchamia `wayside analyze` w podprocesie i zwraca sciezki obu
-    artefaktow. `fixture` i `out_dir` sa zawsze bezwzgledne, zeby wynik nie
-    zalezal od `cwd` przekazanego wywolujacemu - to WLASNIE `cwd` jest tu
-    zmienna niezalezna w testach katalogu roboczego."""
+    """Runs `wayside analyze` in a subprocess and returns the paths of both
+    artifacts. `fixture` and `out_dir` are always absolute, so that the result
+    does not depend on the `cwd` passed by the caller - `cwd` is PRECISELY the
+    independent variable in the working directory tests."""
     assert fixture.is_absolute()
     assert out_dir.is_absolute()
 
@@ -131,7 +129,7 @@ def _run_analyze(
         env=env,
     )
     assert result.returncode == 0, (
-        f"wayside analyze nie zwrocilo kodu 0: stdout={result.stdout!r} "
+        f"wayside analyze did not return code 0: stdout={result.stdout!r} "
         f"stderr={result.stderr!r}"
     )
     return out_dir / "analysis.json", out_dir / "report.md"
@@ -141,20 +139,20 @@ def _strip_generated_at_line(report_text: str) -> str:
     return _GENERATED_AT_LINE_PATTERN.sub("", report_text)
 
 
-# --- Kontrakt wymaganie-na-test: nazwa z 02-VALIDATION.md, bez masek -----------
+# --- The requirement-to-test contract: the name from 02-VALIDATION.md, no masks ---
 
 
 def test_analysis_json_byte_identical(tmp_path):
-    """Dwa przebiegi na tym samym zrzucie, do dwoch roznych katalogow
-    wyjsciowych, daja `analysis.json` o identycznych bajtach - porownanie
-    idzie przez `Path.read_bytes()` i rownosc, bez zadnej normalizacji."""
+    """Two runs over the same capture, into two different output directories,
+    yield an `analysis.json` with identical bytes - the comparison goes through
+    `Path.read_bytes()` and equality, without any normalization."""
     analysis_a, _ = _run_analyze(FIXTURE_WRITE, tmp_path / "run_a")
     analysis_b, _ = _run_analyze(FIXTURE_WRITE, tmp_path / "run_b")
 
     assert analysis_a.read_bytes() == analysis_b.read_bytes()
 
 
-# --- To samo dla zrzutu bez pakietow i dla formatu pcapng ----------------------
+# --- The same for a capture without packets and for the pcapng format ------
 
 
 @pytest.mark.parametrize("fixture_name", sorted(FIXTURES))
@@ -166,7 +164,7 @@ def test_analysis_json_byte_identical_across_fixtures(fixture_name, tmp_path):
     assert analysis_a.read_bytes() == analysis_b.read_bytes()
 
 
-# --- Ziarno hashowania procesu (02-RESEARCH.md, Pitfall 5) ---------------------
+# --- The process hash seed (02-RESEARCH.md, Pitfall 5) ---------------------
 
 
 @pytest.mark.parametrize("fixture_name", sorted(FIXTURES))
@@ -182,15 +180,16 @@ def test_analysis_json_byte_identical_across_pythonhashseed(fixture_name, tmp_pa
     assert analysis_a.read_bytes() == analysis_b.read_bytes()
 
 
-# --- Katalog uruchomienia -------------------------------------------------------
+# --- The working directory -------------------------------------------------
 
 
 @pytest.mark.parametrize("fixture_name", sorted(FIXTURES))
 def test_analysis_json_byte_identical_across_working_directory(fixture_name, tmp_path):
-    """Dowodzi, ze `checks.engine.CHECKS_ROOT` i `standards.mapper.CATALOG_ROOT`
-    sa rozwiazywane wobec pakietu, nie wobec `cwd` procesu - `cwd_a` jest
-    korzeniem repo (jak w kazdym innym tescie), `cwd_b` jest katalogiem
-    tymczasowym niepowiazanym z repo."""
+    """Proves that `checks.engine.CHECKS_ROOT` and
+    `standards.mapper.CATALOG_ROOT` are resolved against the package rather
+    than against the process's `cwd` - `cwd_a` is the repository root (as in
+    every other test), `cwd_b` is a temporary directory unrelated to the
+    repository."""
     fixture = FIXTURES[fixture_name]
     cwd_a = REPO_ROOT
     cwd_b = tmp_path / "elsewhere"
@@ -203,10 +202,10 @@ def test_analysis_json_byte_identical_across_working_directory(fixture_name, tmp
     bytes_b = analysis_b.read_bytes()
     assert bytes_a == bytes_b
 
-    # Sekcja `capture` nie niesie pola zaleznego od katalogu uruchomienia:
-    # ani sciezka katalogu tymczasowego `cwd_b`, ani `cwd_a` nie pojawiaja
-    # sie nigdzie w tresci - jedynym identyfikatorem pliku jest nazwa i
-    # suma sha256.
+    # The `capture` section carries no field dependent on the working
+    # directory: neither the path of the temporary `cwd_b` nor `cwd_a` appears
+    # anywhere in the content - the only identifier of the file is its name
+    # and its sha256 sum.
     text_a = bytes_a.decode("utf-8")
     assert str(cwd_b) not in text_a
     assert str(tmp_path) not in text_a
@@ -216,7 +215,7 @@ def test_analysis_json_byte_identical_across_working_directory(fixture_name, tmp
     assert os.sep not in capture["filename"]
 
 
-# --- Zrzut strukturalnie pusty: JSON poprawny, nie plik zerowej dlugosci ------
+# --- A structurally empty capture: valid JSON, not a zero-length file ------
 
 
 def test_empty_fixture_analysis_json_is_nonzero_length_with_empty_lists(tmp_path):
@@ -259,7 +258,7 @@ def test_dump_deterministic_writes_non_ascii_as_characters_not_escapes():
     assert "\\u" not in text
 
 
-# --- Asymetria D-02: report.md rozni sie WYLACZNIE linia znacznika czasu -----
+# --- The D-02 asymmetry: report.md differs ONLY by the timestamp line ------
 
 
 def test_report_markdown_differs_only_by_generated_at_line(tmp_path):
@@ -269,9 +268,10 @@ def test_report_markdown_differs_only_by_generated_at_line(tmp_path):
     text_a = report_a.read_text(encoding="utf-8")
     text_b = report_b.read_text(encoding="utf-8")
 
-    # Same tresci - dwa przebiegi z domyslnym `generated_at=datetime.now()`
-    # praktycznie nigdy nie beda mialy identycznej linii znacznika czasu -
-    # ten test istnieje wlasnie po to, zeby udowodnic, ze to JEDYNA roznica.
+    # The contents themselves - two runs with the default
+    # `generated_at=datetime.now()` will practically never carry an identical
+    # timestamp line, and this test exists precisely to prove that is the ONLY
+    # difference.
     assert text_a != text_b
 
     assert _strip_generated_at_line(text_a) == _strip_generated_at_line(text_b)

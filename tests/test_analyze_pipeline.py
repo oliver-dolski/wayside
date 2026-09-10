@@ -1,11 +1,12 @@
-"""Test integracyjny INGEST-01/REPORT-04: pelny potok od pliku pcap do dwoch
-artefaktow (`analysis.json`, `report.md`), pokrywajacy punkty z bloku
-`<behavior>` zadania 1 planu 02-01 oraz zadania 3 planu 02-02 (kontrakt D-01:
-zrzut obciety kontra zrzut legalnie pusty, oba formaty z INGEST-01).
+"""Integration test INGEST-01/REPORT-04: the full pipeline from a pcap file to
+the two artifacts (`analysis.json`, `report.md`), covering the points of the
+`<behavior>` block of task 1 of plan 02-01 and task 3 of plan 02-02 (the D-01
+contract: a truncated capture versus a legitimately empty one, both formats of
+INGEST-01).
 
-Wzorzec identyczny jak w `tests/test_cli_output_snapshot.py`: subprocess na
-module CLI, sciezka fixture WZGLEDNA wobec `REPO_ROOT` (nigdy bezwzgledna -
-rozjazd CI vs lokalnie), katalog wyjsciowy w `tmp_path`.
+The pattern is identical to `tests/test_cli_output_snapshot.py`: a subprocess
+over the CLI module, the fixture path RELATIVE to `REPO_ROOT` (never absolute -
+that drifts between CI and local runs), the output directory in `tmp_path`.
 """
 
 from __future__ import annotations
@@ -49,9 +50,10 @@ def _run_analyze_path(fixture_relative: str, out_dir: Path) -> subprocess.Comple
         ],
         cwd=REPO_ROOT,
         capture_output=True,
-        # Jawne UTF-8 zamiast `text=True`: narzedzie wymusza UTF-8 na wlasnym
-        # wyjsciu (`cli._force_utf8_output`), wiec odczyt w kodowaniu domyslnym
-        # maszyny przekłamywalby polskie znaki w komunikatach. Ten sam idiom, co
+        # An explicit UTF-8 instead of `text=True`: the tool forces UTF-8 on
+        # its own output (`cli._force_utf8_output`), so reading it in the
+        # machine's default encoding would garble any character outside ASCII
+        # in the messages. The same idiom as
         # `tests/test_history_audit.py::_run_git`.
         encoding="utf-8",
         errors="replace",
@@ -86,13 +88,14 @@ def test_analyze_exits_zero_and_writes_both_artifacts(tmp_path):
 
 
 def test_analysis_json_has_exactly_two_findings_with_expected_evidence(tmp_path):
-    """Fixture bazowy niesie zapis do sterownika przez Modbus/TCP, wiec od
-    planu 04-04 daje DWA findingi: jeden z checka za zapis
-    (`modbus-unauthenticated-write`) i jeden z checka za uzycie protokolu
-    bez uwierzytelnienia (`unauthenticated-industrial-protocol`). Finding
-    checka za zapis jest odczytywany po identyfikatorze checka, nie po
-    pozycji na liscie - test odczytujacy po pozycji zaczerwienilby sie przy
-    kazdym kolejnym checku dopisanym do rejestru."""
+    """The base fixture carries a write to a controller over Modbus/TCP, so
+    since plan 04-04 it yields TWO findings: one from the write check
+    (`modbus-unauthenticated-write`) and one from the check for using a
+    protocol without authentication
+    (`unauthenticated-industrial-protocol`). The write check finding is read
+    by check identifier rather than by position in the list - a test reading
+    by position would turn red at every further check added to the
+    registry."""
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     analysis = _load_analysis(tmp_path)
@@ -111,10 +114,10 @@ def test_analysis_json_has_exactly_two_findings_with_expected_evidence(tmp_path)
 
 
 def test_finding_evidence_carries_endpoint_pair_matching_comm_matrix_row(tmp_path):
-    """G-04-5b: dowod findingu z prawdziwego przebiegu ma cztery klucze, i
-    para adresow zgadza sie z wierszem macierzy komunikacji tej samej sesji -
-    para adresow dopisywana przez silnik checkow, nie przez check ani przez
-    warstwe potoku."""
+    """G-04-5b: the evidence of a finding from a real run carries four keys,
+    and the address pair matches the communication matrix row of the same
+    session - the address pair is added by the check engine, not by a check
+    nor by the pipeline layer."""
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     analysis = _load_analysis(tmp_path)
@@ -187,7 +190,7 @@ def test_report_markdown_carries_evidence_and_unverified_marker(tmp_path):
     assert "UNVERIFIED" in report_text
 
 
-# --- D-01: zrzut obciety konczy sie kodem != 0, bez tracebacku, bez artefaktow ---
+# --- D-01: a truncated capture exits non-zero, no traceback, no artifacts ---
 
 
 def test_truncated_mid_record_pcap_exits_with_truncated_code_and_no_artifacts(tmp_path):
@@ -206,7 +209,7 @@ def test_truncated_mid_block_pcapng_exits_with_truncated_code(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-# --- D-01: zrzut strukturalnie pusty konczy sie kodem 0, z jawnym ostrzezeniem ---
+# --- D-01: a structurally empty capture exits 0, with an explicit warning ---
 
 
 def test_empty_valid_header_exits_zero_with_warning_and_empty_lists(tmp_path):
@@ -226,10 +229,10 @@ def test_empty_valid_header_exits_zero_with_warning_and_empty_lists(tmp_path):
     assert headers == list(SECTIONS)
     assert "No findings in this run." in report_text
 
-    ograniczenia_start = report_text.index("## Limitations")
-    findingi_start = report_text.index("## Findings")
-    ograniczenia_section = report_text[ograniczenia_start:findingi_start]
-    assert "contains no packets at all" in ograniczenia_section
+    limitations_start = report_text.index("## Limitations")
+    findings_start = report_text.index("## Findings")
+    limitations_section = report_text[limitations_start:findings_start]
+    assert "contains no packets at all" in limitations_section
 
 
 # --- D-01/INGEST-01: fixture pcapng przechodzi caly potok jak fixture klasyczny ---
@@ -268,7 +271,7 @@ def test_nonexistent_path_exits_with_unreadable_code(tmp_path):
     assert result.returncode == 2, result.stdout + result.stderr
 
 
-# --- ASSET-01/ASSET-03: inwentarz w analysis.json (plan 03-01, Task 1) --------
+# --- ASSET-01/ASSET-03: the inventory in analysis.json (plan 03-01, Task 1) ---
 
 
 def test_assets_has_two_hosts_in_first_seen_order_with_observed_mac(tmp_path):
@@ -320,7 +323,7 @@ def test_capture_section_has_snaplen_for_pcapng_fixture(tmp_path):
 # --- REPORT-01/ASSET-01: sekcja Inwentarz w report.md (plan 03-01, Task 1) ---
 
 
-def test_report_markdown_has_eight_sections_with_macierz_after_inwentarz(tmp_path):
+def test_report_markdown_has_eight_sections_with_matrix_after_inventory(tmp_path):
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
@@ -334,77 +337,78 @@ def test_report_markdown_has_eight_sections_with_macierz_after_inwentarz(tmp_pat
     assert SECTIONS.index("Communication matrix") == SECTIONS.index("Asset inventory") + 1
 
 
-def test_report_markdown_inwentarz_section_carries_both_hosts_and_provenance(tmp_path):
+def test_report_markdown_inventory_section_carries_both_hosts_and_provenance(tmp_path):
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    inwentarz_start = report_text.index("## Asset inventory")
-    ograniczenia_start = report_text.index("## Limitations")
-    inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
+    inventory_start = report_text.index("## Asset inventory")
+    limitations_start = report_text.index("## Limitations")
+    inventory_section = report_text[inventory_start:limitations_start]
 
-    assert "192.0.2.10" in inwentarz_section
-    assert "192.0.2.20" in inwentarz_section
-    assert "02:00:00:00:00:01" in inwentarz_section
-    assert "02:00:00:00:00:02" in inwentarz_section
-    assert "observed" in inwentarz_section
+    assert "192.0.2.10" in inventory_section
+    assert "192.0.2.20" in inventory_section
+    assert "02:00:00:00:00:01" in inventory_section
+    assert "02:00:00:00:00:02" in inventory_section
+    assert "observed" in inventory_section
 
 
-def test_report_markdown_zakres_section_carries_window_and_snaplen(tmp_path):
+def test_report_markdown_scope_section_carries_window_and_snaplen(tmp_path):
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Scope")
-    metodyka_start = report_text.index("## Methodology")
-    zakres_section = report_text[zakres_start:metodyka_start]
+    scope_start = report_text.index("## Scope")
+    methodology_start = report_text.index("## Methodology")
+    scope_section = report_text[scope_start:methodology_start]
 
-    assert "Snaplen" in zakres_section
-    assert "Capture time window" in zakres_section
+    assert "Snaplen" in scope_section
+    assert "Capture time window" in scope_section
 
 
-def test_report_markdown_zakres_section_names_recognized_protocol_from_data(tmp_path):
-    """PROTO-05: sekcja Zakres wymienia protokol faktycznie rozpoznany w tym
-    zrzucie, budowany z `analysis["protocol_events"]`, nie z zamknietej listy
-    stalych (04-RESEARCH.md, Pitfall 4)."""
+def test_report_markdown_scope_section_names_recognized_protocol_from_data(tmp_path):
+    """PROTO-05: the Scope section names the protocol actually recognized in
+    this capture, built from `analysis["protocol_events"]` rather than from a
+    closed list of constants (04-RESEARCH.md, Pitfall 4)."""
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Scope")
-    metodyka_start = report_text.index("## Methodology")
-    zakres_section = report_text[zakres_start:metodyka_start]
+    scope_start = report_text.index("## Scope")
+    methodology_start = report_text.index("## Methodology")
+    scope_section = report_text[scope_start:methodology_start]
 
-    assert "modbus-tcp" in zakres_section
+    assert "modbus-tcp" in scope_section
 
 
-def test_report_markdown_zakres_section_names_no_protocol_recognized_for_empty_dump(tmp_path):
-    """Zrzut bez ani jednego zdarzenia protokolu dostaje zdanie o braku
-    rozpoznania, nie zdanie o zerowej liczbie protokolow (Pitfall 4)."""
+def test_report_markdown_scope_section_names_no_protocol_recognized_for_empty_dump(tmp_path):
+    """A capture without a single protocol event gets a sentence about nothing
+    being recognized, not a sentence about a protocol count of zero
+    (Pitfall 4)."""
     result = _run_analyze_path(FIXTURE_EMPTY_HEADER, tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Scope")
-    metodyka_start = report_text.index("## Methodology")
-    zakres_section = report_text[zakres_start:metodyka_start]
+    scope_start = report_text.index("## Scope")
+    methodology_start = report_text.index("## Methodology")
+    scope_section = report_text[scope_start:methodology_start]
 
-    assert "No application protocol was recognised in this capture" in zakres_section
+    assert "No application protocol was recognised in this capture" in scope_section
 
 
-def test_report_markdown_zakres_section_no_longer_claims_single_protocol_exclusivity(tmp_path):
-    """Regresja Pitfall 4: sekcja Zakres nie twierdzi, ze analiza obejmuje
-    wylacznie jeden protokol - bez tego testu twierdzenie wraca przy
-    nastepnej edycji szablonu."""
+def test_report_markdown_scope_section_no_longer_claims_single_protocol_exclusivity(tmp_path):
+    """Pitfall 4 regression: the Scope section does not claim the analysis
+    covers one protocol only - without this test the claim comes back at the
+    next edit of the template."""
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Scope")
-    metodyka_start = report_text.index("## Methodology")
-    zakres_section = report_text[zakres_start:metodyka_start]
+    scope_start = report_text.index("## Scope")
+    methodology_start = report_text.index("## Methodology")
+    scope_section = report_text[scope_start:methodology_start]
 
-    assert "covers only the protocol" not in zakres_section
+    assert "covers only the protocol" not in scope_section
 
 
 # --- INGEST-05: zrzut uszkodzony strukturalnie, rozny od zrzutu obcietego ---
@@ -420,8 +424,8 @@ def test_corrupted_record_length_exits_with_corrupt_code_and_no_artifacts(tmp_pa
 
 
 def test_truncated_still_exits_with_truncated_code_after_corrupt_introduced(tmp_path):
-    # Regresja: przeklasyfikowanie trzech warunkow na CaptureCorruptError nie
-    # przesuwa sciezki bledu obciecia strumienia (Z-11).
+    # Regression: reclassifying the three conditions onto CaptureCorruptError
+    # does not move the stream truncation error path (Z-11).
     result = _run_analyze_path(FIXTURE_TRUNCATED_RECORD, tmp_path)
     assert result.returncode == 3, result.stdout + result.stderr
 
@@ -537,7 +541,7 @@ def test_cli_emits_non_ascii_as_characters_under_foreign_environment_encoding(
     assert "\\u" not in report_text
 
 
-# --- INGEST-03: ostrzezenie o ramkach ucietych przez snaplen (plan 03-03, Task 1) ---
+# --- INGEST-03: the warning about frames cut off by snaplen (plan 03-03, Task 1) ---
 
 
 def test_snaplen_truncation_produces_named_warning(tmp_path):
@@ -573,20 +577,20 @@ def test_two_runs_on_snaplen_truncated_fixture_give_byte_identical_analysis_json
     assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()
 
 
-def test_report_zakres_section_states_snaplen_truncated_frame_count(tmp_path):
+def test_report_scope_section_states_snaplen_truncated_frame_count(tmp_path):
     result = _run_analyze_path(FIXTURE_SNAPLEN_TRUNCATED, tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Scope")
-    metodyka_start = report_text.index("## Methodology")
-    zakres_section = report_text[zakres_start:metodyka_start]
+    scope_start = report_text.index("## Scope")
+    methodology_start = report_text.index("## Methodology")
+    scope_section = report_text[scope_start:methodology_start]
 
-    assert "Frames truncated by snaplen: 2" in zakres_section
+    assert "Frames truncated by snaplen: 2" in scope_section
 
 
-# --- INGEST-04: ostrzezenie o oknie zrzutu krotszym niz prog wobec ---------
-# --- zmierzonego odstepu odpytywania (plan 03-03, Task 3) ------------------
+# --- INGEST-04: the warning about a capture window shorter than the -------
+# --- threshold against the measured polling interval (plan 03-03, Task 3) --
 
 
 def test_poll_cycle_short_window_produces_coverage_warning_with_both_numbers(tmp_path):
@@ -603,28 +607,28 @@ def test_poll_cycle_short_window_produces_coverage_warning_with_both_numbers(tmp
 
 
 def test_poll_cycle_full_window_produces_no_cycle_warning(tmp_path):
-    # Ta polowa jest ta, bez ktorej warunek zawsze prawdziwy przeszedlby
-    # niezauwazony: okno obejmujace wiele powtorzen cyklu NIE zapala
-    # ostrzezenia o odstepie miedzy zadaniami.
+    # This is the half without which an always-true condition would go
+    # unnoticed: a window covering many repetitions of the cycle trips NO
+    # warning about the interval between requests.
     result = _run_analyze_path(FIXTURE_POLL_CYCLE_FULL_WINDOW, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "odstep miedzy" not in result.stderr
+    assert "interval between consecutive requests" not in result.stderr
 
 
-def test_empty_valid_header_report_inwentarz_section_states_no_host(tmp_path):
+def test_empty_valid_header_report_inventory_section_states_no_host(tmp_path):
     result = _run_analyze_path(FIXTURE_EMPTY_HEADER, tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    inwentarz_start = report_text.index("## Asset inventory")
-    ograniczenia_start = report_text.index("## Limitations")
-    inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
+    inventory_start = report_text.index("## Asset inventory")
+    limitations_start = report_text.index("## Limitations")
+    inventory_section = report_text[inventory_start:limitations_start]
 
-    assert inwentarz_section.strip() != ""
+    assert inventory_section.strip() != ""
 
 
-# --- PROTO-03: Modbus RTU tunelowany po TCP rozdzielony strukturalnie od ---
-# --- protocol_events, zero findingow (plan 03-04, Task 3) ------------------
+# --- PROTO-03: Modbus RTU over TCP separated structurally from ------------
+# --- protocol_events, zero findings (plan 03-04, Task 3) ------------------
 
 
 def test_rtu_over_tcp_fixture_has_two_low_confidence_events_and_empty_protocol_events(
@@ -639,10 +643,10 @@ def test_rtu_over_tcp_fixture_has_two_low_confidence_events_and_empty_protocol_e
 
 
 def test_rtu_over_tcp_fixture_has_empty_findings(tmp_path):
-    # To jest polowa, bez ktorej rozdzielenie strukturalne nie ma dowodu:
-    # jesli ktos kiedykolwiek przepnie zdarzenia o niskiej pewnosci do
-    # protocol_events, ten test zaczerwieni sie natychmiast, a test na sama
-    # dlugosc listy low_confidence_events przeszedlby dalej.
+    # This is the half without which the structural separation has no proof:
+    # if anybody ever rewires the low-confidence events into protocol_events,
+    # this test turns red immediately, while a test on the length of the
+    # low_confidence_events list alone would keep passing.
     result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     analysis = _load_analysis(tmp_path)
@@ -669,41 +673,41 @@ def test_baseline_fixture_has_empty_low_confidence_events_and_two_protocol_event
     assert len(analysis["protocol_events"]) == 2
 
 
-def test_rtu_over_tcp_report_zakres_section_states_low_confidence_count(tmp_path):
+def test_rtu_over_tcp_report_scope_section_states_low_confidence_count(tmp_path):
     result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    zakres_start = report_text.index("## Scope")
-    metodyka_start = report_text.index("## Methodology")
-    zakres_section = report_text[zakres_start:metodyka_start]
+    scope_start = report_text.index("## Scope")
+    methodology_start = report_text.index("## Methodology")
+    scope_section = report_text[scope_start:methodology_start]
 
-    assert "Events recognised with low confidence" in zakres_section
-    assert "2" in zakres_section
+    assert "Events recognised with low confidence" in scope_section
+    assert "2" in scope_section
 
 
-def test_rtu_over_tcp_report_ograniczenia_section_names_possible_false_match(tmp_path):
+def test_rtu_over_tcp_report_limitations_section_names_possible_false_match(tmp_path):
     result = _run_analyze_path(FIXTURE_RTU_OVER_TCP, tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    ograniczenia_start = report_text.index("## Limitations")
-    findingi_start = report_text.index("## Findings")
-    ograniczenia_section = report_text[ograniczenia_start:findingi_start]
+    limitations_start = report_text.index("## Limitations")
+    findings_start = report_text.index("## Findings")
+    limitations_section = report_text[limitations_start:findings_start]
 
-    assert "false checksum match" in ograniczenia_section
+    assert "false checksum match" in limitations_section
 
 
-def test_baseline_report_ograniczenia_section_lacks_false_match_sentence(tmp_path):
+def test_baseline_report_limitations_section_lacks_false_match_sentence(tmp_path):
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    ograniczenia_start = report_text.index("## Limitations")
-    findingi_start = report_text.index("## Findings")
-    ograniczenia_section = report_text[ograniczenia_start:findingi_start]
+    limitations_start = report_text.index("## Limitations")
+    findings_start = report_text.index("## Findings")
+    limitations_section = report_text[limitations_start:findings_start]
 
-    assert "false checksum match" not in ograniczenia_section
+    assert "false checksum match" not in limitations_section
 
 
 def test_two_runs_on_rtu_over_tcp_fixture_give_byte_identical_analysis_json(tmp_path):
@@ -717,7 +721,7 @@ def test_two_runs_on_rtu_over_tcp_fixture_give_byte_identical_analysis_json(tmp_
     assert (out_a / "analysis.json").read_bytes() == (out_b / "analysis.json").read_bytes()
 
 
-# --- ASSET-02: pole oui_vendor - inwentarz, raport, ostrzezenie o braku tabeli
+# --- ASSET-02: the oui_vendor field - inventory, report, missing table warning ---
 # (plan 03-05, Task 2) -------------------------------------------------------
 
 
@@ -734,23 +738,24 @@ def test_baseline_fixture_assets_carry_oui_vendor_key_with_provenance(tmp_path):
         )
 
 
-def test_report_markdown_inwentarz_section_carries_producent_bullet(tmp_path):
-    # Adresy MAC fixture'ow tego projektu sa lokalnie administrowane
-    # (zalozenie Z-03/gen_fixtures.py) - nie maja dopasowania w rejestrze
-    # IEEE niezaleznie od tego, czy tabela lezy w drzewie (Task 4, `<action>`:
-    # "producent pozostanie not determined takze z pelna tabela"). Ten test jest
-    # wiec bezpieczny wobec kazdego rozstrzygniecia checkpointu Task 3.
+def test_report_markdown_inventory_section_carries_vendor_bullet(tmp_path):
+    # The MAC addresses of this project's fixtures are locally administered
+    # (assumption Z-03/gen_fixtures.py) - they have no match in the IEEE
+    # registry regardless of whether the table sits in the tree (Task 4,
+    # `<action>`: "the vendor stays not determined even with a full table").
+    # This test is therefore safe against either outcome of the Task 3
+    # checkpoint.
     result = _run_analyze(tmp_path)
     assert result.returncode == 0, result.stderr
     report_text = (tmp_path / "report.md").read_text(encoding="utf-8")
 
-    inwentarz_start = report_text.index("## Asset inventory")
-    ograniczenia_start = report_text.index("## Limitations")
-    inwentarz_section = report_text[inwentarz_start:ograniczenia_start]
+    inventory_start = report_text.index("## Asset inventory")
+    limitations_start = report_text.index("## Limitations")
+    inventory_section = report_text[inventory_start:limitations_start]
 
-    assert "Vendor" in inwentarz_section
-    assert "not determined" in inwentarz_section
-    assert "not-derivable-passively" in inwentarz_section
+    assert "Vendor" in inventory_section
+    assert "not determined" in inventory_section
+    assert "not-derivable-passively" in inventory_section
 
 
 def test_two_runs_on_baseline_fixture_give_byte_identical_analysis_json_with_oui_vendor(
@@ -767,19 +772,19 @@ def test_two_runs_on_baseline_fixture_give_byte_identical_analysis_json_with_oui
 
 
 def test_missing_oui_table_gives_named_warning_and_analyze_still_succeeds(tmp_path, monkeypatch):
-    # Robustne wobec obu rozstrzygniec checkpointu Task 3 tego planu: zamiast
-    # polegac na faktycznej (nie)obecnosci src/wayside/assets/oui_table.tsv
-    # na dysku w chwili uruchomienia testu, ten test wymusza OuiTableError
-    # przez monkeypatch na wayside.pipeline.oui.load_oui_table - dokladnie
-    # droga, ktora Task 2 tego planu nazywa wprost jako zapasowa, gdyby
-    # tabela juz lezala w drzewie po Task 4. Wywoluje pipeline.analyze
-    # bezposrednio (nie przez subprocess CLI), bo monkeypatch nie przechodzi
-    # granicy procesu.
+    # Robust against either outcome of the Task 3 checkpoint of this plan:
+    # instead of relying on the actual presence or absence of
+    # src/wayside/assets/oui_table.tsv on disk at the moment the test runs,
+    # this test forces an OuiTableError by monkeypatching
+    # wayside.pipeline.oui.load_oui_table - exactly the route Task 2 of this
+    # plan names outright as the fallback should the table already sit in the
+    # tree after Task 4. It calls pipeline.analyze directly (not through a CLI
+    # subprocess), because a monkeypatch does not cross a process boundary.
     from wayside import pipeline as pipeline_module
 
     def _raise_oui_table_error(path=None):
         raise pipeline_module.oui.OuiTableError(
-            "tabela producentow nieobecna (wymuszone testem, Task 2 plan 03-05)"
+            "the vendor table is absent (forced by the test, Task 2 of plan 03-05)"
         )
 
     monkeypatch.setattr(pipeline_module.oui, "load_oui_table", _raise_oui_table_error)
@@ -810,8 +815,9 @@ def test_gateway_fixture_report_names_probable_gateway_with_device_count(tmp_pat
     ]
     named = [line for line in gateway_rows if "probable gateway" in line]
 
-    # Dwa hosty, ale tylko jeden z nich wystawia wiele wartosci Unit ID -
-    # zdanie o bramie ma paść dokladnie raz, nie przy kazdym wierszu.
+    # Two hosts, but only one of them exposes several Unit ID values - the
+    # sentence about a gateway is meant to appear exactly once, not on every
+    # row.
     assert len(gateway_rows) == 2
     assert len(named) == 1
     assert "3" in named[0]
@@ -912,7 +918,7 @@ def test_rtu_over_tcp_fixture_matrix_row_carries_tunnel_protocol(tmp_path):
     assert row["protocol"]["value"] == "modbus-rtu-over-tcp"
 
 
-def test_report_has_macierz_komunikacji_section_with_a_table(tmp_path):
+def test_report_has_communication_matrix_section_with_a_table(tmp_path):
     result = _run_analyze_path(FIXTURE_HANDSHAKE, tmp_path)
     assert result.returncode == 0, result.stderr
 
